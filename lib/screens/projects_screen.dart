@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../agent/agent_endpoint.dart';
+import '../agent/session_store.dart';
 import '../api/deploy_client.dart';
 import '../api/models.dart';
 import '../theme/app_colors.dart';
@@ -11,14 +12,20 @@ import '../widgets/app_panel.dart';
 import 'job_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({super.key});
+  const ProjectsScreen({
+    super.key,
+    required this.client,
+    required this.onUnauthorized,
+  });
+
+  final DeployClient client;
+  final Future<void> Function() onUnauthorized;
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
 }
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
-  late final DeployClient _client;
   List<DeployableProject> _projects = const [];
   bool _loading = true;
   bool _forceDeploy = false;
@@ -27,14 +34,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   @override
   void initState() {
     super.initState();
-    _client = DeployClient();
     unawaited(_refreshProjects());
-  }
-
-  @override
-  void dispose() {
-    _client.close();
-    super.dispose();
   }
 
   Future<void> _refreshProjects() async {
@@ -43,7 +43,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       _errorMessage = null;
     });
     try {
-      final projects = await _client.listProjects();
+      final projects = await widget.client.listProjects();
       if (!mounted) return;
       setState(() {
         _projects = projects;
@@ -51,6 +51,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       });
     } on DeployClientException catch (error) {
       if (!mounted) return;
+      if (error.isUnauthorized) {
+        await widget.onUnauthorized();
+        return;
+      }
       setState(() {
         _errorMessage =
             '${error.message}\n\nIs the Mac companion running at '
@@ -64,6 +68,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _unpair() async {
+    await SessionStore.clearToken();
+    widget.client.setBearerToken(null);
+    await widget.onUnauthorized();
   }
 
   Future<void> _confirmAndDeploy(DeployableProject project) async {
@@ -91,7 +101,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
-      final job = await _client.startDeploy(
+      final job = await widget.client.startDeploy(
         projectId: project.projectId,
         force: _forceDeploy,
       );
@@ -99,13 +109,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) => JobScreen(
-            client: _client,
+            client: widget.client,
             initialJob: job,
+            onUnauthorized: widget.onUnauthorized,
           ),
         ),
       );
     } on DeployClientException catch (error) {
       if (!mounted) return;
+      if (error.isUnauthorized) {
+        await widget.onUnauthorized();
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.message)),
       );
@@ -122,6 +137,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             tooltip: 'Refresh',
             onPressed: _loading ? null : _refreshProjects,
             icon: const Icon(Icons.refresh_rounded),
+          ),
+          IconButton(
+            tooltip: 'Unpair',
+            onPressed: () => unawaited(_unpair()),
+            icon: const Icon(Icons.link_off_rounded),
           ),
         ],
       ),

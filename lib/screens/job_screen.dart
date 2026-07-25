@@ -14,10 +14,12 @@ class JobScreen extends StatefulWidget {
     super.key,
     required this.client,
     required this.initialJob,
+    this.onUnauthorized,
   });
 
   final DeployClient client;
   final DeployJob initialJob;
+  final Future<void> Function()? onUnauthorized;
 
   @override
   State<JobScreen> createState() => _JobScreenState();
@@ -72,6 +74,15 @@ class _JobScreenState extends State<JobScreen> {
       }
     } on DeployClientException catch (error) {
       if (!mounted) return;
+      if (error.isUnauthorized) {
+        _pollTimer?.cancel();
+        final onUnauthorized = widget.onUnauthorized;
+        if (onUnauthorized != null) {
+          await onUnauthorized();
+          if (mounted) Navigator.of(context).pop();
+        }
+        return;
+      }
       setState(() => _errorMessage = error.message);
     }
   }

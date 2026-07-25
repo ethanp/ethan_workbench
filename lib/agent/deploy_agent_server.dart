@@ -8,6 +8,7 @@ import 'package:shelf_router/shelf_router.dart';
 
 import 'agent_config.dart';
 import 'deploy_job_runner.dart';
+import 'pairing_auth.dart';
 
 class DeployAgentServer {
   factory DeployAgentServer({AgentConfig? config}) {
@@ -16,29 +17,56 @@ class DeployAgentServer {
   }
 
   DeployAgentServer._(this._config)
-      : _jobRunner = DeployJobRunner(config: _config);
+      : _jobRunner = DeployJobRunner(config: _config),
+        _pairingAuth = PairingAuth();
 
   final AgentConfig _config;
   final DeployJobRunner _jobRunner;
+  final PairingAuth _pairingAuth;
   HttpServer? _httpServer;
 
   AgentConfig get config => _config;
   DeployJobRunner get jobRunner => _jobRunner;
+  PairingAuth get pairingAuth => _pairingAuth;
   bool get isRunning => _httpServer != null;
   int? get boundPort => _httpServer?.port;
 
   Handler buildHandler() {
     final router = Router()
       ..get('/health', _health)
+      ..post('/pair', _pair)
       ..get('/projects', _listProjects)
       ..post('/deploy', _startDeploy)
       ..get('/jobs/active', _activeJob)
       ..get('/jobs/<jobId>', _getJob)
       ..get('/jobs/<jobId>/log', _streamLog);
 
-    return const Pipeline()
+    return Pipeline()
         .addMiddleware(_quietRequestLog)
+        .addMiddleware(_authMiddleware)
         .addHandler(router.call);
+  }
+
+  Middleware get _authMiddleware {
+    return (Handler innerHandler) {
+      return (Request request) {
+        final path = request.requestedUri.path;
+        if (path == '/health' || path == '/pair') {
+          return innerHandler(request);
+        }
+        final authorization = request.headers['authorization'];
+        final token = authorization?.startsWith('Bearer ') == true
+            ? authorization!.substring('Bearer '.length).trim()
+            : null;
+        if (!_pairingAuth.isAuthorized(token)) {
+          return Response.unauthorized(
+            jsonEncode({'error': 'Unauthorized — pair with the PIN on the Mac'}),
+            headers: _jsonHeaders,
+          );
+        }
+        return innerHandler(request);
+      };
+    };
   }
 
   /// Logs meaningful traffic; skips noisy job/health polls from the phone UI.
@@ -73,6 +101,7 @@ class DeployAgentServer {
 
   Future<void> start() async {
     if (_httpServer != null) return;
+    _pairingAuth.ensureFreshPin();
     _httpServer = await shelf_io.serve(
       buildHandler(),
       InternetAddress.anyIPv4,
@@ -89,6 +118,7 @@ class DeployAgentServer {
   Future<void> dispose() async {
     await stop();
     await _jobRunner.dispose();
+    await _pairingAuth.dispose();
   }
 
   Future<Response> _health(Request request) async {
@@ -96,9 +126,32 @@ class DeployAgentServer {
       jsonEncode({
         'ok': true,
         'activeJobId': _jobRunner.activeJob?.jobId,
+        'pairedSessions': _pairingAuth.sessionCount,
       }),
       headers: _jsonHeaders,
     );
+  }
+
+  Future<Response> _pair(Request request) async {
+    try {
+      final body =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final pin = body['pin'] as String?;
+      if (pin == null || pin.trim().isEmpty) {
+        return _error('pin is required', status: 400);
+      }
+      final label = body['label'] as String? ?? 'iPhone';
+      final token = _pairingAuth.pair(pin, label: label);
+      if (token == null) {
+        return _error('Invalid or expired PIN', status: 403);
+      }
+      return Response.ok(
+        jsonEncode({'token': token}),
+        headers: _jsonHeaders,
+      );
+    } catch (error) {
+      return _error(error.toString(), status: 400);
+    }
   }
 
   Future<Response> _listProjects(Request request) async {

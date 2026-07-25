@@ -4,7 +4,7 @@ import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
 import 'screens/macos_companion_screen.dart';
-import 'screens/projects_screen.dart';
+import 'screens/phone_home.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -24,7 +24,7 @@ class PhoneDeployApp extends StatelessWidget {
       theme: AppTheme.build(),
       home: Platform.isMacOS
           ? const MacosCompanionScreen()
-          : const ProjectsScreen(),
+          : const PhoneHome(),
     );
   }
 }

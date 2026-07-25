@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../agent/agent_config.dart';
 import '../agent/agent_endpoint.dart';
@@ -25,6 +26,8 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   String? _statusMessage;
   DeployJob? _activeJob;
   StreamSubscription<DeployJob>? _jobSubscription;
+  StreamSubscription<void>? _pairingSubscription;
+  Timer? _pinTicker;
   bool _busy = false;
 
   @override
@@ -35,7 +38,9 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
 
   @override
   void dispose() {
+    _pinTicker?.cancel();
     unawaited(_jobSubscription?.cancel());
+    unawaited(_pairingSubscription?.cancel());
     unawaited(_server.dispose());
     super.dispose();
   }
@@ -44,6 +49,19 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     final lanAddress = await firstLanIpv4Address();
     setState(() => _lanAddress = lanAddress);
     await _startServer();
+  }
+
+  void _listenPairingUpdates() {
+    unawaited(_pairingSubscription?.cancel());
+    _pairingSubscription = _server.pairingAuth.updates.listen((_) {
+      if (mounted) setState(() {});
+    });
+    _pinTicker?.cancel();
+    _pinTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      _server.pairingAuth.ensureFreshPin();
+      setState(() {});
+    });
   }
 
   Future<void> _startServer() async {
@@ -59,6 +77,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
         if (!mounted) return;
         setState(() => _activeJob = job);
       });
+      _listenPairingUpdates();
       setState(() {
         _activeJob = _server.jobRunner.activeJob;
         _statusMessage = null;
@@ -74,6 +93,10 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
+      _pinTicker?.cancel();
+      _pinTicker = null;
+      await _pairingSubscription?.cancel();
+      _pairingSubscription = null;
       await _jobSubscription?.cancel();
       _jobSubscription = null;
       await _server.stop();
@@ -83,6 +106,11 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  String get _formattedPin {
+    final pin = _server.pairingAuth.pin;
+    return '${pin.substring(0, 3)} ${pin.substring(3)}';
   }
 
   @override
@@ -102,6 +130,8 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
         children: [
           _serverPanel(),
           const SizedBox(height: 14),
+          _pairingPanel(),
+          const SizedBox(height: 14),
           _endpointPanel(),
           const SizedBox(height: 14),
           _jobPanel(),
@@ -117,7 +147,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   Widget _serverPanel() {
     return AppPanel(
       title: 'Agent',
-      subtitle: _server.isRunning ? 'Ready for deploys' : 'Offline offline',
+      subtitle: _server.isRunning ? 'Ready for deploys' : 'Agent offline',
       trailing: StatusPill.server(running: _server.isRunning),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,10 +175,138 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     );
   }
 
+  Widget _pairingPanel() {
+    final pairingAuth = _server.pairingAuth;
+    final secondsLeft = pairingAuth.pinTimeRemaining.inSeconds;
+    final sessions = pairingAuth.sessions;
+    return AppPanel(
+      title: 'Pairing',
+      subtitle: _server.isRunning
+          ? '${sessions.length} connected device'
+              '${sessions.length == 1 ? '' : 's'}'
+          : 'Start the agent to show a PIN',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!_server.isRunning)
+            Text(
+              'PIN appears when the agent is listening.',
+              style: AppText.body,
+            )
+          else ...[
+            Text('PIN', style: AppText.label),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: SelectableText(
+                    _formattedPin,
+                    style: AppText.mono.copyWith(
+                      fontSize: 36,
+                      letterSpacing: 4,
+                      color: AppColors.accentGlow,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Copy PIN',
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      ClipboardData(text: pairingAuth.pin),
+                    );
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Copied PIN')),
+                    );
+                  },
+                  icon: const Icon(Icons.copy),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Enter this on the phone. Refreshes in ${secondsLeft}s.',
+              style: AppText.caption,
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton(
+              onPressed: pairingAuth.rotatePin,
+              child: const Text('New PIN'),
+            ),
+            const SizedBox(height: 18),
+            Text('CONNECTED', style: AppText.label),
+            const SizedBox(height: 8),
+            if (sessions.isEmpty)
+              Text(
+                'No phones paired yet.',
+                style: AppText.body,
+              )
+            else ...[
+              for (final session in sessions) ...[
+                _sessionRow(session.sessionId, session.label, session.pairedAt),
+                const SizedBox(height: 8),
+              ],
+              OutlinedButton(
+                onPressed: () {
+                  pairingAuth.clearSessions();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Revoked all phone sessions'),
+                    ),
+                  );
+                },
+                child: const Text('Revoke all'),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _sessionRow(String sessionId, String label, DateTime pairedAt) {
+    final time = TimeOfDay.fromDateTime(pairedAt).format(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceInset,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: AppText.section),
+                  Text('Paired $time', style: AppText.caption),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                _server.pairingAuth.revokeSession(sessionId);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Revoked $label')),
+                );
+              },
+              child: Text(
+                'Revoke',
+                style: AppText.body.copyWith(color: AppColors.danger),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _endpointPanel() {
     return AppPanel(
       title: 'Endpoint',
-      subtitle: 'Hardcoded phone target',
+      subtitle: 'Phone target from .env',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

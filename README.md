@@ -4,7 +4,16 @@ Personal Flutter tool: a macOS companion runs a LAN agent that wraps `deploy.rb`
 
 ## Security
 
-The Mac agent has **no authentication**. Anyone on the same network who can reach the agent port can list projects and start deploys. Use only on a trusted LAN (or add auth before exposing further).
+Auth is **pairing PIN → session token**, not open LAN access:
+
+1. The Mac companion shows a 6-digit PIN (rotates every minute, or sooner via **New PIN**).
+2. The phone enters that PIN once and receives a long-lived bearer token (stored locally).
+3. Project list / deploy / job APIs require `Authorization: Bearer <token>`.
+4. The Mac lists each connected phone and can **Revoke** one session or **Revoke all**. Revocation is immediate on the next phone request (including mid-deploy polls); the phone returns to the pairing screen. **Unpair** on the phone only clears its own stored token.
+
+Open without a token: `/health`, `/pair`. Everything else needs a valid session.
+
+Trust boundary is still your LAN — anyone who can reach the agent and see/enter a live PIN can pair until you revoke them. Do not expose the agent beyond a trusted network.
 
 ## Setup
 
@@ -42,7 +51,7 @@ ruby deploy.rb ios --force
 # or: flutter run -d <your-iphone-id>
 ```
 
-Open Phone Deploy on the phone, pull to refresh the project list, tap an app to deploy.
+Open Phone Deploy on the phone, enter the PIN shown on the Mac, then deploy projects from the list.
 
 ## Manual deploys from other apps
 

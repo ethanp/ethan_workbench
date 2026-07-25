@@ -9,7 +9,7 @@ import 'package:phone_deploy/agent/deploy_agent_server.dart';
 import 'package:shelf/shelf.dart';
 
 void main() {
-  test('agent API health and project scan', () async {
+  test('agent API requires pairing for projects', () async {
     final fixtureRoot = Directory.systemTemp.createTempSync('phone_deploy_smoke_');
     addTearDown(() => fixtureRoot.deleteSync(recursive: true));
 
@@ -37,25 +37,56 @@ PHONE_DEPLOY_DEPLOY_RB=$deployRbPath
       deployRbPath: deployRbPath,
     );
 
-    expect(File(config.deployRbPath).existsSync(), isTrue);
-
     final server = DeployAgentServer(config: config);
     addTearDown(server.dispose);
     final handler = server.buildHandler();
+    final pin = server.pairingAuth.pin;
 
     final health = await handler(
       Request('GET', Uri.parse('http://localhost/health')),
     );
     expect(health.statusCode, 200);
 
-    final projectsResponse = await handler(
+    final unauthorized = await handler(
       Request('GET', Uri.parse('http://localhost/projects')),
+    );
+    expect(unauthorized.statusCode, 401);
+
+    final badPin = await handler(
+      Request(
+        'POST',
+        Uri.parse('http://localhost/pair'),
+        body: jsonEncode({'pin': '000000'}),
+        headers: {'Content-Type': 'application/json'},
+      ),
+    );
+    expect(badPin.statusCode, 403);
+
+    final pair = await handler(
+      Request(
+        'POST',
+        Uri.parse('http://localhost/pair'),
+        body: jsonEncode({'pin': pin}),
+        headers: {'Content-Type': 'application/json'},
+      ),
+    );
+    expect(pair.statusCode, 200);
+    final pairPayload =
+        jsonDecode(await pair.readAsString()) as Map<String, dynamic>;
+    final token = pairPayload['token'] as String;
+    expect(token, isNotEmpty);
+
+    final projectsResponse = await handler(
+      Request(
+        'GET',
+        Uri.parse('http://localhost/projects'),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
     );
     expect(projectsResponse.statusCode, 200);
     final payload =
         jsonDecode(await projectsResponse.readAsString()) as Map<String, dynamic>;
     final projects = payload['projects'] as List<dynamic>;
-    expect(projects, isNotEmpty);
     expect(
       projects.any((project) => project['projectId'] == 'sample_app'),
       isTrue,
