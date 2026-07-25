@@ -1,0 +1,211 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:shelf/shelf.dart';
+import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shelf_router/shelf_router.dart';
+
+import 'agent_config.dart';
+import 'deploy_job_runner.dart';
+
+class DeployAgentServer {
+  factory DeployAgentServer({AgentConfig? config}) {
+    final resolvedConfig = config ?? AgentConfig();
+    return DeployAgentServer._(resolvedConfig);
+  }
+
+  DeployAgentServer._(this._config)
+      : _jobRunner = DeployJobRunner(config: _config);
+
+  final AgentConfig _config;
+  final DeployJobRunner _jobRunner;
+  HttpServer? _httpServer;
+
+  AgentConfig get config => _config;
+  DeployJobRunner get jobRunner => _jobRunner;
+  bool get isRunning => _httpServer != null;
+  int? get boundPort => _httpServer?.port;
+
+  Handler buildHandler() {
+    final router = Router()
+      ..get('/health', _health)
+      ..get('/projects', _listProjects)
+      ..post('/deploy', _startDeploy)
+      ..get('/jobs/active', _activeJob)
+      ..get('/jobs/<jobId>', _getJob)
+      ..get('/jobs/<jobId>/log', _streamLog);
+
+    return const Pipeline()
+        .addMiddleware(_quietRequestLog)
+        .addHandler(router.call);
+  }
+
+  /// Logs meaningful traffic; skips noisy job/health polls from the phone UI.
+  static Middleware get _quietRequestLog {
+    return (Handler innerHandler) {
+      return (Request request) async {
+        final startedAt = DateTime.now();
+        final response = await innerHandler(request);
+        if (_shouldLogRequest(request, response)) {
+          final elapsed = DateTime.now().difference(startedAt);
+          // ignore: avoid_print — companion console feedback for deploy actions
+          print(
+            '${startedAt.toIso8601String()}  '
+            '${elapsed.toString().padLeft(15)} '
+            '${request.method.padRight(7)} '
+            '[${response.statusCode}] '
+            '${request.requestedUri.path}',
+          );
+        }
+        return response;
+      };
+    };
+  }
+
+  static bool _shouldLogRequest(Request request, Response response) {
+    if (response.statusCode >= 400) return true;
+    final path = request.requestedUri.path;
+    if (request.method == 'GET' && path == '/health') return false;
+    if (request.method == 'GET' && path.startsWith('/jobs/')) return false;
+    return true;
+  }
+
+  Future<void> start() async {
+    if (_httpServer != null) return;
+    _httpServer = await shelf_io.serve(
+      buildHandler(),
+      InternetAddress.anyIPv4,
+      _config.port,
+    );
+  }
+
+  Future<void> stop() async {
+    final server = _httpServer;
+    _httpServer = null;
+    await server?.close(force: true);
+  }
+
+  Future<void> dispose() async {
+    await stop();
+    await _jobRunner.dispose();
+  }
+
+  Future<Response> _health(Request request) async {
+    return Response.ok(
+      jsonEncode({
+        'ok': true,
+        'activeJobId': _jobRunner.activeJob?.jobId,
+      }),
+      headers: _jsonHeaders,
+    );
+  }
+
+  Future<Response> _listProjects(Request request) async {
+    final projects = await _jobRunner.listProjects();
+    return Response.ok(
+      jsonEncode({
+        'projects': projects.map((project) => project.toJson()).toList(),
+      }),
+      headers: _jsonHeaders,
+    );
+  }
+
+  Future<Response> _startDeploy(Request request) async {
+    try {
+      final body =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final projectId = body['projectId'] as String?;
+      if (projectId == null || projectId.isEmpty) {
+        return _error('projectId is required', status: 400);
+      }
+      final force = body['force'] as bool? ?? false;
+      final job = await _jobRunner.startDeploy(
+        projectId: projectId,
+        force: force,
+      );
+      return Response.ok(jsonEncode(job.toJson()), headers: _jsonHeaders);
+    } on StateError catch (error) {
+      return _error(error.message, status: 409);
+    } on ArgumentError catch (error) {
+      return _error('${error.message}', status: 404);
+    } catch (error) {
+      return _error(error.toString(), status: 500);
+    }
+  }
+
+  Future<Response> _activeJob(Request request) async {
+    final job = _jobRunner.activeJob;
+    if (job == null) {
+      return Response.notFound(
+        jsonEncode({'error': 'No active job'}),
+        headers: _jsonHeaders,
+      );
+    }
+    return Response.ok(jsonEncode(job.toJson()), headers: _jsonHeaders);
+  }
+
+  Future<Response> _getJob(Request request, String jobId) async {
+    final job = _jobRunner.activeJob;
+    if (job == null || job.jobId != jobId) {
+      return Response.notFound(
+        jsonEncode({'error': 'Job not found'}),
+        headers: _jsonHeaders,
+      );
+    }
+    return Response.ok(jsonEncode(job.toJson()), headers: _jsonHeaders);
+  }
+
+  FutureOr<Response> _streamLog(Request request, String jobId) {
+    final job = _jobRunner.activeJob;
+    if (job == null || job.jobId != jobId) {
+      return Response.notFound(
+        jsonEncode({'error': 'Job not found'}),
+        headers: _jsonHeaders,
+      );
+    }
+
+    final logStream = _jobRunner.watchLog(jobId);
+    final transformed = logStream.map((chunk) {
+      final escaped = chunk
+          .replaceAll('\r', '')
+          .split('\n')
+          .map((line) => 'data: $line')
+          .join('\n');
+      return '$escaped\n\n';
+    });
+
+    return Response.ok(
+      transformed,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    );
+  }
+
+  Response _error(String message, {required int status}) {
+    return Response(
+      status,
+      body: jsonEncode({'error': message}),
+      headers: _jsonHeaders,
+    );
+  }
+
+  static const _jsonHeaders = {'Content-Type': 'application/json'};
+}
+
+Future<String?> firstLanIpv4Address() async {
+  final interfaces = await NetworkInterface.list(
+    type: InternetAddressType.IPv4,
+    includeLinkLocal: false,
+  );
+  for (final networkInterface in interfaces) {
+    for (final address in networkInterface.addresses) {
+      if (address.isLoopback) continue;
+      return address.address;
+    }
+  }
+  return null;
+}
