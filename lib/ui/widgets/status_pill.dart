@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../api/models.dart';
+import '../../deploy/deploy_job.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 

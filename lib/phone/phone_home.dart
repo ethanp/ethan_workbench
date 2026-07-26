@@ -2,10 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../agent/session_store.dart';
-import '../api/deploy_client.dart';
-import 'pairing_screen.dart';
-import 'projects_screen.dart';
+import '../pairing/pairing_screen.dart';
+import '../projects/projects_screen.dart';
+import 'phone_deploy_session.dart';
 
 /// Loads saved session token and routes to pairing or projects.
 class PhoneHome extends StatefulWidget {
@@ -16,9 +15,8 @@ class PhoneHome extends StatefulWidget {
 }
 
 class _PhoneHomeState extends State<PhoneHome> {
-  DeployClient? _client;
+  final _session = PhoneDeploySession();
   bool _loading = true;
-  bool _paired = false;
 
   @override
   void initState() {
@@ -28,50 +26,41 @@ class _PhoneHomeState extends State<PhoneHome> {
 
   @override
   void dispose() {
-    _client?.close();
+    _session.close();
     super.dispose();
   }
 
   Future<void> _bootstrap() async {
-    final token = await SessionStore.loadToken();
-    final client = DeployClient(bearerToken: token);
-    if (!mounted) {
-      client.close();
-      return;
-    }
-    setState(() {
-      _client = client;
-      _paired = token != null;
-      _loading = false;
-    });
+    await _session.restore();
+    if (!mounted) return;
+    setState(() => _loading = false);
   }
 
   void _onPaired() {
-    setState(() => _paired = true);
+    setState(() {});
   }
 
   Future<void> _onUnauthorized() async {
-    await SessionStore.clearToken();
-    _client?.setBearerToken(null);
+    await _session.unpair();
     if (!mounted) return;
-    setState(() => _paired = false);
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading || _client == null) {
+    if (_loading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    if (!_paired) {
+    if (!_session.isPaired) {
       return PairingScreen(
-        client: _client!,
+        session: _session,
         onPaired: _onPaired,
       );
     }
     return ProjectsScreen(
-      client: _client!,
+      session: _session,
       onUnauthorized: _onUnauthorized,
     );
   }

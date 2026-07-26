@@ -2,22 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../api/deploy_client.dart';
-import '../api/models.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_text.dart';
-import '../widgets/log_console.dart';
-import '../widgets/status_pill.dart';
+import '../phone/deploy_http_client.dart';
+import '../phone/phone_deploy_session.dart';
+import '../ui/theme/app_colors.dart';
+import '../ui/theme/app_text.dart';
+import '../ui/widgets/log_console.dart';
+import '../ui/widgets/status_pill.dart';
+import 'deploy_job.dart';
 
 class JobScreen extends StatefulWidget {
   const JobScreen({
     super.key,
-    required this.client,
+    required this.session,
     required this.initialJob,
     this.onUnauthorized,
   });
 
-  final DeployClient client;
+  final PhoneDeploySession session;
   final DeployJob initialJob;
   final Future<void> Function()? onUnauthorized;
 
@@ -52,7 +53,7 @@ class _JobScreenState extends State<JobScreen> {
 
   Future<void> _refreshJob() async {
     try {
-      final job = await widget.client.getJob(_job.jobId);
+      final job = await widget.session.fetchJob(_job.jobId);
       if (!mounted) return;
       final shouldStickToBottom = !_logScrollController.hasClients ||
           _logScrollController.position.pixels >=
@@ -72,7 +73,7 @@ class _JobScreenState extends State<JobScreen> {
           );
         });
       }
-    } on DeployClientException catch (error) {
+    } on AgentRequestException catch (error) {
       if (!mounted) return;
       if (error.isUnauthorized) {
         _pollTimer?.cancel();

@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
-import 'screens/macos_companion_screen.dart';
-import 'screens/phone_home.dart';
-import 'theme/app_theme.dart';
+import 'agent/macos_companion_screen.dart';
+import 'phone/phone_home.dart';
+import 'ui/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

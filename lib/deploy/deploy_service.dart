@@ -1,27 +1,34 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import '../api/models.dart';
-import 'agent_config.dart';
-import 'project_scanner.dart';
+import '../projects/deployable_project.dart';
+import '../projects/project_scanner.dart';
+import 'deploy_errors.dart';
+import 'deploy_job.dart';
+import 'ruby_deploy_executor.dart';
 
-class DeployJobRunner {
-  DeployJobRunner({required this._config});
+/// Owns the single active deploy job and project catalog lookup.
+class DeployService {
+  DeployService({
+    required this.flutterRoots,
+    required this.deployRbPath,
+    DeployScriptRunner? scriptRunner,
+  }) : _scriptRunner = scriptRunner ?? DeployScriptRunner();
 
-  final AgentConfig _config;
+  final List<String> flutterRoots;
+  final String deployRbPath;
+  final DeployScriptRunner _scriptRunner;
+
   DeployJob? _activeJob;
-  Process? _activeProcess;
   final _jobUpdatedController = StreamController<DeployJob>.broadcast();
   final _logListeners = <String, Set<StreamController<String>>>{};
 
-  AgentConfig get config => _config;
   DeployJob? get activeJob => _activeJob;
   Stream<DeployJob> get jobUpdates => _jobUpdatedController.stream;
 
   Future<List<DeployableProject>> listProjects() {
-    return ProjectScanner(flutterRoots: _config.flutterRoots).scan();
+    return ProjectCatalog(flutterRoots: flutterRoots).listDeployableProjects();
   }
 
   Future<DeployableProject?> findProject(String projectId) async {
@@ -36,18 +43,22 @@ class DeployJobRunner {
     required String projectId,
     bool force = false,
   }) async {
-    if (_activeJob != null && !_activeJob!.status.isTerminal) {
-      throw StateError('A deploy is already running');
+    final activeJob = _activeJob;
+    if (activeJob != null && !activeJob.status.isTerminal) {
+      throw DeployAlreadyRunning(
+        projectName: activeJob.projectName,
+        jobId: activeJob.jobId,
+        statusName: activeJob.status.name,
+      );
     }
 
     final project = await findProject(projectId);
     if (project == null) {
-      throw ArgumentError('Unknown project: $projectId');
+      throw UnknownProject(projectId);
     }
 
-    final deployRbFile = File(_config.deployRbPath);
-    if (!await deployRbFile.exists()) {
-      throw StateError('deploy.rb not found at ${_config.deployRbPath}');
+    if (!await File(deployRbPath).exists()) {
+      throw DeployScriptMissing(deployRbPath);
     }
 
     final job = DeployJob(
@@ -87,7 +98,6 @@ class DeployJobRunner {
   }
 
   Future<void> dispose() async {
-    _activeProcess?.kill();
     await _jobUpdatedController.close();
     for (final listeners in _logListeners.values) {
       for (final controller in listeners) {
@@ -102,36 +112,16 @@ class DeployJobRunner {
     _appendLog(
       'Starting deploy for ${project.name}\n'
       'cwd: ${project.path}\n'
-      'ruby ${_config.deployRbPath} ios${job.force ? ' --force' : ''}\n\n',
+      'ruby $deployRbPath ios${job.force ? ' --force' : ''}\n\n',
     );
 
     try {
-      final arguments = [_config.deployRbPath, 'ios'];
-      if (job.force) arguments.add('--force');
-
-      final process = await Process.start(
-        'ruby',
-        arguments,
-        workingDirectory: project.path,
-        environment: {
-          ...Platform.environment,
-          'PYTHONUNBUFFERED': '1',
-        },
-        runInShell: false,
+      final exitCode = await _scriptRunner.runIosDeploy(
+        deployRbPath: deployRbPath,
+        projectPath: project.path,
+        force: job.force,
+        onOutput: _appendLog,
       );
-      _activeProcess = process;
-
-      final stdoutSubscription = process.stdout
-          .transform(utf8.decoder)
-          .listen(_appendLog);
-      final stderrSubscription = process.stderr
-          .transform(utf8.decoder)
-          .listen(_appendLog);
-
-      final exitCode = await process.exitCode;
-      await stdoutSubscription.cancel();
-      await stderrSubscription.cancel();
-      _activeProcess = null;
 
       final succeeded = exitCode == 0;
       _appendLog(
@@ -148,7 +138,6 @@ class DeployJobRunner {
         ),
       );
     } catch (error, stackTrace) {
-      _activeProcess = null;
       _appendLog('\n✗ Deploy crashed: $error\n$stackTrace\n');
       _updateJob(
         _activeJob!.copyWith(

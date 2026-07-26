@@ -1,20 +1,9 @@
 import 'dart:async';
 import 'dart:math';
 
-class PairedSession {
-  final String sessionId;
-  final String token;
-  final String label;
-  final DateTime pairedAt;
+import 'paired_session.dart';
 
-  const PairedSession({
-    required this.sessionId,
-    required this.token,
-    required this.label,
-    required this.pairedAt,
-  });
-}
-
+/// Issues short-lived pairing PINs and long-lived phone sessions.
 class PairingAuth {
   static const pinLifetime = Duration(minutes: 1);
 
@@ -89,7 +78,7 @@ class PairingAuth {
     return removed;
   }
 
-  void clearSessions() {
+  void revokeAllSessions() {
     if (_sessions.isEmpty) return;
     _sessions.clear();
     _emit();

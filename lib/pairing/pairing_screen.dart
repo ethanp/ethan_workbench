@@ -1,23 +1,22 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../agent/agent_endpoint.dart';
-import '../agent/session_store.dart';
-import '../api/deploy_client.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_text.dart';
+import '../phone/deploy_http_client.dart';
+import '../phone/phone_deploy_session.dart';
+import '../ui/theme/app_colors.dart';
+import '../ui/theme/app_text.dart';
 
 class PairingScreen extends StatefulWidget {
   const PairingScreen({
     super.key,
-    required this.client,
+    required this.session,
     required this.onPaired,
   });
 
-  final DeployClient client;
+  final PhoneDeploySession session;
   final VoidCallback onPaired;
 
   @override
@@ -47,14 +46,10 @@ class _PairingScreenState extends State<PairingScreen> {
       _errorMessage = null;
     });
     try {
-      final token = await widget.client.pair(
-        pin,
-        label: Platform.isIOS ? 'iPhone' : Platform.localHostname,
-      );
-      await SessionStore.saveToken(token);
+      await widget.session.pair(pin);
       if (!mounted) return;
       widget.onPaired();
-    } on DeployClientException catch (error) {
+    } on AgentRequestException catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = error.message);
     } catch (error) {

@@ -2,9 +2,10 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
-import '../api/models.dart';
+import 'deployable_project.dart';
 
-class ProjectScanner {
+/// Discovers Flutter apps under configured roots that can be deployed to iOS.
+class ProjectCatalog {
   static const _skipDirectoryNames = {
     '.',
     '..',
@@ -31,9 +32,9 @@ class ProjectScanner {
 
   final List<String> flutterRoots;
 
-  const ProjectScanner({required this.flutterRoots});
+  const ProjectCatalog({required this.flutterRoots});
 
-  Future<List<DeployableProject>> scan() async {
+  Future<List<DeployableProject>> listDeployableProjects() async {
     final discoveredProjects = <DeployableProject>[];
     final seenPaths = <String>{};
 

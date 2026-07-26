@@ -3,13 +3,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../agent/agent_endpoint.dart';
-import 'models.dart';
+import '../deploy/deploy_job.dart';
+import '../projects/deployable_project.dart';
 
-class DeployClientException implements Exception {
+class AgentRequestException implements Exception {
   final String message;
   final int? statusCode;
 
-  const DeployClientException(this.message, {this.statusCode});
+  const AgentRequestException(this.message, {this.statusCode});
 
   @override
   String toString() => message;
@@ -17,8 +18,9 @@ class DeployClientException implements Exception {
   bool get isUnauthorized => statusCode == 401;
 }
 
-class DeployClient {
-  DeployClient({
+/// HTTP client for the Mac LAN agent (pair, list projects, start deploys).
+class MacAgentClient {
+  MacAgentClient({
     String? baseUrl,
     this._bearerToken,
     http.Client? httpClient,
@@ -68,7 +70,7 @@ class DeployClient {
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
     final token = payload['token'] as String?;
     if (token == null || token.isEmpty) {
-      throw const DeployClientException('Pairing response missing token');
+      throw const AgentRequestException('Pairing response missing token');
     }
     _bearerToken = token;
     return token;
@@ -106,7 +108,7 @@ class DeployClient {
     return DeployJob.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
-  Future<DeployJob> getJob(String jobId) async {
+  Future<DeployJob> fetchJob(String jobId) async {
     final response = await _httpClient.get(
       Uri.parse('$_baseUrl/jobs/$jobId'),
       headers: _headers,
@@ -115,7 +117,7 @@ class DeployClient {
     return DeployJob.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
-  Future<DeployJob?> getActiveJob() async {
+  Future<DeployJob?> fetchActiveJob() async {
     final response = await _httpClient.get(
       Uri.parse('$_baseUrl/jobs/active'),
       headers: _headers,
@@ -135,7 +137,7 @@ class DeployClient {
         message = errorMessage;
       }
     } catch (_) {}
-    throw DeployClientException(message, statusCode: response.statusCode);
+    throw AgentRequestException(message, statusCode: response.statusCode);
   }
 
   void close() => _httpClient.close();

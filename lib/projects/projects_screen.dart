@@ -3,22 +3,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../agent/agent_endpoint.dart';
-import '../agent/session_store.dart';
-import '../api/deploy_client.dart';
-import '../api/models.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_text.dart';
-import '../widgets/app_panel.dart';
-import 'job_screen.dart';
+import '../deploy/job_screen.dart';
+import '../phone/deploy_http_client.dart';
+import '../phone/phone_deploy_session.dart';
+import '../ui/theme/app_colors.dart';
+import '../ui/theme/app_text.dart';
+import '../ui/widgets/app_panel.dart';
+import 'deployable_project.dart';
 
 class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({
     super.key,
-    required this.client,
+    required this.session,
     required this.onUnauthorized,
   });
 
-  final DeployClient client;
+  final PhoneDeploySession session;
   final Future<void> Function() onUnauthorized;
 
   @override
@@ -43,13 +43,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       _errorMessage = null;
     });
     try {
-      final projects = await widget.client.listProjects();
+      final projects = await widget.session.listProjects();
       if (!mounted) return;
       setState(() {
         _projects = projects;
         _loading = false;
       });
-    } on DeployClientException catch (error) {
+    } on AgentRequestException catch (error) {
       if (!mounted) return;
       if (error.isUnauthorized) {
         await widget.onUnauthorized();
@@ -71,8 +71,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   Future<void> _unpair() async {
-    await SessionStore.clearToken();
-    widget.client.setBearerToken(null);
+    await widget.session.unpair();
     await widget.onUnauthorized();
   }
 
@@ -101,7 +100,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
-      final job = await widget.client.startDeploy(
+      final job = await widget.session.startDeploy(
         projectId: project.projectId,
         force: _forceDeploy,
       );
@@ -109,13 +108,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) => JobScreen(
-            client: widget.client,
+            session: widget.session,
             initialJob: job,
             onUnauthorized: widget.onUnauthorized,
           ),
         ),
       );
-    } on DeployClientException catch (error) {
+    } on AgentRequestException catch (error) {
       if (!mounted) return;
       if (error.isUnauthorized) {
         await widget.onUnauthorized();

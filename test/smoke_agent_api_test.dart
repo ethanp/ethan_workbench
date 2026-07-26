@@ -5,7 +5,7 @@ import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 import 'package:phone_deploy/agent/agent_config.dart';
-import 'package:phone_deploy/agent/deploy_agent_server.dart';
+import 'package:phone_deploy/agent/deploy_agent.dart';
 import 'package:shelf/shelf.dart';
 
 void main() {
@@ -37,10 +37,10 @@ PHONE_DEPLOY_DEPLOY_RB=$deployRbPath
       deployRbPath: deployRbPath,
     );
 
-    final server = DeployAgentServer(config: config);
-    addTearDown(server.dispose);
-    final handler = server.buildHandler();
-    final pin = server.pairingAuth.pin;
+    final agent = DeployAgent(config: config);
+    addTearDown(agent.dispose);
+    final handler = agent.buildHandler();
+    final pin = agent.pairingAuth.pin;
 
     final health = await handler(
       Request('GET', Uri.parse('http://localhost/health')),

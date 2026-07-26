@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../agent/agent_config.dart';
-import '../agent/agent_endpoint.dart';
-import '../agent/deploy_agent_server.dart';
-import '../api/models.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_text.dart';
-import '../widgets/app_panel.dart';
-import '../widgets/log_console.dart';
-import '../widgets/status_pill.dart';
+import '../deploy/deploy_job.dart';
+import '../ui/theme/app_colors.dart';
+import '../ui/theme/app_text.dart';
+import '../ui/widgets/app_panel.dart';
+import '../ui/widgets/log_console.dart';
+import '../ui/widgets/status_pill.dart';
+import 'agent_config.dart';
+import 'agent_endpoint.dart';
+import 'deploy_agent.dart';
 
 class MacosCompanionScreen extends StatefulWidget {
   const MacosCompanionScreen({super.key});
@@ -21,7 +21,7 @@ class MacosCompanionScreen extends StatefulWidget {
 }
 
 class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
-  final _server = DeployAgentServer();
+  final _agent = DeployAgent();
   String? _lanAddress;
   String? _statusMessage;
   DeployJob? _activeJob;
@@ -41,45 +41,45 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     _pinTicker?.cancel();
     unawaited(_jobSubscription?.cancel());
     unawaited(_pairingSubscription?.cancel());
-    unawaited(_server.dispose());
+    unawaited(_agent.dispose());
     super.dispose();
   }
 
   Future<void> _bootstrap() async {
     final lanAddress = await firstLanIpv4Address();
     setState(() => _lanAddress = lanAddress);
-    await _startServer();
+    await _startAgent();
   }
 
   void _listenPairingUpdates() {
     unawaited(_pairingSubscription?.cancel());
-    _pairingSubscription = _server.pairingAuth.updates.listen((_) {
+    _pairingSubscription = _agent.pairingAuth.updates.listen((_) {
       if (mounted) setState(() {});
     });
     _pinTicker?.cancel();
     _pinTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      _server.pairingAuth.ensureFreshPin();
+      _agent.pairingAuth.ensureFreshPin();
       setState(() {});
     });
   }
 
-  Future<void> _startServer() async {
+  Future<void> _startAgent() async {
     if (_busy) return;
     setState(() {
       _busy = true;
       _statusMessage = null;
     });
     try {
-      await _server.start();
+      await _agent.start();
       await _jobSubscription?.cancel();
-      _jobSubscription = _server.jobRunner.jobUpdates.listen((job) {
+      _jobSubscription = _agent.jobUpdates.listen((job) {
         if (!mounted) return;
         setState(() => _activeJob = job);
       });
       _listenPairingUpdates();
       setState(() {
-        _activeJob = _server.jobRunner.activeJob;
+        _activeJob = _agent.activeJob;
         _statusMessage = null;
       });
     } catch (error) {
@@ -89,7 +89,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     }
   }
 
-  Future<void> _stopServer() async {
+  Future<void> _stopAgent() async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
@@ -99,7 +99,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
       _pairingSubscription = null;
       await _jobSubscription?.cancel();
       _jobSubscription = null;
-      await _server.stop();
+      await _agent.stop();
       setState(() => _statusMessage = 'Server stopped');
     } catch (error) {
       setState(() => _statusMessage = 'Failed to stop: $error');
@@ -109,7 +109,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   }
 
   String get _formattedPin {
-    final pin = _server.pairingAuth.pin;
+    final pin = _agent.pairingAuth.pin;
     return '${pin.substring(0, 3)} ${pin.substring(3)}';
   }
 
@@ -147,25 +147,25 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   Widget _serverPanel() {
     return AppPanel(
       title: 'Agent',
-      subtitle: _server.isRunning ? 'Ready for deploys' : 'Agent offline',
-      trailing: StatusPill.server(running: _server.isRunning),
+      subtitle: _agent.isRunning ? 'Ready for deploys' : 'Agent offline',
+      trailing: StatusPill.server(running: _agent.isRunning),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Port ${_server.boundPort ?? AgentConfig.defaultPort}',
+            'Port ${_agent.boundPort ?? AgentConfig.defaultPort}',
             style: AppText.mono,
           ),
           const SizedBox(height: 14),
           Row(
             children: [
               FilledButton(
-                onPressed: _busy || _server.isRunning ? null : _startServer,
+                onPressed: _busy || _agent.isRunning ? null : _startAgent,
                 child: const Text('Start'),
               ),
               const SizedBox(width: 10),
               OutlinedButton(
-                onPressed: _busy || !_server.isRunning ? null : _stopServer,
+                onPressed: _busy || !_agent.isRunning ? null : _stopAgent,
                 child: const Text('Stop'),
               ),
             ],
@@ -176,19 +176,19 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   }
 
   Widget _pairingPanel() {
-    final pairingAuth = _server.pairingAuth;
+    final pairingAuth = _agent.pairingAuth;
     final secondsLeft = pairingAuth.pinTimeRemaining.inSeconds;
     final sessions = pairingAuth.sessions;
     return AppPanel(
       title: 'Pairing',
-      subtitle: _server.isRunning
+      subtitle: _agent.isRunning
           ? '${sessions.length} connected device'
               '${sessions.length == 1 ? '' : 's'}'
           : 'Start the agent to show a PIN',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!_server.isRunning)
+          if (!_agent.isRunning)
             Text(
               'PIN appears when the agent is listening.',
               style: AppText.body,
@@ -248,7 +248,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
               ],
               OutlinedButton(
                 onPressed: () {
-                  pairingAuth.clearSessions();
+                  pairingAuth.revokeAllSessions();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Revoked all phone sessions'),
@@ -287,7 +287,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
             ),
             TextButton(
               onPressed: () {
-                _server.pairingAuth.revokeSession(sessionId);
+                _agent.pairingAuth.revokeSession(sessionId);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Revoked $label')),
                 );
