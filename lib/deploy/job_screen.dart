@@ -3,24 +3,24 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../phone/deploy_http_client.dart';
-import '../phone/phone_deploy_session.dart';
 import '../ui/theme/app_colors.dart';
 import '../ui/theme/app_text.dart';
+import '../ui/widgets/deploy_platform_controls.dart';
+import '../ui/widgets/deploy_progress_checklist.dart';
 import '../ui/widgets/log_console.dart';
 import '../ui/widgets/status_pill.dart';
 import 'deploy_job.dart';
+import 'deploy_trigger.dart';
 
 class JobScreen extends StatefulWidget {
   const JobScreen({
     super.key,
-    required this.session,
+    required this.trigger,
     required this.initialJob,
-    this.onUnauthorized,
   });
 
-  final PhoneDeploySession session;
+  final DeployTrigger trigger;
   final DeployJob initialJob;
-  final Future<void> Function()? onUnauthorized;
 
   @override
   State<JobScreen> createState() => _JobScreenState();
@@ -53,7 +53,7 @@ class _JobScreenState extends State<JobScreen> {
 
   Future<void> _refreshJob() async {
     try {
-      final job = await widget.session.fetchJob(_job.jobId);
+      final job = await widget.trigger.fetchJob(_job.jobId);
       if (!mounted) return;
       final shouldStickToBottom = !_logScrollController.hasClients ||
           _logScrollController.position.pixels >=
@@ -77,7 +77,7 @@ class _JobScreenState extends State<JobScreen> {
       if (!mounted) return;
       if (error.isUnauthorized) {
         _pollTimer?.cancel();
-        final onUnauthorized = widget.onUnauthorized;
+        final onUnauthorized = widget.trigger.onUnauthorized;
         if (onUnauthorized != null) {
           await onUnauthorized();
           if (mounted) Navigator.of(context).pop();
@@ -85,6 +85,9 @@ class _JobScreenState extends State<JobScreen> {
         return;
       }
       setState(() => _errorMessage = error.message);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = error.toString());
     }
   }
 
@@ -139,32 +142,41 @@ class _JobScreenState extends State<JobScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            StatusPill.job(_job.status),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _job.force ? 'Force rebuild' : 'Incremental deploy',
-                    style: AppText.body,
-                  ),
-                  if (_job.exitCode != null)
-                    Text('Exit ${_job.exitCode}', style: AppText.caption),
-                ],
-              ),
-            ),
-            if (!_job.status.isTerminal)
-              const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+            _statusSummaryRow(),
+            if (_job.checklist.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              DeployProgressChecklist(items: _job.checklist),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _statusSummaryRow() {
+    return Row(
+      children: [
+        StatusPill.job(_job.status),
+        const SizedBox(width: 10),
+        DeployPlatformBadge(platform: _job.platform),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _job.force ? 'Force rebuild' : 'Incremental deploy',
+                style: AppText.body,
+              ),
+              if (_job.exitCode != null)
+                Text('Exit ${_job.exitCode}', style: AppText.caption),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,0 +1,43 @@
+# PowerSync Open Edition Configuration for phone_deploy
+
+replication:
+  connections:
+    - type: postgresql
+      hostname: postgres
+      port: 5432
+      database: phone_deploy
+      username: phone_deploy
+      password: !env PS_PG_PASSWORD
+      sslmode: disable
+      id: phone_deploy
+
+storage:
+  type: postgresql
+  hostname: postgres
+  port: 5432
+  database: phone_deploy
+  username: phone_deploy
+  password: !env PS_PG_PASSWORD
+  sslmode: disable
+
+# PS_JWT_KEY is the base64url-encoded HMAC key (the JWK `k`); it must match the
+# raw secret the app signs with (POWERSYNC_JWT_SECRET in Flutter/phone_deploy/.env,
+# base64-encoded).
+client_auth:
+  jwks:
+    keys:
+      - kty: oct
+        kid: phone-deploy-dev-key
+        k: !env PS_JWT_KEY
+        alg: HS256
+  audience:
+    - powersync
+
+sync_rules:
+  content: |
+    bucket_definitions:
+      phone_deploy_global:
+        priority: 0
+        data:
+          - SELECT * FROM deploy_runs
+          - SELECT * FROM deploy_state

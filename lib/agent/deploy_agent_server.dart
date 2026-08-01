@@ -7,6 +7,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 import '../deploy/deploy_errors.dart';
+import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_service.dart';
 import '../pairing/auth_middleware.dart';
 import '../pairing/pairing_auth.dart';
@@ -35,6 +36,7 @@ class DeployAgentServer {
       ..get('/health', _health)
       ..post('/pair', _pair)
       ..get('/projects', _listProjects)
+      ..post('/projects/evaluate-changes', _evaluateSourceChanges)
       ..post('/deploy', _startDeploy)
       ..get('/jobs/active', _activeJob)
       ..get('/jobs/<jobId>', _getJob)
@@ -96,6 +98,13 @@ class DeployAgentServer {
     });
   }
 
+  Future<Response> _evaluateSourceChanges(Request request) async {
+    final projects = await deployService.evaluateSourceChanges();
+    return jsonOk({
+      'projects': projects.map((project) => project.toJson()).toList(),
+    });
+  }
+
   Future<Response> _startDeploy(Request request) async {
     try {
       final body =
@@ -105,8 +114,14 @@ class DeployAgentServer {
         return jsonError('projectId is required', status: 400);
       }
       final force = body['force'] as bool? ?? false;
+      final platformName = body['platform'] as String? ?? DeployPlatform.ios.name;
+      if (platformName != DeployPlatform.ios.name &&
+          platformName != DeployPlatform.macos.name) {
+        return jsonError('platform must be ios or macos', status: 400);
+      }
       final job = await deployService.startDeploy(
         projectId: projectId,
+        platform: DeployPlatform.fromName(platformName),
         force: force,
       );
       return jsonOk(job.toJson());
@@ -114,6 +129,8 @@ class DeployAgentServer {
       return jsonError(error.toString(), status: 409);
     } on UnknownProject catch (error) {
       return jsonError(error.toString(), status: 404);
+    } on UnsupportedDeployPlatform catch (error) {
+      return jsonError(error.toString(), status: 400);
     } on DeployScriptMissing catch (error) {
       return jsonError(error.toString(), status: 500);
     } catch (error) {

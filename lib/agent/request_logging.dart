@@ -63,8 +63,10 @@ String? _deployRequestDetailForLog(String path, String? body) {
     final payload = jsonDecode(body) as Map<String, dynamic>;
     final projectId = payload['projectId'] as String?;
     if (projectId == null || projectId.isEmpty) return null;
+    final platform = payload['platform'] as String? ?? 'ios';
     final force = payload['force'] as bool? ?? false;
-    return force ? '$projectId force' : projectId;
+    final detail = '$projectId $platform';
+    return force ? '$detail force' : detail;
   } catch (_) {
     return null;
   }

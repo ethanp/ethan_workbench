@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
+import '../deploy/deploy_platform.dart';
 import 'deployable_project.dart';
+import 'project_app_icon.dart';
 
-/// Discovers Flutter apps under configured roots that can be deployed to iOS.
+/// Discovers Flutter apps under configured roots that can deploy to iOS and/or macOS.
 class ProjectCatalog {
   static const _skipDirectoryNames = {
     '.',
@@ -71,20 +73,34 @@ class ProjectCatalog {
     if (_skipPackageNames.contains(directoryName)) return;
 
     final pubspecFile = File(path.join(directory.path, 'pubspec.yaml'));
-    final iosDirectory = Directory(path.join(directory.path, 'ios'));
-    if (await pubspecFile.exists() && await iosDirectory.exists()) {
-      final absolutePath = directory.absolute.path;
-      if (seenPaths.add(absolutePath)) {
-        final relativePath = path.relative(absolutePath, from: flutterRoot);
-        discoveredProjects.add(
-          DeployableProject(
-            projectId: relativePath.split(path.separator).join('/'),
-            name: directoryName,
-            path: absolutePath,
-          ),
-        );
+    if (await pubspecFile.exists()) {
+      final platforms = <DeployPlatform>{};
+      if (await Directory(path.join(directory.path, 'ios')).exists()) {
+        platforms.add(DeployPlatform.ios);
       }
-      return;
+      if (await Directory(path.join(directory.path, 'macos')).exists()) {
+        platforms.add(DeployPlatform.macos);
+      }
+      if (platforms.isNotEmpty) {
+        final absolutePath = directory.absolute.path;
+        if (seenPaths.add(absolutePath)) {
+          final relativePath = path.relative(absolutePath, from: flutterRoot);
+          discoveredProjects.add(
+            DeployableProject(
+              projectId: relativePath.split(path.separator).join('/'),
+              name: directoryName,
+              path: absolutePath,
+              platforms: platforms,
+              lastDeployedAt: await _lastDeployedAt(
+                projectPath: absolutePath,
+                platforms: platforms,
+              ),
+              iconPngBytes: await ProjectAppIcon.loadPngBytes(absolutePath),
+            ),
+          );
+        }
+        return;
+      }
     }
 
     await for (final entity in directory.list(followLinks: false)) {
@@ -97,5 +113,23 @@ class ProjectCatalog {
         seenPaths: seenPaths,
       );
     }
+  }
+
+  Future<Map<DeployPlatform, DateTime?>> _lastDeployedAt({
+    required String projectPath,
+    required Set<DeployPlatform> platforms,
+  }) async {
+    final lastDeployedAt = <DeployPlatform, DateTime?>{};
+    for (final platform in platforms) {
+      final hashFile = File(
+        path.join(projectPath, '.deploy_${platform.name}_hash'),
+      );
+      if (!await hashFile.exists()) {
+        lastDeployedAt[platform] = null;
+        continue;
+      }
+      lastDeployedAt[platform] = await hashFile.lastModified();
+    }
+    return lastDeployedAt;
   }
 }

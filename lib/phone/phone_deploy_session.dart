@@ -1,6 +1,9 @@
 import 'dart:io';
 
+import '../agent/agent_endpoint.dart';
 import '../deploy/deploy_job.dart';
+import '../deploy/deploy_platform.dart';
+import '../deploy/deploy_trigger.dart';
 import '../pairing/session_token_store.dart';
 import '../projects/deployable_project.dart';
 import 'deploy_http_client.dart';
@@ -18,6 +21,27 @@ class PhoneDeploySession {
   bool _paired = false;
 
   bool get isPaired => _paired;
+
+  DeployTrigger deployTrigger({void Function()? onSessionEnded}) {
+    Future<void> endSession() async {
+      await unpair();
+      onSessionEnded?.call();
+    }
+
+    return DeployTrigger(
+      title: 'Phone Deploy',
+      showUnpair: true,
+      preferredPlatforms: const [DeployPlatform.ios],
+      unreachableHint:
+          'Is the Mac companion running at $phoneDeployAgentBaseUrl?',
+      listProjects: listProjects,
+      evaluateSourceChanges: evaluateSourceChanges,
+      startDeploy: startDeploy,
+      fetchJob: fetchJob,
+      onUnauthorized: endSession,
+      onUnpair: endSession,
+    );
+  }
 
   Future<void> restore() async {
     final token = await _tokenStore.loadToken();
@@ -40,13 +64,30 @@ class PhoneDeploySession {
     _paired = false;
   }
 
-  Future<List<DeployableProject>> listProjects() => _agent.listProjects();
+  Future<List<DeployableProject>> listProjects() async {
+    final projects = await _agent.listProjects();
+    return projects
+        .where((project) => project.supports(DeployPlatform.ios))
+        .toList();
+  }
+
+  Future<List<DeployableProject>> evaluateSourceChanges() async {
+    final projects = await _agent.evaluateSourceChanges();
+    return projects
+        .where((project) => project.supports(DeployPlatform.ios))
+        .toList();
+  }
 
   Future<DeployJob> startDeploy({
     required String projectId,
+    required DeployPlatform platform,
     bool force = false,
   }) {
-    return _agent.startDeploy(projectId: projectId, force: force);
+    return _agent.startDeploy(
+      projectId: projectId,
+      platform: platform,
+      force: force,
+    );
   }
 
   Future<DeployJob> fetchJob(String jobId) => _agent.fetchJob(jobId);

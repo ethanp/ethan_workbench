@@ -1,15 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Runs `deploy.rb ios` for a project and streams build output.
+import 'deploy_platform.dart';
+
+/// Runs `deploy.rb <ios|macos>` for a project and streams build output.
 class DeployScriptRunner {
-  Future<int> runIosDeploy({
+  Future<int> runDeploy({
     required String deployRbPath,
     required String projectPath,
+    required DeployPlatform platform,
     required bool force,
     required void Function(String chunk) onOutput,
   }) async {
-    final arguments = [deployRbPath, 'ios'];
+    final arguments = [deployRbPath, platform.scriptArgument];
     if (force) arguments.add('--force');
 
     final process = await Process.start(

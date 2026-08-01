@@ -33,7 +33,7 @@ abstract final class AppTheme {
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         systemOverlayStyle: SystemUiOverlayStyle.light,
-        titleTextStyle: AppText.section,
+        titleTextStyle: AppText.title,
         iconTheme: IconThemeData(color: AppColors.textSecondary),
       ),
       cardTheme: CardThemeData(

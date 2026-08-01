@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../agent/agent_endpoint.dart';
 import '../deploy/deploy_job.dart';
+import '../deploy/deploy_platform.dart';
 import '../projects/deployable_project.dart';
 
 class AgentRequestException implements Exception {
@@ -82,7 +83,20 @@ class MacAgentClient {
       headers: _headers,
     );
     _throwIfFailed(response, 'Failed to list projects');
-    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    return _parseProjects(response.body);
+  }
+
+  Future<List<DeployableProject>> evaluateSourceChanges() async {
+    final response = await _httpClient.post(
+      Uri.parse('$_baseUrl/projects/evaluate-changes'),
+      headers: _headers,
+    );
+    _throwIfFailed(response, 'Failed to check for source changes');
+    return _parseProjects(response.body);
+  }
+
+  List<DeployableProject> _parseProjects(String body) {
+    final payload = jsonDecode(body) as Map<String, dynamic>;
     final projectMaps = payload['projects'] as List<dynamic>;
     return projectMaps
         .map(
@@ -94,6 +108,7 @@ class MacAgentClient {
 
   Future<DeployJob> startDeploy({
     required String projectId,
+    required DeployPlatform platform,
     bool force = false,
   }) async {
     final response = await _httpClient.post(
@@ -101,6 +116,7 @@ class MacAgentClient {
       headers: _headers,
       body: jsonEncode({
         'projectId': projectId,
+        'platform': platform.name,
         'force': force,
       }),
     );

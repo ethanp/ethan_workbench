@@ -40,12 +40,6 @@ class _PhoneHomeState extends State<PhoneHome> {
     setState(() {});
   }
 
-  Future<void> _onUnauthorized() async {
-    await _session.unpair();
-    if (!mounted) return;
-    setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -60,8 +54,11 @@ class _PhoneHomeState extends State<PhoneHome> {
       );
     }
     return ProjectsScreen(
-      session: _session,
-      onUnauthorized: _onUnauthorized,
+      trigger: _session.deployTrigger(
+        onSessionEnded: () {
+          if (mounted) setState(() {});
+        },
+      ),
     );
   }
 }

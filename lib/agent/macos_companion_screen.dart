@@ -1,12 +1,19 @@
 import 'dart:async';
 
+import 'package:ethan_sync/ethan_sync.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../deploy/deploy_job.dart';
+import '../projects/projects_screen.dart';
+import '../sync/deploy_ledger.dart';
+import '../sync/sync_config.dart';
 import '../ui/theme/app_colors.dart';
 import '../ui/theme/app_text.dart';
 import '../ui/widgets/app_panel.dart';
+import '../ui/widgets/deploy_platform_controls.dart';
+import '../ui/widgets/deploy_progress_checklist.dart';
 import '../ui/widgets/log_console.dart';
 import '../ui/widgets/status_pill.dart';
 import 'agent_config.dart';
@@ -14,7 +21,9 @@ import 'agent_endpoint.dart';
 import 'deploy_agent.dart';
 
 class MacosCompanionScreen extends StatefulWidget {
-  const MacosCompanionScreen({super.key});
+  const MacosCompanionScreen({super.key, this.syncContainer});
+
+  final ProviderContainer? syncContainer;
 
   @override
   State<MacosCompanionScreen> createState() => _MacosCompanionScreenState();
@@ -29,6 +38,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   StreamSubscription<void>? _pairingSubscription;
   Timer? _pinTicker;
   bool _busy = false;
+  int _tabIndex = 0;
 
   @override
   void initState() {
@@ -48,7 +58,17 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   Future<void> _bootstrap() async {
     final lanAddress = await firstLanIpv4Address();
     setState(() => _lanAddress = lanAddress);
+    await _attachSyncLedger();
     await _startAgent();
+  }
+
+  Future<void> _attachSyncLedger() async {
+    if (!phoneDeploySyncConfigured()) return;
+    final container = widget.syncContainer;
+    if (container == null) return;
+    final databaseManager =
+        await container.read(powerSyncDatabaseManagerProvider.future);
+    _agent.attachLedger(DeployLedger(databaseManager.database));
   }
 
   void _listenPairingUpdates() {
@@ -116,6 +136,104 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
+      body: IndexedStack(
+        index: _tabIndex,
+        children: [
+          ProjectsScreen(trigger: _agent.localDeployTrigger),
+          _agentTab(),
+        ],
+      ),
+      bottomNavigationBar: Material(
+        color: AppColors.surface,
+        elevation: 0,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 10, 24, 12),
+            child: Center(
+              heightFactor: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceInset,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _companionTab(
+                        index: 0,
+                        icon: Icons.rocket_launch_rounded,
+                        label: 'Deploy',
+                      ),
+                      _companionTab(
+                        index: 1,
+                        icon: Icons.dns_rounded,
+                        label: 'Agent',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _companionTab({
+    required int index,
+    required IconData icon,
+    required String label,
+  }) {
+    final selected = _tabIndex == index;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _tabIndex = index),
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.accent.withValues(alpha: 0.22)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: selected ? AppColors.accentGlow : AppColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: AppText.section.copyWith(
+                  fontSize: 14,
+                  color: selected
+                      ? AppColors.textPrimary
+                      : AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _agentTab() {
+    return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,21 +463,31 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     final job = _activeJob;
     return AppPanel(
       title: 'Active job',
-      subtitle: job?.projectName ?? 'Waiting for the phone',
+      subtitle: job == null ? 'Waiting for a deploy' : job.projectName,
       trailing: job == null ? null : StatusPill.job(job.status),
       child: job == null
           ? Text(
-              'Deployments triggered from the iPhone appear here with live logs.',
+              'Deploys from this Mac or a paired iPhone show live logs here.',
               style: AppText.body,
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (job.force)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text('Force rebuild', style: AppText.caption),
-                  ),
+                Row(
+                  children: [
+                    DeployPlatformBadge(platform: job.platform),
+                    const SizedBox(width: 10),
+                    Text(
+                      job.force ? 'Force rebuild' : 'Incremental deploy',
+                      style: AppText.caption,
+                    ),
+                  ],
+                ),
+                if (job.checklist.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  DeployProgressChecklist(items: job.checklist),
+                ],
+                const SizedBox(height: 12),
                 LogConsole(log: job.log, maxHeight: 260),
               ],
             ),
