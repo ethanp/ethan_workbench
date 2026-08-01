@@ -3,6 +3,7 @@
 !.env.example
 
 # Local deploy.rb hash stamps (written next to each app, or here if run in-tree)
+.deploy_hash
 .deploy_*_hash
 
 # Miscellaneous
