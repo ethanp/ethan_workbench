@@ -102,10 +102,7 @@ class ProjectLocalRunFlow {
     }
   }
 
-  Future<void> _openConsole(
-    BuildContext context,
-    LocalRunControls session,
-  ) {
+  Future<void> _openConsole(BuildContext context, LocalRunControls session) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => LocalRunScreen(session: session),
