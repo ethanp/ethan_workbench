@@ -11,10 +11,7 @@ void main() {
         DeployChecklist.formatElapsed(const Duration(minutes: 1, seconds: 3)),
         '1m 3s',
       );
-      expect(
-        DeployChecklist.formatElapsed(const Duration(minutes: 2)),
-        '2m',
-      );
+      expect(DeployChecklist.formatElapsed(const Duration(minutes: 2)), '2m');
     });
   });
 

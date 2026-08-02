@@ -6,15 +6,10 @@ import 'package:flutter/services.dart';
 import '../agent/agent_endpoint.dart';
 import '../phone/deploy_http_client.dart';
 import '../phone/phone_deploy_session.dart';
-import '../ui/theme/app_colors.dart';
-import '../ui/theme/app_text.dart';
+import 'package:ethan_ui/ethan_ui.dart';
 
 class PairingScreen extends StatefulWidget {
-  const PairingScreen({
-    super.key,
-    required this.session,
-    required this.onPaired,
-  });
+  const PairingScreen({required this.session, required this.onPaired});
 
   final PhoneDeploySession session;
   final VoidCallback onPaired;
@@ -67,35 +62,35 @@ class _PairingScreenState extends State<PairingScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
         children: [
-          Text('Enter pairing PIN', style: AppText.section),
+          Text('Enter pairing PIN', style: EText.section),
           const SizedBox(height: 8),
           Text(
             'On the Mac companion, copy the 6-digit PIN and enter it here. '
             'It refreshes every minute.',
-            style: AppText.body,
+            style: EText.body,
           ),
           const SizedBox(height: 8),
-          Text(phoneDeployAgentBaseUrl, style: AppText.monoEmphasis),
+          Text(phoneDeployAgentBaseUrl, style: EText.monoEmphasis),
           const SizedBox(height: 24),
           TextField(
             controller: _pinController,
             keyboardType: TextInputType.number,
             maxLength: 6,
-            style: AppText.mono.copyWith(fontSize: 28, letterSpacing: 8),
+            style: EText.mono.copyWith(fontSize: 28, letterSpacing: 8),
             textAlign: TextAlign.center,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
               counterText: '',
               hintText: '••••••',
               filled: true,
-              fillColor: AppColors.surfaceInset,
+              fillColor: EColors.surfaceInset,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: const BorderSide(color: EColors.border),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: const BorderSide(color: EColors.border),
               ),
             ),
             onSubmitted: (_) {
@@ -111,7 +106,7 @@ class _PairingScreenState extends State<PairingScreen> {
             const SizedBox(height: 16),
             Text(
               _errorMessage!,
-              style: AppText.body.copyWith(color: AppColors.danger),
+              style: EText.body.copyWith(color: EColors.danger),
             ),
           ],
         ],

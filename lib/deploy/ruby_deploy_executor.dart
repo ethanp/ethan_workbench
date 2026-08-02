@@ -19,17 +19,16 @@ class DeployScriptRunner {
       'ruby',
       arguments,
       workingDirectory: projectPath,
-      environment: {
-        ...Platform.environment,
-        'PYTHONUNBUFFERED': '1',
-      },
+      environment: {...Platform.environment, 'PYTHONUNBUFFERED': '1'},
       runInShell: false,
     );
 
-    final stdoutSubscription =
-        process.stdout.transform(utf8.decoder).listen(onOutput);
-    final stderrSubscription =
-        process.stderr.transform(utf8.decoder).listen(onOutput);
+    final stdoutSubscription = process.stdout
+        .transform(utf8.decoder)
+        .listen(onOutput);
+    final stderrSubscription = process.stderr
+        .transform(utf8.decoder)
+        .listen(onOutput);
 
     try {
       return await process.exitCode;

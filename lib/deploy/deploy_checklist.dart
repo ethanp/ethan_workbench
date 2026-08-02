@@ -46,25 +46,25 @@ class DeployChecklistItem {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'label': label,
-        'status': status.name,
-        'startedAt': startedAt?.toIso8601String(),
-        'finishedAt': finishedAt?.toIso8601String(),
-      };
+    'id': id,
+    'label': label,
+    'status': status.name,
+    'startedAt': startedAt?.toIso8601String(),
+    'finishedAt': finishedAt?.toIso8601String(),
+  };
 
   DeployChecklistItem asPending() => DeployChecklistItem(
-        id: id,
-        label: label,
-        status: DeployChecklistItemStatus.pending,
-      );
+    id: id,
+    label: label,
+    status: DeployChecklistItemStatus.pending,
+  );
 
   DeployChecklistItem asActive({required DateTime at}) => DeployChecklistItem(
-        id: id,
-        label: label,
-        status: DeployChecklistItemStatus.active,
-        startedAt: at,
-      );
+    id: id,
+    label: label,
+    status: DeployChecklistItemStatus.active,
+    startedAt: at,
+  );
 
   DeployChecklistItem asDone({required DateTime at}) {
     if (status == DeployChecklistItemStatus.done) return this;
@@ -78,12 +78,12 @@ class DeployChecklistItem {
   }
 
   DeployChecklistItem asSkipped() => DeployChecklistItem(
-        id: id,
-        label: label,
-        status: DeployChecklistItemStatus.skipped,
-        startedAt: startedAt,
-        finishedAt: finishedAt,
-      );
+    id: id,
+    label: label,
+    status: DeployChecklistItemStatus.skipped,
+    startedAt: startedAt,
+    finishedAt: finishedAt,
+  );
 }
 
 abstract final class DeployChecklist {
@@ -132,10 +132,7 @@ abstract final class DeployChecklist {
     required DateTime at,
   }) {
     if (items.isEmpty) return items;
-    return [
-      items.first.asActive(at: at),
-      ...items.skip(1),
-    ];
+    return [items.first.asActive(at: at), ...items.skip(1)];
   }
 
   static List<DeployChecklistItem> applyPhase(
@@ -146,10 +143,7 @@ abstract final class DeployChecklist {
     if (phaseId == 'skipped') {
       return [
         for (final item in items)
-          if (item.id == 'checking')
-            item.asDone(at: at)
-          else
-            item.asSkipped(),
+          if (item.id == 'checking') item.asDone(at: at) else item.asSkipped(),
       ];
     }
     if (phaseId == 'done') {

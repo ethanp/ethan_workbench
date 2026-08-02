@@ -121,10 +121,9 @@ abstract final class DeploySourceHasher {
     }
 
     final relativeFilePaths = <String>[];
-    await for (final entity in Directory(absoluteRoot).list(
-      recursive: true,
-      followLinks: false,
-    )) {
+    await for (final entity in Directory(
+      absoluteRoot,
+    ).list(recursive: true, followLinks: false)) {
       if (entity is! File) continue;
       final relativePath = path.relative(entity.path, from: projectPath);
       if (_isVolatileRelativePath(relativePath)) continue;

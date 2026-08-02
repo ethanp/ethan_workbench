@@ -18,9 +18,7 @@ SyncConfig buildPhoneDeploySyncConfig(SharedPreferences preferences) {
     schema: phoneDeploySchema,
     upload: UploadSettings(
       strategy: CoalescingBatchUploadStrategy(),
-      conflictColumns: const {
-        'deploy_state': 'project_id,platform',
-      },
+      conflictColumns: const {'deploy_state': 'project_id,platform'},
     ),
     onSyncError: (message) => _log.warn(message),
   );

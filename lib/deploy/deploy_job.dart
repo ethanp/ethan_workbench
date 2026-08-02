@@ -72,18 +72,18 @@ class DeployJob {
   }
 
   Map<String, dynamic> toJson() => {
-        'jobId': jobId,
-        'projectId': projectId,
-        'projectName': projectName,
-        'platform': platform.name,
-        'force': force,
-        'status': status.name,
-        'log': log,
-        'createdAt': createdAt.toIso8601String(),
-        'finishedAt': finishedAt?.toIso8601String(),
-        'exitCode': exitCode,
-        'checklist': checklist.map((item) => item.toJson()).toList(),
-      };
+    'jobId': jobId,
+    'projectId': projectId,
+    'projectName': projectName,
+    'platform': platform.name,
+    'force': force,
+    'status': status.name,
+    'log': log,
+    'createdAt': createdAt.toIso8601String(),
+    'finishedAt': finishedAt?.toIso8601String(),
+    'exitCode': exitCode,
+    'checklist': checklist.map((item) => item.toJson()).toList(),
+  };
 
   DeployJob copyWith({
     DeployJobStatus? status,

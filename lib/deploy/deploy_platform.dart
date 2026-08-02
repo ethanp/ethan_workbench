@@ -10,9 +10,9 @@ enum DeployPlatform {
   }
 
   String get label => switch (this) {
-        DeployPlatform.ios => 'iOS',
-        DeployPlatform.macos => 'macOS',
-      };
+    DeployPlatform.ios => 'iOS',
+    DeployPlatform.macos => 'macOS',
+  };
 
   /// Argument passed to `deploy.rb`.
   String get scriptArgument => name;

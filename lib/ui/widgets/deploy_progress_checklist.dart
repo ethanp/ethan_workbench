@@ -2,16 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
-import '../theme/app_text.dart';
+import 'package:ethan_ui/ethan_ui.dart';
+
 import '../../deploy/deploy_checklist.dart';
 
 /// Live checklist of deploy steps with an elapsed ticker on the active step.
 class DeployProgressChecklist extends StatefulWidget {
-  const DeployProgressChecklist({
-    super.key,
-    required this.items,
-  });
+  const DeployProgressChecklist({required this.items});
 
   final List<DeployChecklistItem> items;
 
@@ -42,8 +39,8 @@ class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
   }
 
   bool get _hasActiveStep => widget.items.any(
-        (item) => item.status == DeployChecklistItemStatus.active,
-      );
+    (item) => item.status == DeployChecklistItemStatus.active,
+  );
 
   void _syncTicker() {
     if (!_hasActiveStep) {
@@ -79,7 +76,7 @@ class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
         Expanded(
           child: Text(
             item.label,
-            style: AppText.body.copyWith(
+            style: EText.body.copyWith(
               color: _labelColor(item.status),
               decoration: item.status == DeployChecklistItemStatus.skipped
                   ? TextDecoration.lineThrough
@@ -93,7 +90,7 @@ class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
             DeployChecklist.formatElapsed(
               DateTime.now().difference(item.startedAt!),
             ),
-            style: AppText.mono.copyWith(color: AppColors.accentGlow),
+            style: EText.mono.copyWith(color: EColors.accentGlow),
           ),
         if (item.status == DeployChecklistItemStatus.done &&
             item.startedAt != null &&
@@ -102,7 +99,7 @@ class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
             DeployChecklist.formatElapsed(
               item.finishedAt!.difference(item.startedAt!),
             ),
-            style: AppText.caption,
+            style: EText.caption,
           ),
       ],
     );
@@ -111,32 +108,32 @@ class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
   Widget _statusIcon(DeployChecklistItemStatus status) {
     return switch (status) {
       DeployChecklistItemStatus.done => const Icon(
-          Icons.check_circle_rounded,
-          size: 18,
-          color: AppColors.success,
-        ),
+        Icons.check_circle_rounded,
+        size: 18,
+        color: EColors.success,
+      ),
       DeployChecklistItemStatus.active => const SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
       DeployChecklistItemStatus.skipped => const Icon(
-          Icons.remove_circle_outline_rounded,
-          size: 18,
-          color: AppColors.textMuted,
-        ),
+        Icons.remove_circle_outline_rounded,
+        size: 18,
+        color: EColors.textMuted,
+      ),
       DeployChecklistItemStatus.pending => Icon(
-          Icons.radio_button_unchecked_rounded,
-          size: 18,
-          color: AppColors.textMuted.withValues(alpha: 0.7),
-        ),
+        Icons.radio_button_unchecked_rounded,
+        size: 18,
+        color: EColors.textMuted.withValues(alpha: 0.7),
+      ),
     };
   }
 
   Color _labelColor(DeployChecklistItemStatus status) => switch (status) {
-        DeployChecklistItemStatus.active => AppColors.textPrimary,
-        DeployChecklistItemStatus.done => AppColors.textSecondary,
-        DeployChecklistItemStatus.skipped => AppColors.textMuted,
-        DeployChecklistItemStatus.pending => AppColors.textMuted,
-      };
+    DeployChecklistItemStatus.active => EColors.textPrimary,
+    DeployChecklistItemStatus.done => EColors.textSecondary,
+    DeployChecklistItemStatus.skipped => EColors.textMuted,
+    DeployChecklistItemStatus.pending => EColors.textMuted,
+  };
 }

@@ -26,11 +26,7 @@ class ProjectCatalog {
     '.vscode',
   };
 
-  static const _skipPackageNames = {
-    'ethan_utils',
-    'ethan_sync',
-    'viant_core',
-  };
+  static const _skipPackageNames = {'ethan_utils', 'ethan_sync', 'viant_core'};
 
   final List<String> flutterRoots;
 

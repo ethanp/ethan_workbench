@@ -21,13 +21,12 @@ class AgentRequestException implements Exception {
 
 /// HTTP client for the Mac LAN agent (pair, list projects, start deploys).
 class MacAgentClient {
-  MacAgentClient({
-    String? baseUrl,
-    this._bearerToken,
-    http.Client? httpClient,
-  })  : _baseUrl = (baseUrl ?? phoneDeployAgentBaseUrl)
-            .replaceAll(RegExp(r'/+$'), ''),
-        _httpClient = httpClient ?? http.Client();
+  MacAgentClient({String? baseUrl, this._bearerToken, http.Client? httpClient})
+    : _baseUrl = (baseUrl ?? phoneDeployAgentBaseUrl).replaceAll(
+        RegExp(r'/+$'),
+        '',
+      ),
+      _httpClient = httpClient ?? http.Client();
 
   final String _baseUrl;
   String? _bearerToken;
@@ -40,9 +39,7 @@ class MacAgentClient {
   }
 
   Map<String, String> get _headers {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-    };
+    final headers = <String, String>{'Content-Type': 'application/json'};
     final token = _bearerToken;
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
@@ -62,10 +59,7 @@ class MacAgentClient {
     final response = await _httpClient.post(
       Uri.parse('$_baseUrl/pair'),
       headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'pin': pin,
-        'label': label,
-      }),
+      body: jsonEncode({'pin': pin, 'label': label}),
     );
     _throwIfFailed(response, 'Pairing failed');
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
@@ -121,7 +115,9 @@ class MacAgentClient {
       }),
     );
     _throwIfFailed(response, 'Failed to start deploy');
-    return DeployJob.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    return DeployJob.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   Future<DeployJob> fetchJob(String jobId) async {
@@ -130,7 +126,9 @@ class MacAgentClient {
       headers: _headers,
     );
     _throwIfFailed(response, 'Failed to load job');
-    return DeployJob.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    return DeployJob.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   Future<DeployJob?> fetchActiveJob() async {
@@ -140,7 +138,9 @@ class MacAgentClient {
     );
     if (response.statusCode == 404) return null;
     _throwIfFailed(response, 'Failed to load active job');
-    return DeployJob.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    return DeployJob.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   void _throwIfFailed(http.Response response, String fallbackMessage) {

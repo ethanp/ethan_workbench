@@ -13,8 +13,8 @@ class PhoneDeploySession {
   PhoneDeploySession({
     MacAgentClient? agentClient,
     SessionTokenStore? tokenStore,
-  })  : _agent = agentClient ?? MacAgentClient(),
-        _tokenStore = tokenStore ?? SessionTokenStore();
+  }) : _agent = agentClient ?? MacAgentClient(),
+       _tokenStore = tokenStore ?? SessionTokenStore();
 
   final MacAgentClient _agent;
   final SessionTokenStore _tokenStore;

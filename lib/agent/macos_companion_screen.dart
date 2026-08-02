@@ -9,19 +9,17 @@ import '../deploy/deploy_job.dart';
 import '../projects/projects_screen.dart';
 import '../sync/deploy_ledger.dart';
 import '../sync/sync_config.dart';
-import '../ui/theme/app_colors.dart';
-import '../ui/theme/app_text.dart';
-import '../ui/widgets/app_panel.dart';
+import 'package:ethan_ui/ethan_ui.dart';
+
 import '../ui/widgets/deploy_platform_controls.dart';
 import '../ui/widgets/deploy_progress_checklist.dart';
-import '../ui/widgets/log_console.dart';
 import '../ui/widgets/status_pill.dart';
 import 'agent_config.dart';
 import 'agent_endpoint.dart';
 import 'deploy_agent.dart';
 
 class MacosCompanionScreen extends StatefulWidget {
-  const MacosCompanionScreen({super.key, this.syncContainer});
+  const MacosCompanionScreen({this.syncContainer});
 
   final ProviderContainer? syncContainer;
 
@@ -66,8 +64,9 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     if (!phoneDeploySyncConfigured()) return;
     final container = widget.syncContainer;
     if (container == null) return;
-    final databaseManager =
-        await container.read(powerSyncDatabaseManagerProvider.future);
+    final databaseManager = await container.read(
+      powerSyncDatabaseManagerProvider.future,
+    );
     _agent.attachLedger(DeployLedger(databaseManager.database));
   }
 
@@ -136,7 +135,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: EColors.background,
       body: IndexedStack(
         index: _tabIndex,
         children: [
@@ -144,102 +143,33 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
           _agentTab(),
         ],
       ),
-      bottomNavigationBar: Material(
-        color: AppColors.surface,
-        elevation: 0,
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 10, 24, 12),
-            child: Center(
-              heightFactor: 1,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceInset,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _companionTab(
-                        index: 0,
-                        icon: Icons.rocket_launch_rounded,
-                        label: 'Deploy',
-                      ),
-                      _companionTab(
-                        index: 1,
-                        icon: Icons.dns_rounded,
-                        label: 'Agent',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+      bottomNavigationBar: EFrostedBottomBar(
+        child: ESegmentedControl(
+          selectedIndex: _tabIndex,
+          onSelected: (index) => setState(() => _tabIndex = index),
+          segments: const [
+            ESegment(
+              icon: Icons.rocket_launch_rounded,
+              label: 'Deploy',
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _companionTab({
-    required int index,
-    required IconData icon,
-    required String label,
-  }) {
-    final selected = _tabIndex == index;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => setState(() => _tabIndex = index),
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.accent.withValues(alpha: 0.22)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: selected ? AppColors.accentGlow : AppColors.textMuted,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: AppText.section.copyWith(
-                  fontSize: 14,
-                  color: selected
-                      ? AppColors.textPrimary
-                      : AppColors.textMuted,
-                ),
-              ),
-            ],
-          ),
+            ESegment(
+              icon: Icons.dns_rounded,
+              label: 'Agent',
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _agentTab() {
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return EScaffoldShell(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Phone Deploy'),
-            Text('Mac companion', style: AppText.caption),
+            Text('Mac companion', style: EText.caption),
           ],
         ),
       ),
@@ -255,7 +185,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
           _jobPanel(),
           if (_statusMessage != null) ...[
             const SizedBox(height: 16),
-            Text(_statusMessage!, style: AppText.caption),
+            Text(_statusMessage!, style: EText.caption),
           ],
         ],
       ),
@@ -263,7 +193,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   }
 
   Widget _serverPanel() {
-    return AppPanel(
+    return EPanel(
       title: 'Agent',
       subtitle: _agent.isRunning ? 'Ready for deploys' : 'Agent offline',
       trailing: StatusPill.server(running: _agent.isRunning),
@@ -272,7 +202,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
         children: [
           Text(
             'Port ${_agent.boundPort ?? AgentConfig.defaultPort}',
-            style: AppText.mono,
+            style: EText.mono,
           ),
           const SizedBox(height: 14),
           Row(
@@ -297,11 +227,11 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     final pairingAuth = _agent.pairingAuth;
     final secondsLeft = pairingAuth.pinTimeRemaining.inSeconds;
     final sessions = pairingAuth.sessions;
-    return AppPanel(
+    return EPanel(
       title: 'Pairing',
       subtitle: _agent.isRunning
           ? '${sessions.length} connected device'
-              '${sessions.length == 1 ? '' : 's'}'
+                '${sessions.length == 1 ? '' : 's'}'
           : 'Start the agent to show a PIN',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,20 +239,20 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
           if (!_agent.isRunning)
             Text(
               'PIN appears when the agent is listening.',
-              style: AppText.body,
+              style: EText.body,
             )
           else ...[
-            Text('PIN', style: AppText.label),
+            Text('PIN', style: EText.label),
             const SizedBox(height: 6),
             Row(
               children: [
                 Expanded(
                   child: SelectableText(
                     _formattedPin,
-                    style: AppText.mono.copyWith(
+                    style: EText.mono.copyWith(
                       fontSize: 36,
                       letterSpacing: 4,
-                      color: AppColors.accentGlow,
+                      color: EColors.accentGlow,
                     ),
                   ),
                 ),
@@ -333,9 +263,9 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
                       ClipboardData(text: pairingAuth.pin),
                     );
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Copied PIN')),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('Copied PIN')));
                   },
                   icon: const Icon(Icons.copy),
                 ),
@@ -344,7 +274,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
             const SizedBox(height: 8),
             Text(
               'Enter this on the phone. Refreshes in ${secondsLeft}s.',
-              style: AppText.caption,
+              style: EText.caption,
             ),
             const SizedBox(height: 14),
             OutlinedButton(
@@ -352,13 +282,10 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
               child: const Text('New PIN'),
             ),
             const SizedBox(height: 18),
-            Text('CONNECTED', style: AppText.label),
+            Text('CONNECTED', style: EText.label),
             const SizedBox(height: 8),
             if (sessions.isEmpty)
-              Text(
-                'No phones paired yet.',
-                style: AppText.body,
-              )
+              Text('No phones paired yet.', style: EText.body)
             else ...[
               for (final session in sessions) ...[
                 _sessionRow(session.sessionId, session.label, session.pairedAt),
@@ -368,9 +295,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
                 onPressed: () {
                   pairingAuth.revokeAllSessions();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Revoked all phone sessions'),
-                    ),
+                    const SnackBar(content: Text('Revoked all phone sessions')),
                   );
                 },
                 child: const Text('Revoke all'),
@@ -384,75 +309,65 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
 
   Widget _sessionRow(String sessionId, String label, DateTime pairedAt) {
     final time = TimeOfDay.fromDateTime(pairedAt).format(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceInset,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: AppText.section),
-                  Text('Paired $time', style: AppText.caption),
-                ],
-              ),
+    return ESurface(
+      kind: ESurfaceKind.inset,
+      borderRadius: ELayout.borderRadius(ELayout.radiusSm),
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: EText.section),
+                Text('Paired $time', style: EText.caption),
+              ],
             ),
-            TextButton(
-              onPressed: () {
-                _agent.pairingAuth.revokeSession(sessionId);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Revoked $label')),
-                );
-              },
-              child: Text(
-                'Revoke',
-                style: AppText.body.copyWith(color: AppColors.danger),
-              ),
+          ),
+          TextButton(
+            onPressed: () {
+              _agent.pairingAuth.revokeSession(sessionId);
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Revoked $label')));
+            },
+            child: Text(
+              'Revoke',
+              style: EText.body.copyWith(color: EColors.danger),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _endpointPanel() {
-    return AppPanel(
+    return EPanel(
       title: 'Endpoint',
       subtitle: 'Phone target from .env',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceInset,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: SelectableText(
-                phoneDeployAgentBaseUrl,
-                style: AppText.monoEmphasis,
-              ),
+          ESurface(
+            kind: ESurfaceKind.inset,
+            borderRadius: ELayout.borderRadius(ELayout.radiusSm),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: SelectableText(
+              phoneDeployAgentBaseUrl,
+              style: EText.monoEmphasis,
             ),
           ),
           if (_lanAddress != null) ...[
             const SizedBox(height: 10),
             Text(
               'LAN IP $_lanAddress · fallback if .local fails',
-              style: AppText.caption,
+              style: EText.caption,
             ),
           ],
           const SizedBox(height: 10),
           Text(
             'Keep this window open while deploying from the phone.',
-            style: AppText.body,
+            style: EText.body,
           ),
         ],
       ),
@@ -461,14 +376,14 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
 
   Widget _jobPanel() {
     final job = _activeJob;
-    return AppPanel(
+    return EPanel(
       title: 'Active job',
       subtitle: job == null ? 'Waiting for a deploy' : job.projectName,
       trailing: job == null ? null : StatusPill.job(job.status),
       child: job == null
           ? Text(
               'Deploys from this Mac or a paired iPhone show live logs here.',
-              style: AppText.body,
+              style: EText.body,
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -479,7 +394,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
                     const SizedBox(width: 10),
                     Text(
                       job.force ? 'Force rebuild' : 'Incremental deploy',
-                      style: AppText.caption,
+                      style: EText.caption,
                     ),
                   ],
                 ),

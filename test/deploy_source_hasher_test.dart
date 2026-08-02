@@ -7,54 +7,59 @@ import 'package:phone_deploy/projects/deploy_source_hasher.dart';
 
 void main() {
   test('Dart source hash matches deploy.rb for a filtered tree', () async {
-    final fixtureRoot =
-        Directory.systemTemp.createTempSync('phone_deploy_hash_');
+    final fixtureRoot = Directory.systemTemp.createTempSync(
+      'phone_deploy_hash_',
+    );
     addTearDown(() => fixtureRoot.deleteSync(recursive: true));
 
     final appDirectory = Directory(path.join(fixtureRoot.path, 'app'))
       ..createSync();
-    final packagesDirectory =
-        Directory(path.join(fixtureRoot.path, 'packages', 'shared'))
-          ..createSync(recursive: true);
+    final packagesDirectory = Directory(
+      path.join(fixtureRoot.path, 'packages', 'shared'),
+    )..createSync(recursive: true);
 
-    File(path.join(appDirectory.path, 'pubspec.yaml'))
-        .writeAsStringSync('name: sample\n');
-    File(path.join(appDirectory.path, 'pubspec.lock'))
-        .writeAsStringSync('lock\n');
+    File(
+      path.join(appDirectory.path, 'pubspec.yaml'),
+    ).writeAsStringSync('name: sample\n');
+    File(
+      path.join(appDirectory.path, 'pubspec.lock'),
+    ).writeAsStringSync('lock\n');
     Directory(path.join(appDirectory.path, 'lib')).createSync();
-    File(path.join(appDirectory.path, 'lib', 'main.dart'))
-        .writeAsStringSync('void main() {}\n');
-    Directory(path.join(appDirectory.path, 'macos', 'Runner'))
-        .createSync(recursive: true);
-    File(path.join(appDirectory.path, 'macos', 'Runner', 'App.swift'))
-        .writeAsStringSync('struct App {}\n');
+    File(
+      path.join(appDirectory.path, 'lib', 'main.dart'),
+    ).writeAsStringSync('void main() {}\n');
+    Directory(
+      path.join(appDirectory.path, 'macos', 'Runner'),
+    ).createSync(recursive: true);
+    File(
+      path.join(appDirectory.path, 'macos', 'Runner', 'App.swift'),
+    ).writeAsStringSync('struct App {}\n');
 
     // Volatile noise that must be ignored by both hashers.
-    Directory(path.join(appDirectory.path, 'lib', '.dart_tool'))
-        .createSync(recursive: true);
-    File(path.join(appDirectory.path, 'lib', '.dart_tool', 'noise.txt'))
-        .writeAsStringSync('noise\n');
+    Directory(
+      path.join(appDirectory.path, 'lib', '.dart_tool'),
+    ).createSync(recursive: true);
+    File(
+      path.join(appDirectory.path, 'lib', '.dart_tool', 'noise.txt'),
+    ).writeAsStringSync('noise\n');
     File(path.join(appDirectory.path, '.DS_Store')).writeAsStringSync('mac\n');
-    File(path.join(packagesDirectory.path, 'code.dart'))
-        .writeAsStringSync('shared\n');
-    Directory(path.join(packagesDirectory.path, '.dart_tool'))
-        .createSync(recursive: true);
-    File(path.join(packagesDirectory.path, '.dart_tool', 'x'))
-        .writeAsStringSync('x\n');
+    File(
+      path.join(packagesDirectory.path, 'code.dart'),
+    ).writeAsStringSync('shared\n');
+    Directory(
+      path.join(packagesDirectory.path, '.dart_tool'),
+    ).createSync(recursive: true);
+    File(
+      path.join(packagesDirectory.path, '.dart_tool', 'x'),
+    ).writeAsStringSync('x\n');
 
-    final deployRb = File(
-      path.join(
-        Directory.current.path,
-        'deploy.rb',
-      ),
-    );
+    final deployRb = File(path.join(Directory.current.path, 'deploy.rb'));
     expect(deployRb.existsSync(), isTrue);
 
-    final ruby = await Process.run(
-      'ruby',
-      ['-e', _rubyHashScript],
-      workingDirectory: appDirectory.path,
-    );
+    final ruby = await Process.run('ruby', [
+      '-e',
+      _rubyHashScript,
+    ], workingDirectory: appDirectory.path);
     expect(ruby.exitCode, 0, reason: ruby.stderr);
     final rubyHash = (ruby.stdout as String).trim();
 

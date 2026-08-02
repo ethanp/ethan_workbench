@@ -26,10 +26,7 @@ class DeployLedger {
     });
   }
 
-  Future<void> recordRunFinished(
-    DeployJob job, {
-    String? sourceHash,
-  }) async {
+  Future<void> recordRunFinished(DeployJob job, {String? sourceHash}) async {
     final finishedAt = job.finishedAt ?? DateTime.now();
     await _powerSync.upsert('deploy_runs', {
       'id': job.jobId,
@@ -52,10 +49,9 @@ class DeployLedger {
     final skipped = job.checklist.any(
       (item) => item.status == DeployChecklistItemStatus.skipped,
     );
-    final lastDeployedAt =
-        job.status == DeployJobStatus.succeeded && !skipped
-            ? finishedAt.millisecondsSinceEpoch
-            : previous?['last_deployed_at'] as int?;
+    final lastDeployedAt = job.status == DeployJobStatus.succeeded && !skipped
+        ? finishedAt.millisecondsSinceEpoch
+        : previous?['last_deployed_at'] as int?;
 
     await _powerSync.upsert('deploy_state', {
       'id': stateId,
@@ -83,11 +79,9 @@ class DeployLedger {
       final status = row['last_status'] as String?;
       final millis = row['last_deployed_at'] as int?;
       if (status == DeployJobStatus.succeeded.name && millis != null) {
-        lastDeployedAt[platform] =
-            DateTime.fromMillisecondsSinceEpoch(millis);
+        lastDeployedAt[platform] = DateTime.fromMillisecondsSinceEpoch(millis);
       } else if (millis != null) {
-        lastDeployedAt[platform] =
-            DateTime.fromMillisecondsSinceEpoch(millis);
+        lastDeployedAt[platform] = DateTime.fromMillisecondsSinceEpoch(millis);
       }
     }
     return lastDeployedAt;

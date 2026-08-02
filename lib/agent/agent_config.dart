@@ -8,13 +8,10 @@ class AgentConfig {
   final List<String> flutterRoots;
   final String deployRbPath;
 
-  AgentConfig({
-    int? port,
-    List<String>? flutterRoots,
-    String? deployRbPath,
-  })  : port = port ?? phoneDeployAgentPort,
-        flutterRoots = flutterRoots ?? [phoneDeployFlutterRoot],
-        deployRbPath = deployRbPath ?? phoneDeployDeployRbPath;
+  AgentConfig({int? port, List<String>? flutterRoots, String? deployRbPath})
+    : port = port ?? phoneDeployAgentPort,
+      flutterRoots = flutterRoots ?? [phoneDeployFlutterRoot],
+      deployRbPath = deployRbPath ?? phoneDeployDeployRbPath;
 
   static String get defaultFlutterRoot => phoneDeployFlutterRoot;
   static String get defaultDeployRbPath => phoneDeployDeployRbPath;

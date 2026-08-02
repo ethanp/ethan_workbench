@@ -10,20 +10,25 @@ import 'package:shelf/shelf.dart';
 
 void main() {
   test('agent API requires pairing for projects', () async {
-    final fixtureRoot = Directory.systemTemp.createTempSync('phone_deploy_smoke_');
+    final fixtureRoot = Directory.systemTemp.createTempSync(
+      'phone_deploy_smoke_',
+    );
     addTearDown(() => fixtureRoot.deleteSync(recursive: true));
 
-    final sampleAppDirectory = Directory(path.join(fixtureRoot.path, 'sample_app'))
-      ..createSync();
-    File(path.join(sampleAppDirectory.path, 'pubspec.yaml'))
-        .writeAsStringSync('name: sample_app\n');
+    final sampleAppDirectory = Directory(
+      path.join(fixtureRoot.path, 'sample_app'),
+    )..createSync();
+    File(
+      path.join(sampleAppDirectory.path, 'pubspec.yaml'),
+    ).writeAsStringSync('name: sample_app\n');
     Directory(path.join(sampleAppDirectory.path, 'ios')).createSync();
 
     final deployRbPath = path.join(fixtureRoot.path, 'deploy.rb');
     File(deployRbPath).writeAsStringSync("# fixture\n");
 
     dotenv.loadFromString(
-      envString: '''
+      envString:
+          '''
 PHONE_DEPLOY_AGENT_HOST=localhost
 PHONE_DEPLOY_AGENT_PORT=18787
 PHONE_DEPLOY_FLUTTER_ROOT=${fixtureRoot.path}
@@ -85,7 +90,8 @@ PHONE_DEPLOY_DEPLOY_RB=$deployRbPath
     );
     expect(projectsResponse.statusCode, 200);
     final payload =
-        jsonDecode(await projectsResponse.readAsString()) as Map<String, dynamic>;
+        jsonDecode(await projectsResponse.readAsString())
+            as Map<String, dynamic>;
     final projects = payload['projects'] as List<dynamic>;
     expect(
       projects.any((project) => project['projectId'] == 'sample_app'),

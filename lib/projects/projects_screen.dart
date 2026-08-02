@@ -7,16 +7,13 @@ import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_trigger.dart';
 import '../deploy/job_screen.dart';
 import '../phone/deploy_http_client.dart';
-import '../ui/theme/app_colors.dart';
-import '../ui/theme/app_text.dart';
+import 'package:ethan_ui/ethan_ui.dart';
+
 import '../ui/widgets/deploy_platform_controls.dart';
 import 'deployable_project.dart';
 
 class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({
-    super.key,
-    required this.trigger,
-  });
+  const ProjectsScreen({required this.trigger});
 
   final DeployTrigger trigger;
 
@@ -35,13 +32,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   @override
   void initState() {
     super.initState();
-    _lastCheckedTicker = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) {
-        if (!mounted || _lastChangesCheckedAt == null) return;
-        setState(() {});
-      },
-    );
+    _lastCheckedTicker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted || _lastChangesCheckedAt == null) return;
+      setState(() {});
+    });
     unawaited(_loadProjects(evaluateChanges: true));
   }
 
@@ -92,9 +86,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         _evaluatingChanges = false;
       });
       if (evaluateChanges && _projects.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     } catch (error) {
       if (!mounted) return;
@@ -104,9 +98,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         _evaluatingChanges = false;
       });
       if (evaluateChanges && _projects.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
   }
@@ -116,9 +110,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   List<DeployPlatform> _platformsFor(DeployableProject project) {
-    return widget.trigger.preferredPlatforms
-        .where(project.supports)
-        .toList();
+    return widget.trigger.preferredPlatforms.where(project.supports).toList();
   }
 
   Future<void> _confirmAndDeploy(
@@ -140,10 +132,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (context) => JobScreen(
-            trigger: widget.trigger,
-            initialJob: job,
-          ),
+          builder: (context) =>
+              JobScreen(trigger: widget.trigger, initialJob: job),
         ),
       );
       if (!mounted) return;
@@ -154,14 +144,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         await widget.trigger.onUnauthorized?.call();
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -177,9 +167,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           children: [
             Icon(platform.icon, color: platform.accent, size: 24),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text('Deploy ${project.name}?'),
-            ),
+            Expanded(child: Text('Deploy ${project.name}?')),
           ],
         ),
         content: Text(
@@ -193,7 +181,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: platform.accent,
-              foregroundColor: AppColors.surfaceInset,
+              foregroundColor: EColors.surfaceInset,
             ),
             onPressed: () => Navigator.pop(context, false),
             child: Text('Deploy to ${platform.label}'),
@@ -215,9 +203,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           children: [
             Icon(platform.icon, color: platform.accent, size: 24),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text('No changes for ${platform.label}'),
-            ),
+            Expanded(child: Text('No changes for ${platform.label}')),
           ],
         ),
         content: Text(
@@ -231,8 +217,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.warning,
-              foregroundColor: AppColors.surfaceInset,
+              backgroundColor: EColors.warning,
+              foregroundColor: EColors.surfaceInset,
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Force deploy'),
@@ -244,11 +230,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return EScaffoldShell(
       appBar: AppBar(
-        backgroundColor: AppColors.background.withValues(alpha: 0.92),
-        title: Text(widget.trigger.title, style: AppText.title),
+        title: Text(widget.trigger.title, style: EText.title),
         actions: [
           _checkForChangesAction(),
           if (widget.trigger.showUnpair)
@@ -257,55 +241,27 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               onPressed: () => unawaited(_unpair()),
               icon: const Icon(Icons.link_off_rounded),
             ),
-          const SizedBox(width: 8),
+          const SizedBox(width: ELayout.spaceSm),
         ],
       ),
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: AppColors.scaffoldGradient,
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const Align(
-              alignment: Alignment.topCenter,
-              child: SizedBox(
-                height: 220,
-                width: double.infinity,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: AppColors.ambientGlowGradient,
-                  ),
-                ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 920),
-                child: _body(),
-              ),
-            ),
-          ],
-        ),
-      ),
+      body: _body(),
     );
   }
 
   Widget _checkForChangesAction() {
     final lastCheckedLabel = _lastChangesCheckedLabel;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: ELayout.spaceSm),
       child: TextButton(
         onPressed: _loading || _evaluatingChanges
             ? null
             : () => unawaited(_evaluateSourceChanges()),
         style: TextButton.styleFrom(
-          backgroundColor: AppColors.surfaceRaised.withValues(alpha: 0.65),
+          backgroundColor: EColors.surfaceRaised.withValues(alpha: 0.55),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: AppColors.border),
+            borderRadius: ELayout.borderRadius(ELayout.radiusMd),
+            side: const BorderSide(color: EColors.border),
           ),
         ),
         child: Row(
@@ -320,11 +276,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             else
               const Icon(Icons.refresh_rounded, size: 18),
             if (lastCheckedLabel != null) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: ELayout.spaceSm),
               Text(
                 lastCheckedLabel,
-                style: AppText.caption.copyWith(
-                  color: AppColors.textSecondary,
+                style: EText.caption.copyWith(
+                  color: EColors.textSecondary,
                 ),
               ),
             ],
@@ -350,14 +306,20 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
 
     return RefreshIndicator(
-      color: AppColors.accentGlow,
-      backgroundColor: AppColors.surface,
+      color: EColors.accentGlow,
+      backgroundColor: EColors.surface,
       onRefresh: () => _loadProjects(evaluateChanges: true),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        padding: const EdgeInsets.fromLTRB(
+          ELayout.spaceXl,
+          ELayout.spaceMd,
+          ELayout.spaceXl,
+          ELayout.spaceXl + 8,
+        ),
         itemCount: _projects.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 14),
+        separatorBuilder: (context, index) =>
+            const SizedBox(height: ELayout.spaceMd + 2),
         itemBuilder: (context, index) => _projectRow(_projects[index]),
       ),
     );
@@ -373,18 +335,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             const Icon(
               Icons.cloud_off_rounded,
               size: 48,
-              color: AppColors.textMuted,
+              color: EColors.textMuted,
             ),
             const SizedBox(height: 18),
             Text(
               'No projects available',
-              style: AppText.section,
+              style: EText.section,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             Text(
               _errorMessage!,
-              style: AppText.body,
+              style: EText.body,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 22),
@@ -400,67 +362,44 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget _projectRow(DeployableProject project) {
     final platforms = _platformsFor(project);
-    final changed = project.hasChangedSources;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: AppColors.rowGradient,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: changed
-              ? AppColors.warning.withValues(alpha: 0.35)
-              : AppColors.border.withValues(alpha: 0.9),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+    return ESurface(
+      kind: ESurfaceKind.row,
+      attention: project.hasChangedSources,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Row(
+        children: [
+          _projectAppIcon(project),
+          const SizedBox(width: ELayout.spaceLg),
+          Expanded(
+            flex: 5,
+            child: Text(
+              project.name,
+              style: EText.projectName,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          if (changed)
-            BoxShadow(
-              color: AppColors.warning.withValues(alpha: 0.06),
-              blurRadius: 20,
-              offset: const Offset(0, 0),
+          const SizedBox(width: 20),
+          Expanded(
+            flex: 7,
+            child: DeployPlatformActionGroup(
+              platforms: platforms,
+              lastDeployedAt: project.lastDeployedAt,
+              sourceStatus: project.sourceStatus,
+              onSelected: (platform) =>
+                  unawaited(_confirmAndDeploy(project, platform)),
             ),
+          ),
         ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _projectAppIcon(project),
-            const SizedBox(width: 16),
-            Expanded(
-              flex: 5,
-              child: Text(
-                project.name,
-                style: AppText.projectName,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              flex: 7,
-              child: DeployPlatformActionGroup(
-                platforms: platforms,
-                lastDeployedAt: project.lastDeployedAt,
-                sourceStatus: project.sourceStatus,
-                onSelected: (platform) =>
-                    unawaited(_confirmAndDeploy(project, platform)),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
   Widget _projectAppIcon(DeployableProject project) {
     final iconPngBytes = project.iconPngBytes;
+    final radius = ELayout.borderRadius(ELayout.radiusLg);
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: radius,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.35),
@@ -470,17 +409,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: radius,
         child: SizedBox(
-          width: 72,
-          height: 72,
+          width: ELayout.iconTile,
+          height: ELayout.iconTile,
           child: iconPngBytes == null
               ? const ColoredBox(
-                  color: AppColors.surfaceInset,
+                  color: EColors.surfaceInset,
                   child: Icon(
                     Icons.apps_rounded,
                     size: 34,
-                    color: AppColors.textMuted,
+                    color: EColors.textMuted,
                   ),
                 )
               : Image.memory(

@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'agent/macos_companion_screen.dart';
 import 'phone/phone_home.dart';
 import 'sync/sync_config.dart';
-import 'ui/theme/app_theme.dart';
+import 'package:ethan_ui/ethan_ui.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +37,7 @@ Future<void> main() async {
 }
 
 class PhoneDeployApp extends StatelessWidget {
-  const PhoneDeployApp({super.key, required this.container});
+  const PhoneDeployApp({required this.container});
 
   final ProviderContainer container;
 
@@ -46,7 +46,7 @@ class PhoneDeployApp extends StatelessWidget {
     return MaterialApp(
       title: 'Phone Deploy',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.build(),
+      theme: ETheme.build(),
       home: Platform.isMacOS
           ? MacosCompanionScreen(syncContainer: container)
           : const PhoneHome(),

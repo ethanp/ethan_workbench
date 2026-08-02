@@ -39,8 +39,9 @@ class DeployService {
   }
 
   Future<List<DeployableProject>> listProjects() async {
-    final projects =
-        await ProjectCatalog(flutterRoots: flutterRoots).listDeployableProjects();
+    final projects = await ProjectCatalog(
+      flutterRoots: flutterRoots,
+    ).listDeployableProjects();
     return _enrichWithLedger(projects);
   }
 
@@ -232,9 +233,7 @@ class DeployService {
     if (ledger == null) return;
     String? sourceHash;
     if (job.status == DeployJobStatus.succeeded) {
-      final hashFile = File(
-        '$projectPath/.deploy_${job.platform.name}_hash',
-      );
+      final hashFile = File('$projectPath/.deploy_${job.platform.name}_hash');
       if (await hashFile.exists()) {
         sourceHash = (await hashFile.readAsString()).trim();
       }
@@ -254,9 +253,7 @@ class DeployService {
         enriched.add(project);
         continue;
       }
-      final merged = <DeployPlatform, DateTime?>{
-        ...project.lastDeployedAt,
-      };
+      final merged = <DeployPlatform, DateTime?>{...project.lastDeployedAt};
       for (final entry in ledgerTimes.entries) {
         merged[entry.key] = entry.value ?? merged[entry.key];
       }

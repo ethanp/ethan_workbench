@@ -49,8 +49,8 @@ class DeployableProject {
       sourceStatus[platform] ?? DeploySourceStatus.unevaluated;
 
   bool get hasChangedSources => platforms.any(
-        (platform) => sourceStatusFor(platform) == DeploySourceStatus.changed,
-      );
+    (platform) => sourceStatusFor(platform) == DeploySourceStatus.changed,
+  );
 
   DeployableProject copyWith({
     Map<DeployPlatform, DateTime?>? lastDeployedAt,
@@ -73,15 +73,13 @@ class DeployableProject {
     final platforms = platformNames == null || platformNames.isEmpty
         ? {DeployPlatform.ios}
         : platformNames
-            .map((name) => DeployPlatform.fromName(name as String))
-            .toSet();
+              .map((name) => DeployPlatform.fromName(name as String))
+              .toSet();
     final lastDeployedJson =
         json['lastDeployedAt'] as Map<String, dynamic>? ?? const {};
     final lastDeployedAt = <DeployPlatform, DateTime?>{
       for (final platform in platforms)
-        platform: _parseOptionalDateTime(
-          lastDeployedJson[platform.name],
-        ),
+        platform: _parseOptionalDateTime(lastDeployedJson[platform.name]),
     };
     final sourceStatusJson =
         json['sourceStatus'] as Map<String, dynamic>? ?? const {};
@@ -107,22 +105,20 @@ class DeployableProject {
   }
 
   Map<String, dynamic> toJson() => {
-        'projectId': projectId,
-        'name': name,
-        'path': path,
-        'platforms': platforms.map((platform) => platform.name).toList(),
-        'lastDeployedAt': {
-          for (final entry in lastDeployedAt.entries)
-            if (entry.value != null)
-              entry.key.name: entry.value!.toIso8601String(),
-        },
-        'sourceStatus': {
-          for (final entry in sourceStatus.entries)
-            if (entry.value.isEvaluated) entry.key.name: entry.value.name,
-        },
-        if (iconPngBytes != null)
-          'iconPngBase64': base64Encode(iconPngBytes!),
-      };
+    'projectId': projectId,
+    'name': name,
+    'path': path,
+    'platforms': platforms.map((platform) => platform.name).toList(),
+    'lastDeployedAt': {
+      for (final entry in lastDeployedAt.entries)
+        if (entry.value != null) entry.key.name: entry.value!.toIso8601String(),
+    },
+    'sourceStatus': {
+      for (final entry in sourceStatus.entries)
+        if (entry.value.isEvaluated) entry.key.name: entry.value.name,
+    },
+    if (iconPngBytes != null) 'iconPngBase64': base64Encode(iconPngBytes!),
+  };
 
   static DateTime? _parseOptionalDateTime(Object? value) {
     if (value is! String || value.isEmpty) return null;

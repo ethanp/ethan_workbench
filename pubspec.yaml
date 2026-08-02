@@ -34,6 +34,8 @@ dependencies:
     path: ../ethan_utils
   ethan_sync:
     path: ../ethan_sync
+  ethan_ui:
+    path: ../ethan_ui
   crypto: ^3.0.6
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^3.0.0

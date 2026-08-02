@@ -3,21 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../phone/deploy_http_client.dart';
-import '../ui/theme/app_colors.dart';
-import '../ui/theme/app_text.dart';
+import 'package:ethan_ui/ethan_ui.dart';
+
 import '../ui/widgets/deploy_platform_controls.dart';
 import '../ui/widgets/deploy_progress_checklist.dart';
-import '../ui/widgets/log_console.dart';
 import '../ui/widgets/status_pill.dart';
 import 'deploy_job.dart';
 import 'deploy_trigger.dart';
 
 class JobScreen extends StatefulWidget {
-  const JobScreen({
-    super.key,
-    required this.trigger,
-    required this.initialJob,
-  });
+  const JobScreen({required this.trigger, required this.initialJob});
 
   final DeployTrigger trigger;
   final DeployJob initialJob;
@@ -55,7 +50,8 @@ class _JobScreenState extends State<JobScreen> {
     try {
       final job = await widget.trigger.fetchJob(_job.jobId);
       if (!mounted) return;
-      final shouldStickToBottom = !_logScrollController.hasClients ||
+      final shouldStickToBottom =
+          !_logScrollController.hasClients ||
           _logScrollController.position.pixels >=
               _logScrollController.position.maxScrollExtent - 40;
       setState(() {
@@ -114,11 +110,11 @@ class _JobScreenState extends State<JobScreen> {
               const SizedBox(height: 10),
               Text(
                 _errorMessage!,
-                style: AppText.body.copyWith(color: AppColors.danger),
+                style: EText.body.copyWith(color: EColors.danger),
               ),
             ],
             const SizedBox(height: 14),
-            Text('BUILD LOG', style: AppText.label),
+            Text('BUILD LOG', style: EText.label),
             const SizedBox(height: 8),
             Expanded(
               child: LogConsole(
@@ -134,24 +130,18 @@ class _JobScreenState extends State<JobScreen> {
   }
 
   Widget _statusHeader() {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _statusSummaryRow(),
-            if (_job.checklist.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              DeployProgressChecklist(items: _job.checklist),
-            ],
+    return ESurface(
+      kind: ESurfaceKind.panel,
+      padding: const EdgeInsets.all(ELayout.spaceMd + 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _statusSummaryRow(),
+          if (_job.checklist.isNotEmpty) ...[
+            const SizedBox(height: ELayout.spaceMd + 2),
+            DeployProgressChecklist(items: _job.checklist),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -169,10 +159,10 @@ class _JobScreenState extends State<JobScreen> {
             children: [
               Text(
                 _job.force ? 'Force rebuild' : 'Incremental deploy',
-                style: AppText.body,
+                style: EText.body,
               ),
               if (_job.exitCode != null)
-                Text('Exit ${_job.exitCode}', style: AppText.caption),
+                Text('Exit ${_job.exitCode}', style: EText.caption),
             ],
           ),
         ),

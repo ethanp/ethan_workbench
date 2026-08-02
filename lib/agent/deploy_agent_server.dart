@@ -114,7 +114,8 @@ class DeployAgentServer {
         return jsonError('projectId is required', status: 400);
       }
       final force = body['force'] as bool? ?? false;
-      final platformName = body['platform'] as String? ?? DeployPlatform.ios.name;
+      final platformName =
+          body['platform'] as String? ?? DeployPlatform.ios.name;
       if (platformName != DeployPlatform.ios.name &&
           platformName != DeployPlatform.macos.name) {
         return jsonError('platform must be ios or macos', status: 400);

@@ -8,7 +8,7 @@ import 'phone_deploy_session.dart';
 
 /// Loads saved session token and routes to pairing or projects.
 class PhoneHome extends StatefulWidget {
-  const PhoneHome({super.key});
+  const PhoneHome();
 
   @override
   State<PhoneHome> createState() => _PhoneHomeState();
@@ -43,15 +43,10 @@ class _PhoneHomeState extends State<PhoneHome> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (!_session.isPaired) {
-      return PairingScreen(
-        session: _session,
-        onPaired: _onPaired,
-      );
+      return PairingScreen(session: _session, onPaired: _onPaired);
     }
     return ProjectsScreen(
       trigger: _session.deployTrigger(

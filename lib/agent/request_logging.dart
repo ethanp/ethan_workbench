@@ -8,8 +8,9 @@ Middleware quietRequestLog() {
     return (Request request) async {
       final startedAt = DateTime.now();
       final requestBody = await _readMutableRequestBody(request);
-      final effectiveRequest =
-          requestBody == null ? request : request.change(body: requestBody);
+      final effectiveRequest = requestBody == null
+          ? request
+          : request.change(body: requestBody);
       final requestDetail = _deployRequestDetailForLog(
         effectiveRequest.requestedUri.path,
         requestBody,
@@ -34,10 +35,7 @@ Middleware quietRequestLog() {
 
       final responseBody = await response.readAsString();
       final errorDetail = _errorDetailForLog(responseBody);
-      final details = [
-        ?requestDetail,
-        ?errorDetail,
-      ].join(' — ');
+      final details = [?requestDetail, ?errorDetail].join(' — ');
       // ignore: avoid_print — companion console feedback for deploy actions
       print(
         '${startedAt.toIso8601String()}  '

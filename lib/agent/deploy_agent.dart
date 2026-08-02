@@ -15,8 +15,8 @@ import 'deploy_agent_server.dart';
 /// Mac companion façade: pairing desk + deploy workbench + LAN HTTP agent.
 class DeployAgent {
   DeployAgent({AgentConfig? config})
-      : _config = config ?? AgentConfig(),
-        _pairingAuth = PairingAuth() {
+    : _config = config ?? AgentConfig(),
+      _pairingAuth = PairingAuth() {
     _deployService = DeployService(
       flutterRoots: _config.flutterRoots,
       deployRbPath: _config.deployRbPath,
@@ -42,16 +42,13 @@ class DeployAgent {
 
   /// In-process deploy UI trigger (iOS + macOS).
   DeployTrigger get localDeployTrigger => DeployTrigger(
-        title: 'Deploy',
-        preferredPlatforms: const [
-          DeployPlatform.macos,
-          DeployPlatform.ios,
-        ],
-        listProjects: listProjects,
-        evaluateSourceChanges: evaluateSourceChanges,
-        startDeploy: startDeploy,
-        fetchJob: fetchJob,
-      );
+    title: 'Deploy',
+    preferredPlatforms: const [DeployPlatform.macos, DeployPlatform.ios],
+    listProjects: listProjects,
+    evaluateSourceChanges: evaluateSourceChanges,
+    startDeploy: startDeploy,
+    fetchJob: fetchJob,
+  );
 
   Handler buildHandler() => _server.buildHandler();
 

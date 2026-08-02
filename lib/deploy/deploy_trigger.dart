@@ -23,7 +23,8 @@ class DeployTrigger {
     required String projectId,
     required DeployPlatform platform,
     bool force,
-  }) startDeploy;
+  })
+  startDeploy;
   final Future<DeployJob> Function(String jobId) fetchJob;
   final Future<void> Function()? onUnauthorized;
   final Future<void> Function()? onUnpair;
