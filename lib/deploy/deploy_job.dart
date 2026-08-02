@@ -106,4 +106,13 @@ class DeployJob {
       checklist: checklist ?? this.checklist,
     );
   }
+
+  /// Compact snapshot for deploy-stream diagnostics.
+  String get debugSummary {
+    final checklistSummary = checklist.isEmpty
+        ? 'none'
+        : checklist.map((item) => '${item.id}:${item.status.name}').join(',');
+    return '$jobId $projectName/${platform.name} ${status.name} '
+        'log=${log.length}c checklist=[$checklistSummary]';
+  }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:http/http.dart' as http;
 
 import '../agent/agent_endpoint.dart';
@@ -10,6 +11,8 @@ import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_run_record.dart';
 import '../projects/deployable_project.dart';
 import '../run/local_run_state.dart';
+
+const _log = ELogger('MacAgentClient');
 
 class AgentRequestException implements Exception {
   final String message;
@@ -210,18 +213,30 @@ class MacAgentClient {
     cancelJobEvents();
     final eventsClient = http.Client();
     _jobEventsClient = eventsClient;
+    _log.log('opening $_baseUrl/jobs/events');
     try {
       yield* _watchSseJson(
         client: eventsClient,
         path: '/jobs/events',
         parse: (payload) => DeployJob.fromJson(payload as Map<String, dynamic>),
         failureMessage: 'Failed to open job events stream',
+        onOpened: (statusCode) {
+          _log.log('jobs/events opened status=$statusCode');
+        },
+        onParseError: (error, stackTrace, payloadPreview) {
+          _log.warn(
+            'jobs/events parse failed preview=$payloadPreview',
+            error,
+            stackTrace,
+          );
+        },
       );
     } finally {
       if (identical(_jobEventsClient, eventsClient)) {
         _jobEventsClient = null;
       }
       eventsClient.close();
+      _log.log('jobs/events client closed');
     }
   }
 
@@ -320,6 +335,9 @@ class MacAgentClient {
     required String path,
     required T Function(Object? payload) parse,
     required String failureMessage,
+    void Function(int statusCode)? onOpened,
+    void Function(Object error, StackTrace stackTrace, String payloadPreview)?
+    onParseError,
   }) async* {
     final request = http.Request('GET', Uri.parse('$_baseUrl$path'));
     request.headers.addAll(_sseHeaders);
@@ -334,6 +352,7 @@ class MacAgentClient {
         statusCode: streamedResponse.statusCode,
       );
     }
+    onOpened?.call(streamedResponse.statusCode);
 
     final lines = streamedResponse.stream
         .transform(utf8.decoder)
@@ -342,7 +361,14 @@ class MacAgentClient {
       if (!line.startsWith('data:')) continue;
       final payload = line.substring(5).trimLeft();
       if (payload.isEmpty || payload == '[DONE]') continue;
-      yield parse(jsonDecode(payload));
+      try {
+        yield parse(jsonDecode(payload));
+      } catch (error, stackTrace) {
+        final preview = payload.length <= 120
+            ? payload
+            : '${payload.substring(0, 120)}…';
+        onParseError?.call(error, stackTrace, preview);
+      }
     }
   }
 

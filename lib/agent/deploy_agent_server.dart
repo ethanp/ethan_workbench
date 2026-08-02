@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
@@ -19,6 +20,8 @@ import 'agent_config.dart';
 import 'json_http.dart';
 import 'request_logging.dart';
 
+const _log = ELogger('AgentJobEvents');
+
 /// Shelf HTTP surface for pairing, project list, deploys, and local runs.
 class DeployAgentServer {
   DeployAgentServer({
@@ -33,6 +36,15 @@ class DeployAgentServer {
   final DeployService deployService;
   final LocalRunSession localRun;
   HttpServer? _httpServer;
+
+  static const _sseHeaders = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+
+  /// shelf_io buffers streamed bodies by default; that stalls SSE on the phone.
+  static const _sseContext = {'shelf.io.buffer_output': false};
 
   bool get isRunning => _httpServer != null;
   int? get boundPort => _httpServer?.port;
@@ -198,21 +210,46 @@ class DeployAgentServer {
 
   FutureOr<Response> _streamJobEvents(Request request) {
     final controller = StreamController<List<int>>();
+    var emitCount = 0;
+    String? lastStatus;
+    String? lastChecklist;
 
     void emit(DeployJob job) {
       if (controller.isClosed) return;
+      emitCount += 1;
+      final checklistSignature = job.checklist
+          .map((item) => '${item.id}:${item.status.name}')
+          .join(',');
+      final noteworthy =
+          job.status.name != lastStatus ||
+          checklistSignature != lastChecklist ||
+          emitCount == 1 ||
+          emitCount % 25 == 0;
+      if (noteworthy) {
+        _log.log('SSE emit #$emitCount ${job.debugSummary}');
+        lastStatus = job.status.name;
+        lastChecklist = checklistSignature;
+      }
       controller.add(utf8.encode('data: ${jsonEncode(job.toJson())}\n\n'));
     }
 
     final activeJob = deployService.activeJob;
+    _log.log(
+      'SSE subscriber open active='
+      '${activeJob?.debugSummary ?? 'none'}',
+    );
     if (activeJob != null) {
       emit(activeJob);
     }
 
     final subscription = deployService.jobUpdates.listen(
       emit,
-      onError: controller.addError,
+      onError: (Object error, StackTrace stackTrace) {
+        _log.warn('SSE jobUpdates error', error, stackTrace);
+        controller.addError(error, stackTrace);
+      },
       onDone: () {
+        _log.log('SSE jobUpdates done emits=$emitCount');
         if (!controller.isClosed) {
           unawaited(controller.close());
         }
@@ -220,16 +257,14 @@ class DeployAgentServer {
     );
 
     controller.onCancel = () {
+      _log.log('SSE subscriber cancel emits=$emitCount');
       unawaited(subscription.cancel());
     };
 
     return Response.ok(
       controller.stream,
-      headers: const {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
+      headers: _sseHeaders,
+      context: _sseContext,
     );
   }
 
@@ -251,11 +286,8 @@ class DeployAgentServer {
 
     return Response.ok(
       transformed,
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
+      headers: _sseHeaders,
+      context: _sseContext,
     );
   }
 
@@ -265,18 +297,37 @@ class DeployAgentServer {
 
   FutureOr<Response> _streamLocalRunEvents(Request request) {
     final controller = StreamController<List<int>>();
+    var emitCount = 0;
+    String? lastStatus;
 
     void emit(LocalRunState runState) {
       if (controller.isClosed) return;
+      emitCount += 1;
+      if (runState.status.name != lastStatus || emitCount == 1) {
+        _log.log(
+          'run SSE emit #$emitCount ${runState.status.name} '
+          'project=${runState.projectId} device=${runState.deviceKey} '
+          'log=${runState.log.length}c',
+        );
+        lastStatus = runState.status.name;
+      }
       controller.add(utf8.encode('data: ${jsonEncode(runState.toJson())}\n\n'));
     }
 
+    _log.log(
+      'run SSE subscriber open '
+      '${localRun.state.status.name} project=${localRun.state.projectId}',
+    );
     emit(localRun.state);
 
     final subscription = localRun.updates.listen(
       emit,
-      onError: controller.addError,
+      onError: (Object error, StackTrace stackTrace) {
+        _log.warn('run SSE updates error', error, stackTrace);
+        controller.addError(error, stackTrace);
+      },
       onDone: () {
+        _log.log('run SSE updates done emits=$emitCount');
         if (!controller.isClosed) {
           unawaited(controller.close());
         }
@@ -284,16 +335,14 @@ class DeployAgentServer {
     );
 
     controller.onCancel = () {
+      _log.log('run SSE subscriber cancel emits=$emitCount');
       unawaited(subscription.cancel());
     };
 
     return Response.ok(
       controller.stream,
-      headers: const {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
+      headers: _sseHeaders,
+      context: _sseContext,
     );
   }
 

@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 import '../agent/agent_endpoint.dart';
 import '../app_identity.dart';
 import '../deploy/deploy_job.dart';
@@ -12,6 +14,8 @@ import '../projects/deployable_project.dart';
 import '../run/local_run_controls.dart';
 import '../run/remote_local_run_session.dart';
 import 'deploy_http_client.dart';
+
+const _log = ELogger('PhoneJobEvents');
 
 /// Phone-side session: restore pairing, talk to the Mac agent, unpair on revoke.
 class PairedPhoneSession {
@@ -118,22 +122,57 @@ class PairedPhoneSession {
       _agent.listDeployHistory();
 
   void _ensureJobEventsListening() {
-    if (_jobEventsLoopRunning) return;
+    if (_jobEventsLoopRunning) {
+      _log.log('job-events loop already running paired=$_paired');
+      return;
+    }
     _jobEventsLoopRunning = true;
+    _log.log('starting job-events loop baseUrl=$agentBaseUrl');
     unawaited(_runJobEventsLoop());
   }
 
   Future<void> _runJobEventsLoop() async {
+    var connectAttempt = 0;
     try {
       while (_paired) {
+        connectAttempt += 1;
+        var eventCount = 0;
+        String? lastStatus;
+        String? lastChecklist;
+        _log.log('SSE connect attempt=$connectAttempt');
         try {
           await for (final job in _agent.watchJobEvents()) {
             if (!_paired) break;
+            eventCount += 1;
+            final checklistSignature = job.checklist
+                .map((item) => '${item.id}:${item.status.name}')
+                .join(',');
+            final noteworthy =
+                job.status.name != lastStatus ||
+                checklistSignature != lastChecklist ||
+                eventCount == 1 ||
+                eventCount % 25 == 0;
+            if (noteworthy) {
+              _log.log(
+                'SSE event #$eventCount hasListeners='
+                '${_jobUpdatesController.hasListener} ${job.debugSummary}',
+              );
+              lastStatus = job.status.name;
+              lastChecklist = checklistSignature;
+            }
             if (!_jobUpdatesController.isClosed) {
               _jobUpdatesController.add(job);
             }
           }
+          _log.warn(
+            'SSE stream ended attempt=$connectAttempt events=$eventCount '
+            'paired=$_paired',
+          );
         } on AgentRequestException catch (error) {
+          _log.warn(
+            'SSE AgentRequestException attempt=$connectAttempt '
+            'status=${error.statusCode} ${error.message}',
+          );
           if (error.isUnauthorized) {
             final onUnauthorized = _onUnauthorized;
             if (onUnauthorized != null) {
@@ -143,14 +182,19 @@ class PairedPhoneSession {
             }
             break;
           }
-        } catch (_) {
-          // Reconnect below while still paired.
+        } catch (error, stackTrace) {
+          _log.warn(
+            'SSE error attempt=$connectAttempt — reconnecting',
+            error,
+            stackTrace,
+          );
         }
         if (!_paired) break;
         await Future<void>.delayed(const Duration(seconds: 1));
       }
     } finally {
       _jobEventsLoopRunning = false;
+      _log.log('job-events loop stopped paired=$_paired');
     }
   }
 

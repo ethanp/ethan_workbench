@@ -1,10 +1,14 @@
 import 'dart:async';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 import '../phone/deploy_http_client.dart';
 import '../projects/deployable_project.dart';
 import 'flutter_run_device.dart';
 import 'local_run_controls.dart';
 import 'local_run_state.dart';
+
+const _log = ELogger('RemoteLocalRun');
 
 /// Phone-side proxy: drives Mac [LocalRunSession] over the LAN agent.
 class RemoteLocalRunSession implements LocalRunControls {
@@ -18,6 +22,7 @@ class RemoteLocalRunSession implements LocalRunControls {
   bool _listening = false;
   bool _closed = false;
   bool _wantListening = false;
+  Timer? _pollTimer;
 
   @override
   LocalRunState get state => _state;
@@ -36,10 +41,17 @@ class RemoteLocalRunSession implements LocalRunControls {
     if (_closed) return;
     _wantListening = true;
     _ensureListening();
+    _pollTimer ??= Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => unawaited(_pullSnapshot(reason: 'poll')),
+    );
+    unawaited(_pullSnapshot(reason: 'start'));
   }
 
   void stopListening() {
     _wantListening = false;
+    _pollTimer?.cancel();
+    _pollTimer = null;
     agent.cancelRunEvents();
   }
 
@@ -50,27 +62,83 @@ class RemoteLocalRunSession implements LocalRunControls {
   }
 
   Future<void> _runEventsLoop() async {
+    var connectAttempt = 0;
     try {
       while (_wantListening && !_closed) {
+        connectAttempt += 1;
+        var eventCount = 0;
+        LocalRunStatus? lastStatus;
+        _log.log('SSE connect attempt=$connectAttempt');
         try {
           await for (final runState in agent.watchLocalRunEvents()) {
             if (!_wantListening || _closed) break;
+            eventCount += 1;
+            if (runState.status != lastStatus || eventCount == 1) {
+              _log.log(
+                'SSE event #$eventCount ${runState.status.name} '
+                'project=${runState.projectId} device=${runState.deviceKey} '
+                'hasListeners=${_updatesController.hasListener}',
+              );
+              lastStatus = runState.status;
+            }
             _publish(runState);
           }
+          _log.warn(
+            'SSE stream ended attempt=$connectAttempt events=$eventCount',
+          );
         } on AgentRequestException catch (error) {
+          _log.warn(
+            'SSE AgentRequestException attempt=$connectAttempt '
+            'status=${error.statusCode} ${error.message}',
+          );
           if (error.isUnauthorized) {
             final callback = onUnauthorized;
             if (callback != null) await callback();
             break;
           }
-        } catch (_) {
-          // Reconnect below while still wanted.
+        } catch (error, stackTrace) {
+          _log.warn(
+            'SSE error attempt=$connectAttempt — reconnecting',
+            error,
+            stackTrace,
+          );
         }
         if (!_wantListening || _closed) break;
         await Future<void>.delayed(const Duration(seconds: 1));
       }
     } finally {
       _listening = false;
+      _log.log('SSE loop stopped want=$_wantListening');
+      if (_wantListening && !_closed) {
+        _ensureListening();
+      }
+    }
+  }
+
+  Future<void> _pullSnapshot({required String reason}) async {
+    if (_closed || !_wantListening) return;
+    try {
+      final runState = await agent.fetchLocalRun();
+      if (runState.status != _state.status ||
+          runState.projectId != _state.projectId ||
+          runState.deviceKey != _state.deviceKey ||
+          reason == 'start') {
+        _log.log(
+          '$reason snapshot ${runState.status.name} '
+          'project=${runState.projectId} device=${runState.deviceKey}',
+        );
+      }
+      _publish(runState);
+    } on AgentRequestException catch (error) {
+      if (error.isUnauthorized) {
+        _log.warn('snapshot unauthorized');
+        final callback = onUnauthorized;
+        if (callback != null) await callback();
+        return;
+      }
+      _log.warn('snapshot failed: ${error.message}');
+    } catch (error, stackTrace) {
+      _log.warn('snapshot failed', error, stackTrace);
     }
   }
 
@@ -120,6 +188,8 @@ class RemoteLocalRunSession implements LocalRunControls {
   Future<void> close() async {
     _closed = true;
     _wantListening = false;
+    _pollTimer?.cancel();
+    _pollTimer = null;
     agent.cancelRunEvents();
     await _updatesController.close();
   }

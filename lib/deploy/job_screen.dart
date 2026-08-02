@@ -1,15 +1,17 @@
 import 'dart:async';
 
+import 'package:ethan_ui/ethan_ui.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
 import '../phone/deploy_http_client.dart';
-import 'package:ethan_ui/ethan_ui.dart';
-
 import '../ui/widgets/deploy_platform_controls.dart';
 import '../ui/widgets/deploy_progress_checklist.dart';
 import '../ui/widgets/status_pill.dart';
 import 'deploy_job.dart';
 import 'deploy_trigger.dart';
+
+const _log = ELogger('JobScreen');
 
 class JobScreen extends StatefulWidget {
   const JobScreen({required this.trigger, required this.initialJob});
@@ -27,27 +29,40 @@ class _JobScreenState extends State<JobScreen> {
   StreamSubscription<DeployJob>? _jobUpdatesSubscription;
   String? _errorMessage;
   final _logScrollController = ScrollController();
+  var _streamEventCount = 0;
 
   @override
   void initState() {
     super.initState();
     _job = widget.initialJob;
+    _log.log(
+      'open initial=${_job.debugSummary} '
+      'jobUpdates=${widget.trigger.jobUpdates != null}',
+    );
     if (_job.status.isTerminal) return;
 
     final jobUpdates = widget.trigger.jobUpdates;
     if (jobUpdates != null) {
       _jobUpdatesSubscription = jobUpdates.listen(_onJobUpdate);
-      return;
+      _log.log('subscribed to jobUpdates + poll fallback');
+    } else {
+      _log.log('no jobUpdates stream — polling fetchJob every 2s');
     }
 
+    // Always poll: phone SSE can stall even when a stream is wired.
     _pollTimer = Timer.periodic(
       const Duration(seconds: 2),
       (_) => unawaited(_refreshJob()),
     );
+    unawaited(_refreshJob());
   }
 
   @override
   void dispose() {
+    _log.log(
+      'dispose jobId=${_job.jobId} status=${_job.status.name} '
+      'streamEvents=$_streamEventCount',
+    );
     _pollTimer?.cancel();
     unawaited(_jobUpdatesSubscription?.cancel());
     _logScrollController.dispose();
@@ -55,7 +70,23 @@ class _JobScreenState extends State<JobScreen> {
   }
 
   void _onJobUpdate(DeployJob job) {
-    if (!mounted || job.jobId != _job.jobId) return;
+    if (!mounted) return;
+    _streamEventCount += 1;
+    if (job.jobId != _job.jobId) {
+      _log.warn(
+        'ignored stream event #$_streamEventCount '
+        'wanted=${_job.jobId} got=${job.debugSummary}',
+      );
+      return;
+    }
+    final statusChanged = job.status != _job.status;
+    final logGrew = job.log.length != _job.log.length;
+    if (statusChanged || _streamEventCount == 1 || _streamEventCount % 25 == 0) {
+      _log.log(
+        'apply stream #$_streamEventCount ${job.debugSummary}'
+        '${logGrew ? ' (log delta)' : ''}',
+      );
+    }
     _applyJob(job);
     if (job.status.isTerminal) {
       unawaited(_jobUpdatesSubscription?.cancel());
@@ -67,12 +98,16 @@ class _JobScreenState extends State<JobScreen> {
     try {
       final job = await widget.trigger.fetchJob(_job.jobId);
       if (!mounted) return;
+      if (job.status != _job.status || job.log.length != _job.log.length) {
+        _log.log('poll refresh ${job.debugSummary}');
+      }
       _applyJob(job);
       if (job.status.isTerminal) {
         _pollTimer?.cancel();
       }
     } on AgentRequestException catch (error) {
       if (!mounted) return;
+      _log.warn('poll refresh failed: ${error.message}', error);
       if (error.isUnauthorized) {
         _pollTimer?.cancel();
         unawaited(_jobUpdatesSubscription?.cancel());
@@ -84,8 +119,9 @@ class _JobScreenState extends State<JobScreen> {
         return;
       }
       setState(() => _errorMessage = error.message);
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
+      _log.warn('poll refresh failed', error, stackTrace);
       setState(() => _errorMessage = error.toString());
     }
   }

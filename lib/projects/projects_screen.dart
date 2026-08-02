@@ -180,12 +180,32 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   Widget _checkForChangesAction() {
     final lastCheckedLabel = _lastChangesCheckedLabel;
     final isBusy = _catalog.loading || _catalog.evaluatingChanges;
+    final onPressed = isBusy
+        ? null
+        : () => unawaited(_reload(evaluateChanges: true));
+    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+
+    if (compact) {
+      final tooltip = lastCheckedLabel == null
+          ? 'Refresh changed status'
+          : 'Refresh changed status · $lastCheckedLabel';
+      return IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: _catalog.evaluatingChanges
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.refresh_rounded),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: ELayout.spaceSm),
       child: TextButton(
-        onPressed: isBusy
-            ? null
-            : () => unawaited(_reload(evaluateChanges: true)),
+        onPressed: onPressed,
         style: TextButton.styleFrom(
           backgroundColor: EColors.surfaceRaised.withValues(alpha: 0.55),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
