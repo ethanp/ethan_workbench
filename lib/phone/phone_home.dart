@@ -67,7 +67,10 @@ class _PhoneHomeState extends State<PhoneHome> {
       body: IndexedStack(
         index: _tabIndex,
         children: [
-          ProjectsScreen(trigger: trigger),
+          ProjectsScreen(
+            trigger: trigger,
+            localRun: _session.localRun,
+          ),
           DeployHistoryScreen(trigger: trigger),
         ],
       ),

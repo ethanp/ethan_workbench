@@ -5,13 +5,24 @@ import 'package:flutter/material.dart';
 
 /// Rounded launcher icon for project / history list rows.
 class ProjectAppIconTile extends StatelessWidget {
-  const ProjectAppIconTile({super.key, this.iconPngBytes});
+  const ProjectAppIconTile({
+    super.key,
+    this.iconPngBytes,
+    this.size,
+  });
 
   final Uint8List? iconPngBytes;
 
+  /// Defaults to [ELayout.iconTile]; list rows should pass [ELayout.listRowIcon].
+  final double? size;
+
+  /// iOS app-icon corner radius ≈ 22.37% of the icon edge (not a fixed theme radius).
+  static double iosCornerRadius(double edge) => edge * 0.2237;
+
   @override
   Widget build(BuildContext context) {
-    final radius = ELayout.borderRadiusLg;
+    final edge = size ?? ELayout.iconTile;
+    final radius = BorderRadius.circular(iosCornerRadius(edge));
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
@@ -26,14 +37,14 @@ class ProjectAppIconTile extends StatelessWidget {
       child: ClipRRect(
         borderRadius: radius,
         child: SizedBox(
-          width: ELayout.iconTile,
-          height: ELayout.iconTile,
+          width: edge,
+          height: edge,
           child: iconPngBytes == null
-              ? const ColoredBox(
+              ? ColoredBox(
                   color: EColors.surfaceInset,
                   child: Icon(
                     Icons.apps_rounded,
-                    size: 34,
+                    size: edge * 0.42,
                     color: EColors.textMuted,
                   ),
                 )

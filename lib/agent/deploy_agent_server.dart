@@ -7,25 +7,31 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 import '../deploy/deploy_errors.dart';
+import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_service.dart';
 import '../pairing/auth_middleware.dart';
 import '../pairing/pairing_auth.dart';
+import '../run/flutter_run_device.dart';
+import '../run/local_run_session.dart';
+import '../run/local_run_state.dart';
 import 'agent_config.dart';
 import 'json_http.dart';
 import 'request_logging.dart';
 
-/// Shelf HTTP surface for pairing, project list, and deploys.
+/// Shelf HTTP surface for pairing, project list, deploys, and local runs.
 class DeployAgentServer {
   DeployAgentServer({
     required this.config,
     required this.pairingAuth,
     required this.deployService,
+    required this.localRun,
   });
 
   final AgentConfig config;
   final PairingAuth pairingAuth;
   final DeployService deployService;
+  final LocalRunSession localRun;
   HttpServer? _httpServer;
 
   bool get isRunning => _httpServer != null;
@@ -40,8 +46,16 @@ class DeployAgentServer {
       ..post('/deploy', _startDeploy)
       ..get('/jobs/history', _listHistory)
       ..get('/jobs/active', _activeJob)
+      ..get('/jobs/events', _streamJobEvents)
       ..get('/jobs/<jobId>', _getJob)
-      ..get('/jobs/<jobId>/log', _streamLog);
+      ..get('/jobs/<jobId>/log', _streamLog)
+      ..get('/run', _getLocalRun)
+      ..get('/run/events', _streamLocalRunEvents)
+      ..post('/run', _startLocalRun)
+      ..post('/run/stop', _stopLocalRun)
+      ..post('/run/hot-reload', _hotReloadLocalRun)
+      ..post('/run/hot-restart', _hotRestartLocalRun)
+      ..post('/run/full-restart', _fullRestartLocalRun);
 
     return Pipeline()
         .addMiddleware(quietRequestLog())
@@ -78,6 +92,7 @@ class DeployAgentServer {
     return jsonOk({
       'ok': true,
       'activeJobId': deployService.activeJob?.jobId,
+      'localRunActive': localRun.isActive,
       'pairedSessions': pairingAuth.sessionCount,
     });
   }
@@ -117,6 +132,12 @@ class DeployAgentServer {
 
   Future<Response> _startDeploy(Request request) async {
     try {
+      if (localRun.isActive) {
+        throw LocalRunBlocksDeploy(
+          projectName: localRun.state.projectName ?? 'local run',
+          statusName: localRun.state.status.name,
+        );
+      }
       final body =
           jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final projectId = body['projectId'] as String?;
@@ -137,6 +158,13 @@ class DeployAgentServer {
       );
       return jsonOk(job.toJson());
     } on DeployAlreadyRunning catch (error) {
+      final job = error.job;
+      return jsonError(
+        error.toString(),
+        status: 409,
+        extra: job == null ? null : {'job': job.toJson()},
+      );
+    } on LocalRunBlocksDeploy catch (error) {
       return jsonError(error.toString(), status: 409);
     } on UnknownProject catch (error) {
       return jsonError(error.toString(), status: 404);
@@ -172,6 +200,43 @@ class DeployAgentServer {
     return jsonOk(job.toJson());
   }
 
+  FutureOr<Response> _streamJobEvents(Request request) {
+    final controller = StreamController<List<int>>();
+
+    void emit(DeployJob job) {
+      if (controller.isClosed) return;
+      controller.add(utf8.encode('data: ${jsonEncode(job.toJson())}\n\n'));
+    }
+
+    final activeJob = deployService.activeJob;
+    if (activeJob != null) {
+      emit(activeJob);
+    }
+
+    final subscription = deployService.jobUpdates.listen(
+      emit,
+      onError: controller.addError,
+      onDone: () {
+        if (!controller.isClosed) {
+          unawaited(controller.close());
+        }
+      },
+    );
+
+    controller.onCancel = () {
+      unawaited(subscription.cancel());
+    };
+
+    return Response.ok(
+      controller.stream,
+      headers: const {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    );
+  }
+
   FutureOr<Response> _streamLog(Request request, String jobId) {
     final job = deployService.activeJob;
     if (job == null || job.jobId != jobId) {
@@ -185,7 +250,7 @@ class DeployAgentServer {
           .split('\n')
           .map((line) => 'data: $line')
           .join('\n');
-      return '$escaped\n\n';
+      return utf8.encode('$escaped\n\n');
     });
 
     return Response.ok(
@@ -196,5 +261,117 @@ class DeployAgentServer {
         'Connection': 'keep-alive',
       },
     );
+  }
+
+  Future<Response> _getLocalRun(Request request) async {
+    return jsonOk(localRun.state.toJson());
+  }
+
+  FutureOr<Response> _streamLocalRunEvents(Request request) {
+    final controller = StreamController<List<int>>();
+
+    void emit(LocalRunState runState) {
+      if (controller.isClosed) return;
+      controller.add(utf8.encode('data: ${jsonEncode(runState.toJson())}\n\n'));
+    }
+
+    emit(localRun.state);
+
+    final subscription = localRun.updates.listen(
+      emit,
+      onError: controller.addError,
+      onDone: () {
+        if (!controller.isClosed) {
+          unawaited(controller.close());
+        }
+      },
+    );
+
+    controller.onCancel = () {
+      unawaited(subscription.cancel());
+    };
+
+    return Response.ok(
+      controller.stream,
+      headers: const {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    );
+  }
+
+  Future<Response> _startLocalRun(Request request) async {
+    try {
+      final body =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final projectId = body['projectId'] as String?;
+      final deviceKey = body['deviceKey'] as String?;
+      if (projectId == null || projectId.isEmpty) {
+        return jsonError('projectId is required', status: 400);
+      }
+      if (deviceKey == null || deviceKey.isEmpty) {
+        return jsonError('deviceKey is required', status: 400);
+      }
+      final device = FlutterRunDevice.forKey(deviceKey);
+      if (device == null) {
+        return jsonError(
+          'deviceKey must be macos or meSim',
+          status: 400,
+        );
+      }
+      final project = await deployService.findProject(projectId);
+      if (project == null) {
+        return jsonError('Unknown project: $projectId', status: 404);
+      }
+      await localRun.start(project, device: device);
+      return jsonOk(localRun.state.toJson());
+    } on LocalRunAlreadyActive catch (error) {
+      return jsonError(
+        error.toString(),
+        status: 409,
+        extra: {'run': localRun.state.toJson()},
+      );
+    } on DeployBlocksLocalRun catch (error) {
+      return jsonError(error.toString(), status: 409);
+    } catch (error) {
+      return jsonError(error.toString(), status: 500);
+    }
+  }
+
+  Future<Response> _stopLocalRun(Request request) async {
+    try {
+      await localRun.stop();
+      return jsonOk(localRun.state.toJson());
+    } catch (error) {
+      return jsonError(error.toString(), status: 500);
+    }
+  }
+
+  Future<Response> _hotReloadLocalRun(Request request) async {
+    try {
+      await localRun.hotReload();
+      return jsonOk(localRun.state.toJson());
+    } catch (error) {
+      return jsonError(error.toString(), status: 500);
+    }
+  }
+
+  Future<Response> _hotRestartLocalRun(Request request) async {
+    try {
+      await localRun.hotRestart();
+      return jsonOk(localRun.state.toJson());
+    } catch (error) {
+      return jsonError(error.toString(), status: 500);
+    }
+  }
+
+  Future<Response> _fullRestartLocalRun(Request request) async {
+    try {
+      await localRun.fullRestart();
+      return jsonOk(localRun.state.toJson());
+    } catch (error) {
+      return jsonError(error.toString(), status: 500);
+    }
   }
 }

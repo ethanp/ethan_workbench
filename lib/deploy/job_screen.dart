@@ -24,6 +24,7 @@ class JobScreen extends StatefulWidget {
 class _JobScreenState extends State<JobScreen> {
   late DeployJob _job;
   Timer? _pollTimer;
+  StreamSubscription<DeployJob>? _jobUpdatesSubscription;
   String? _errorMessage;
   final _logScrollController = ScrollController();
 
@@ -31,48 +32,50 @@ class _JobScreenState extends State<JobScreen> {
   void initState() {
     super.initState();
     _job = widget.initialJob;
-    if (!_job.status.isTerminal) {
-      _pollTimer = Timer.periodic(
-        const Duration(seconds: 2),
-        (_) => unawaited(_refreshJob()),
-      );
+    if (_job.status.isTerminal) return;
+
+    final jobUpdates = widget.trigger.jobUpdates;
+    if (jobUpdates != null) {
+      _jobUpdatesSubscription = jobUpdates.listen(_onJobUpdate);
+      return;
     }
+
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => unawaited(_refreshJob()),
+    );
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    unawaited(_jobUpdatesSubscription?.cancel());
     _logScrollController.dispose();
     super.dispose();
+  }
+
+  void _onJobUpdate(DeployJob job) {
+    if (!mounted || job.jobId != _job.jobId) return;
+    _applyJob(job);
+    if (job.status.isTerminal) {
+      unawaited(_jobUpdatesSubscription?.cancel());
+      _jobUpdatesSubscription = null;
+    }
   }
 
   Future<void> _refreshJob() async {
     try {
       final job = await widget.trigger.fetchJob(_job.jobId);
       if (!mounted) return;
-      final shouldStickToBottom =
-          !_logScrollController.hasClients ||
-          _logScrollController.position.pixels >=
-              _logScrollController.position.maxScrollExtent - 40;
-      setState(() {
-        _job = job;
-        _errorMessage = null;
-      });
+      _applyJob(job);
       if (job.status.isTerminal) {
         _pollTimer?.cancel();
-      }
-      if (shouldStickToBottom) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!_logScrollController.hasClients) return;
-          _logScrollController.jumpTo(
-            _logScrollController.position.maxScrollExtent,
-          );
-        });
       }
     } on AgentRequestException catch (error) {
       if (!mounted) return;
       if (error.isUnauthorized) {
         _pollTimer?.cancel();
+        unawaited(_jobUpdatesSubscription?.cancel());
         final onUnauthorized = widget.trigger.onUnauthorized;
         if (onUnauthorized != null) {
           await onUnauthorized();
@@ -85,6 +88,24 @@ class _JobScreenState extends State<JobScreen> {
       if (!mounted) return;
       setState(() => _errorMessage = error.toString());
     }
+  }
+
+  void _applyJob(DeployJob job) {
+    final shouldStickToBottom =
+        !_logScrollController.hasClients ||
+        _logScrollController.position.pixels >=
+            _logScrollController.position.maxScrollExtent - 40;
+    setState(() {
+      _job = job;
+      _errorMessage = null;
+    });
+    if (!shouldStickToBottom) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_logScrollController.hasClients) return;
+      final position = _logScrollController.position;
+      if (!position.hasContentDimensions) return;
+      _logScrollController.jumpTo(position.maxScrollExtent);
+    });
   }
 
   @override

@@ -1,12 +1,16 @@
+import 'deploy_job.dart';
+
 class DeployAlreadyRunning implements Exception {
   final String projectName;
   final String jobId;
   final String statusName;
+  final DeployJob? job;
 
   const DeployAlreadyRunning({
     required this.projectName,
     required this.jobId,
     required this.statusName,
+    this.job,
   });
 
   @override

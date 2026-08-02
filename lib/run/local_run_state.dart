@@ -57,6 +57,41 @@ class LocalRunState {
   /// True when this session was reclaimed after a workbench restart (no stdin).
   final bool reattached;
 
+  factory LocalRunState.fromJson(Map<String, dynamic> json) {
+    return LocalRunState(
+      status: LocalRunStatus.values.firstWhere(
+        (value) => value.name == json['status'],
+        orElse: () => LocalRunStatus.idle,
+      ),
+      log: json['log'] as String? ?? '',
+      readyForKeyCommands: json['readyForKeyCommands'] as bool? ?? false,
+      projectId: json['projectId'] as String?,
+      projectName: json['projectName'] as String?,
+      projectPath: json['projectPath'] as String?,
+      deviceKey: json['deviceKey'] as String?,
+      deviceLabel: json['deviceLabel'] as String?,
+      flutterDeviceId: json['flutterDeviceId'] as String?,
+      errorMessage: json['errorMessage'] as String?,
+      exitCode: json['exitCode'] as int?,
+      reattached: json['reattached'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'status': status.name,
+    'log': log,
+    'readyForKeyCommands': readyForKeyCommands,
+    'projectId': projectId,
+    'projectName': projectName,
+    'projectPath': projectPath,
+    'deviceKey': deviceKey,
+    'deviceLabel': deviceLabel,
+    'flutterDeviceId': flutterDeviceId,
+    'errorMessage': errorMessage,
+    'exitCode': exitCode,
+    'reattached': reattached,
+  };
+
   LocalRunState copyWith({
     LocalRunStatus? status,
     String? log,

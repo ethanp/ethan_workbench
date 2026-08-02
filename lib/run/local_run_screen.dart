@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
-import 'local_run_session.dart';
+import 'local_run_controls.dart';
 import 'local_run_state.dart';
 
 class LocalRunScreen extends StatefulWidget {
   const LocalRunScreen({required this.session});
 
-  final LocalRunSession session;
+  final LocalRunControls session;
 
   @override
   State<LocalRunScreen> createState() => _LocalRunScreenState();

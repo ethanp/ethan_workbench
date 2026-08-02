@@ -1,10 +1,10 @@
 import 'package:ethan_utils/ethan_utils.dart';
+import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../deploy/deploy_job.dart';
 import '../../deploy/deploy_platform.dart';
 import '../../projects/deployable_project.dart';
-import 'package:ethan_ui/ethan_ui.dart';
 
 extension DeployPlatformVisuals on DeployPlatform {
   IconData get icon => switch (this) {
@@ -23,100 +23,58 @@ extension DeployPlatformVisuals on DeployPlatform {
       };
 }
 
-/// Deploy-target controls: equal-width platform actions with status captions.
-class DeployPlatformActionGroup extends StatelessWidget {
-  const DeployPlatformActionGroup({
-    super.key,
-    required this.platforms,
-    required this.onSelected,
-    this.lastDeployedAt = const {},
-    this.sourceStatus = const {},
-    this.ongoingDeploy,
-    this.onOpenOngoing,
-  });
+/// Deploy cell for an [EActionCluster] under a platform rail.
+EActionClusterCell deployActionCell({
+  required DeployPlatform platform,
+  required VoidCallback onSelected,
+  DateTime? lastDeployedAt,
+  DeploySourceStatus sourceStatus = DeploySourceStatus.unevaluated,
+  DeployJob? ongoingDeploy,
+  VoidCallback? onOpenOngoing,
+}) {
+  final ongoing = ongoingDeploy;
+  final isThisDeployRunning =
+      ongoing != null &&
+      !ongoing.status.isTerminal &&
+      ongoing.platform == platform;
 
-  final List<DeployPlatform> platforms;
-  final ValueChanged<DeployPlatform> onSelected;
-  final Map<DeployPlatform, DateTime?> lastDeployedAt;
-  final Map<DeployPlatform, DeploySourceStatus> sourceStatus;
-
-  /// When set and its platform matches a plate, that plate shows in-progress UI.
-  final DeployJob? ongoingDeploy;
-  final VoidCallback? onOpenOngoing;
-
-  @override
-  Widget build(BuildContext context) {
-    if (platforms.isEmpty) return const SizedBox.shrink();
-    return Row(
-      children: [
-        for (var index = 0; index < platforms.length; index++) ...[
-          if (index > 0) const SizedBox(width: ELayout.spaceSm + 2),
-          Expanded(
-            child: _platformPlate(platforms[index]),
-          ),
-        ],
-      ],
+  if (isThisDeployRunning) {
+    return EActionClusterCell(
+      icon: Icons.rocket_launch_rounded,
+      title: 'Deploy',
+      subtitle: 'In progress',
+      condensedLabel: '…',
+      statusLabel: ongoing.status.name,
+      statusTone: ongoing.status == DeployJobStatus.queued
+          ? EStatusTone.warning
+          : EStatusTone.accent,
+      live: true,
+      onTap: onOpenOngoing ?? () {},
     );
   }
 
-  Widget _platformPlate(DeployPlatform platform) {
-    final ongoing = ongoingDeploy;
-    final isThisDeployRunning =
-        ongoing != null &&
-        !ongoing.status.isTerminal &&
-        ongoing.platform == platform;
-
-    if (isThisDeployRunning) {
-      return ETintedAction(
-        accent: platform.accent,
-        icon: platform.icon,
-        title: platform.label,
-        subtitle: 'In progress — tap to open',
-        chipLabel: ongoing.status.name,
-        chipTone: ongoing.status == DeployJobStatus.queued
-            ? EStatusTone.warning
-            : EStatusTone.accent,
-        onTap: onOpenOngoing ?? () {},
-      );
-    }
-
-    return ETintedAction(
-      accent: platform.accent,
-      icon: platform.icon,
-      title: platform.label,
-      subtitle: _lastDeployedCaption(lastDeployedAt[platform]),
-      chipLabel: _statusLabel(
-        sourceStatus[platform] ?? DeploySourceStatus.unevaluated,
-      ),
-      chipTone: _statusTone(
-        sourceStatus[platform] ?? DeploySourceStatus.unevaluated,
-      ),
-      onTap: () => onSelected(platform),
-    );
-  }
-
-  static String? _statusLabel(DeploySourceStatus sourceStatus) =>
-      switch (sourceStatus) {
-        DeploySourceStatus.changed => 'changed',
-        DeploySourceStatus.unchanged => 'current',
-        DeploySourceStatus.neverDeployed => null,
-        DeploySourceStatus.unevaluated => null,
-      };
-
-  static EStatusTone? _statusTone(DeploySourceStatus sourceStatus) =>
-      switch (sourceStatus) {
-        DeploySourceStatus.changed => EStatusTone.warning,
-        DeploySourceStatus.unchanged => EStatusTone.success,
-        DeploySourceStatus.neverDeployed => null,
-        DeploySourceStatus.unevaluated => null,
-      };
-
-  static String _lastDeployedCaption(DateTime? deployedAt) {
-    if (deployedAt != null) {
-      return 'Deployed ${deployedAt.relativeTimeAgo()}';
-    }
-    return 'Never deployed';
-  }
+  return EActionClusterCell(
+    icon: Icons.rocket_launch_rounded,
+    title: 'Deploy',
+    subtitle: lastDeployedAt != null
+        ? lastDeployedAt.relativeTimeAgo()
+        : 'Never',
+    condensedLabel:
+        lastDeployedAt != null ? lastDeployedAt.relativeTimeShort() : '—',
+    statusLabel: switch (sourceStatus) {
+      DeploySourceStatus.changed => 'changed',
+      DeploySourceStatus.unchanged => 'current',
+      DeploySourceStatus.neverDeployed ||
+      DeploySourceStatus.unevaluated => null,
+    },
+    statusTone: switch (sourceStatus) {
+      DeploySourceStatus.changed => EStatusTone.warning,
+      DeploySourceStatus.unchanged => EStatusTone.success,
+      DeploySourceStatus.neverDeployed ||
+      DeploySourceStatus.unevaluated => null,
+    },
+    onTap: onSelected,
+  );
 }
 
 /// Compact platform identity for status headers and job summaries.

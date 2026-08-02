@@ -34,6 +34,12 @@ class FlutterRunDevice {
     prepareDeviceId: MeSimIphoneSimulator.ensureBootedDeviceId,
   );
 
+  static FlutterRunDevice? forKey(String key) {
+    if (key == macos.key) return macos;
+    if (key == meSim.key) return meSim;
+    return null;
+  }
+
   Future<String> resolveFlutterDeviceId() async {
     final prepare = prepareDeviceId;
     if (prepare != null) return prepare();

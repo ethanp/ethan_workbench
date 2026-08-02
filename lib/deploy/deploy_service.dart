@@ -96,6 +96,7 @@ class DeployService {
         projectName: activeJob.projectName,
         jobId: activeJob.jobId,
         statusName: activeJob.status.name,
+        job: activeJob,
       );
     }
 

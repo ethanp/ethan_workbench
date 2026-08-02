@@ -34,8 +34,8 @@ class DeployTrigger {
   final Future<DeployJob?> Function() fetchActiveJob;
   final Future<List<DeployRunRecord>> Function() listDeployHistory;
 
-  /// Live job updates when available (Mac in-process). Otherwise the UI polls
-  /// [fetchActiveJob].
+  /// Live job updates when available (Mac in-process, phone via SSE).
+  /// Otherwise the UI polls [fetchActiveJob] / [fetchJob].
   final Stream<DeployJob>? jobUpdates;
   final Future<void> Function()? onUnauthorized;
   final Future<void> Function()? onUnpair;

@@ -4,6 +4,7 @@ import '../projects/deployable_project.dart';
 import 'flutter_run_device.dart';
 import 'local_flutter_run.dart';
 import 'local_flutter_run_binding.dart';
+import 'local_run_controls.dart';
 import 'local_run_persistence.dart';
 import 'local_run_progress.dart';
 import 'local_run_state.dart';
@@ -13,7 +14,7 @@ import 'os_process_tree.dart';
 ///
 /// Published run state lives in [LocalRunProgress]; process binding in
 /// [LocalFlutterRunBinding].
-class LocalRunSession {
+class LocalRunSession implements LocalRunControls {
   LocalRunSession({
     this._isDeployBlocking,
     this._deployBlockMessage,
@@ -30,8 +31,11 @@ class LocalRunSession {
   final PidLivenessWatch _liveness = PidLivenessWatch();
   bool _disposed = false;
 
+  @override
   LocalRunState get state => _runProgress.current;
+  @override
   Stream<LocalRunState> get updates => _runProgress.changes;
+  @override
   bool get isActive => _runProgress.isActive;
 
   /// Restore a run orphaned by a workbench hot restart / relaunch.
@@ -114,6 +118,7 @@ class LocalRunSession {
     }
   }
 
+  @override
   Future<void> start(
     DeployableProject project, {
     required FlutterRunDevice device,
@@ -196,10 +201,13 @@ class LocalRunSession {
     }
   }
 
+  @override
   Future<void> hotReload() => _sendKeyCommand('r');
 
+  @override
   Future<void> hotRestart() => _sendKeyCommand('R');
 
+  @override
   Future<void> fullRestart() async {
     final projectId = _runProgress.current.projectId;
     final projectName = _runProgress.current.projectName;
@@ -252,6 +260,7 @@ class LocalRunSession {
     }
   }
 
+  @override
   Future<void> stop() async {
     if (!_flutterRunBinding.hasFlutterRun && _flutterRunBinding.trackedPid == null) {
       if (_runProgress.isActive) {

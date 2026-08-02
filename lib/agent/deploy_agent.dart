@@ -38,6 +38,7 @@ class DeployAgent {
       config: _config,
       pairingAuth: _pairingAuth,
       deployService: _deployService,
+      localRun: _localRun,
     );
   }
 
