@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:phone_deploy/deploy/deploy_job.dart';
+import 'package:ethan_workbench/deploy/deploy_job.dart';
 
 void main() {
   test('DeployJobStatus terminal flags', () {

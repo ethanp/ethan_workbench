@@ -22,7 +22,7 @@ class AgentRequestException implements Exception {
 /// HTTP client for the Mac LAN agent (pair, list projects, start deploys).
 class MacAgentClient {
   MacAgentClient({String? baseUrl, this._bearerToken, http.Client? httpClient})
-    : _baseUrl = (baseUrl ?? phoneDeployAgentBaseUrl).replaceAll(
+    : _baseUrl = (baseUrl ?? agentBaseUrl).replaceAll(
         RegExp(r'/+$'),
         '',
       ),

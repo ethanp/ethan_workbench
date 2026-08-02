@@ -1,4 +1,4 @@
--- phone_deploy deploy ledger (synced via PowerSync).
+-- ethan_workbench deploy ledger (synced via PowerSync).
 
 CREATE TABLE IF NOT EXISTS deploy_runs (
     id TEXT PRIMARY KEY,

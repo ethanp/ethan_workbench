@@ -5,13 +5,13 @@ import 'package:flutter/services.dart';
 
 import '../agent/agent_endpoint.dart';
 import '../phone/deploy_http_client.dart';
-import '../phone/phone_deploy_session.dart';
+import '../phone/paired_phone_session.dart';
 import 'package:ethan_ui/ethan_ui.dart';
 
 class PairingScreen extends StatefulWidget {
   const PairingScreen({required this.session, required this.onPaired});
 
-  final PhoneDeploySession session;
+  final PairedPhoneSession session;
   final VoidCallback onPaired;
 
   @override
@@ -70,7 +70,7 @@ class _PairingScreenState extends State<PairingScreen> {
             style: EText.body,
           ),
           const SizedBox(height: 8),
-          Text(phoneDeployAgentBaseUrl, style: EText.monoEmphasis),
+          Text(agentBaseUrl, style: EText.monoEmphasis),
           const SizedBox(height: 24),
           TextField(
             controller: _pinController,

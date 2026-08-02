@@ -6,16 +6,22 @@ import 'package:flutter/material.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_trigger.dart';
 import '../deploy/job_screen.dart';
+import '../line_age/line_age_screen.dart';
 import '../phone/deploy_http_client.dart';
+import '../run/macos_run_screen.dart';
+import '../run/macos_run_session.dart';
+import '../run/macos_run_state.dart';
 import 'package:ethan_ui/ethan_ui.dart';
 
+import '../ui/workbench_action_accents.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
 import 'deployable_project.dart';
 
 class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({required this.trigger});
+  const ProjectsScreen({required this.trigger, this.macosRun});
 
   final DeployTrigger trigger;
+  final MacosRunSession? macosRun;
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
@@ -28,6 +34,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   String? _errorMessage;
   DateTime? _lastChangesCheckedAt;
   Timer? _lastCheckedTicker;
+  StreamSubscription<MacosRunState>? _macosRunSubscription;
+  MacosRunState _macosRunState = MacosRunState.idle;
 
   @override
   void initState() {
@@ -36,12 +44,21 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       if (!mounted || _lastChangesCheckedAt == null) return;
       setState(() {});
     });
+    final macosRun = widget.macosRun;
+    if (macosRun != null) {
+      _macosRunState = macosRun.state;
+      _macosRunSubscription = macosRun.updates.listen((state) {
+        if (!mounted) return;
+        setState(() => _macosRunState = state);
+      });
+    }
     unawaited(_loadProjects(evaluateChanges: true));
   }
 
   @override
   void dispose() {
     _lastCheckedTicker?.cancel();
+    unawaited(_macosRunSubscription?.cancel());
     super.dispose();
   }
 
@@ -260,7 +277,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           backgroundColor: EColors.surfaceRaised.withValues(alpha: 0.55),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           shape: RoundedRectangleBorder(
-            borderRadius: ELayout.borderRadius(ELayout.radiusMd),
+            borderRadius: ELayout.borderRadiusMd,
             side: const BorderSide(color: EColors.border),
           ),
         ),
@@ -362,31 +379,77 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget _projectRow(DeployableProject project) {
     final platforms = _platformsFor(project);
+    final runStatus = _activeRunStatusFor(project);
+    final showLineAge = widget.trigger.showLineAgeAnalysis;
+    final showMacosRun = widget.macosRun != null &&
+        project.supports(DeployPlatform.macos);
     return ESurface(
       kind: ESurfaceKind.row,
-      attention: project.hasChangedSources,
+      attention: project.hasChangedSources || runStatus != null,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
         children: [
           _projectAppIcon(project),
           const SizedBox(width: ELayout.spaceLg),
           Expanded(
-            flex: 5,
+            flex: 4,
             child: Text(
               project.name,
               style: EText.projectName,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 12),
           Expanded(
-            flex: 7,
-            child: DeployPlatformActionGroup(
-              platforms: platforms,
-              lastDeployedAt: project.lastDeployedAt,
-              sourceStatus: project.sourceStatus,
-              onSelected: (platform) =>
-                  unawaited(_confirmAndDeploy(project, platform)),
+            flex: 8,
+            child: Row(
+              children: [
+                if (showLineAge) ...[
+                  Expanded(
+                    child: ETintedAction(
+                      accent: WorkbenchActionAccents.lineAge,
+                      icon: Icons.bar_chart_rounded,
+                      title: 'Line age',
+                      subtitle: 'Authorship over time',
+                      onTap: () => _openLineAge(project),
+                    ),
+                  ),
+                  const SizedBox(width: ELayout.spaceSm + 2),
+                ],
+                if (showMacosRun) ...[
+                  Expanded(
+                    child: ETintedAction(
+                      accent: EColors.success,
+                      icon: runStatus != null
+                          ? Icons.play_circle_filled_rounded
+                          : Icons.play_arrow_rounded,
+                      title: 'Run',
+                      subtitle: runStatus != null
+                          ? _runStatusSubtitle(runStatus)
+                          : 'macOS debug session',
+                      chipLabel: runStatus != null
+                          ? _runStatusLabel(runStatus)
+                          : null,
+                      chipTone: runStatus != null
+                          ? _runStatusTone(runStatus)
+                          : null,
+                      trailing: _runStopControl(runStatus),
+                      onTap: () => unawaited(_openMacosRun(project)),
+                    ),
+                  ),
+                  const SizedBox(width: ELayout.spaceSm + 2),
+                ],
+                Expanded(
+                  flex: platforms.isEmpty ? 1 : platforms.length,
+                  child: DeployPlatformActionGroup(
+                    platforms: platforms,
+                    lastDeployedAt: project.lastDeployedAt,
+                    sourceStatus: project.sourceStatus,
+                    onSelected: (platform) =>
+                        unawaited(_confirmAndDeploy(project, platform)),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -394,9 +457,135 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
+  String _runStatusSubtitle(MacosRunStatus status) => switch (status) {
+    MacosRunStatus.starting => 'Starting flutter run…',
+    MacosRunStatus.running => 'Session open',
+    MacosRunStatus.stopping => 'Stopping…',
+    MacosRunStatus.idle ||
+    MacosRunStatus.exited ||
+    MacosRunStatus.failed => 'macOS debug session',
+  };
+
+  Widget? _runStopControl(MacosRunStatus? runStatus) {
+    if (runStatus != MacosRunStatus.starting &&
+        runStatus != MacosRunStatus.running) {
+      return null;
+    }
+    return IconButton(
+      tooltip: 'Stop run',
+      onPressed: () => unawaited(_stopMacosRun()),
+      iconSize: 20,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+      style: IconButton.styleFrom(
+        foregroundColor: EColors.danger,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      icon: const Icon(Icons.stop_circle_rounded),
+    );
+  }
+
+  Future<void> _stopMacosRun() async {
+    final session = widget.macosRun;
+    if (session == null || !session.isActive) return;
+    try {
+      await session.stop();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  MacosRunStatus? _activeRunStatusFor(DeployableProject project) {
+    if (_macosRunState.projectId != project.projectId) return null;
+    if (!_macosRunState.status.isActive) return null;
+    return _macosRunState.status;
+  }
+
+  String _runStatusLabel(MacosRunStatus status) => switch (status) {
+    MacosRunStatus.starting => 'starting',
+    MacosRunStatus.running => 'running',
+    MacosRunStatus.stopping => 'stopping',
+    MacosRunStatus.idle ||
+    MacosRunStatus.exited ||
+    MacosRunStatus.failed => 'idle',
+  };
+
+  EStatusTone _runStatusTone(MacosRunStatus status) => switch (status) {
+    MacosRunStatus.starting => EStatusTone.accent,
+    MacosRunStatus.running => EStatusTone.success,
+    MacosRunStatus.stopping => EStatusTone.warning,
+    MacosRunStatus.idle ||
+    MacosRunStatus.exited ||
+    MacosRunStatus.failed => EStatusTone.muted,
+  };
+
+  Future<void> _openMacosRun(DeployableProject project) async {
+    final session = widget.macosRun;
+    if (session == null) return;
+
+    final activeState = session.state;
+    if (activeState.status.isActive &&
+        activeState.projectId != null &&
+        activeState.projectId != project.projectId) {
+      final shouldSwitch = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Stop current run?'),
+          content: Text(
+            '${activeState.projectName ?? 'Another app'} is already running. '
+            'Stop it and run ${project.name}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Switch'),
+            ),
+          ],
+        ),
+      );
+      if (shouldSwitch != true || !mounted) return;
+      await session.stop();
+    }
+
+    try {
+      await session.start(project);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => MacosRunScreen(session: session),
+      ),
+    );
+  }
+
+  void _openLineAge(DeployableProject project) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => LineAgeScreen(
+          repoPath: project.path,
+          repoName: project.name,
+        ),
+      ),
+    );
+  }
+
   Widget _projectAppIcon(DeployableProject project) {
     final iconPngBytes = project.iconPngBytes;
-    final radius = ELayout.borderRadius(ELayout.radiusLg);
+    final radius = ELayout.borderRadiusLg;
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,

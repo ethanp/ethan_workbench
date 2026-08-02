@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phone_deploy/deploy/deploy_checklist.dart';
-import 'package:phone_deploy/deploy/deploy_platform.dart';
+import 'package:ethan_workbench/deploy/deploy_checklist.dart';
+import 'package:ethan_workbench/deploy/deploy_platform.dart';
 
 void main() {
   group('DeployChecklist.formatElapsed', () {

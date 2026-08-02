@@ -1,5 +1,5 @@
-name: phone_deploy
-description: Personal phone remote for Mac-side Flutter iOS deploys.
+name: ethan_workbench
+description: Personal workbench for Flutter app deploys and Mac-side tools.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

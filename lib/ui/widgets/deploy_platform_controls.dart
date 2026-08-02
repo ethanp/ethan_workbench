@@ -45,89 +45,44 @@ class DeployPlatformActionGroup extends StatelessWidget {
         for (var index = 0; index < platforms.length; index++) ...[
           if (index > 0) const SizedBox(width: ELayout.spaceSm + 2),
           Expanded(
-            child: _DeployPlatformAction(
-              platform: platforms[index],
-              lastDeployedAt: lastDeployedAt[platforms[index]],
-              sourceStatus: sourceStatus[platforms[index]] ??
-                  DeploySourceStatus.unevaluated,
-              onPressed: () => onSelected(platforms[index]),
+            child: ETintedAction(
+              accent: platforms[index].accent,
+              icon: platforms[index].icon,
+              title: platforms[index].label,
+              subtitle: _lastDeployedCaption(lastDeployedAt[platforms[index]]),
+              chipLabel: _statusLabel(
+                sourceStatus[platforms[index]] ??
+                    DeploySourceStatus.unevaluated,
+              ),
+              chipTone: _statusTone(
+                sourceStatus[platforms[index]] ??
+                    DeploySourceStatus.unevaluated,
+              ),
+              onTap: () => onSelected(platforms[index]),
             ),
           ),
         ],
       ],
     );
   }
-}
 
-class _DeployPlatformAction extends StatelessWidget {
-  const _DeployPlatformAction({
-    required this.platform,
-    required this.onPressed,
-    required this.sourceStatus,
-    this.lastDeployedAt,
-  });
-
-  final DeployPlatform platform;
-  final VoidCallback onPressed;
-  final DateTime? lastDeployedAt;
-  final DeploySourceStatus sourceStatus;
-
-  @override
-  Widget build(BuildContext context) {
-    return ESurface(
-      kind: ESurfaceKind.tinted,
-      accent: platform.accent,
-      onTap: onPressed,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Icon(platform.icon, size: 18, color: platform.accent),
-              const SizedBox(width: ELayout.spaceSm),
-              Expanded(
-                child: Text(
-                  platform.label,
-                  style: EText.section.copyWith(color: platform.accent),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (_statusTone != null) ...[
-                const SizedBox(width: ELayout.spaceSm),
-                EStatusChip(label: _statusLabel!, tone: _statusTone!),
-              ],
-            ],
-          ),
-          const SizedBox(height: ELayout.spaceSm),
-          Text(
-            _lastDeployedCaption,
-            style: EText.caption.copyWith(
-              color: platform.accent.withValues(alpha: 0.62),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String? get _statusLabel => switch (sourceStatus) {
+  static String? _statusLabel(DeploySourceStatus sourceStatus) =>
+      switch (sourceStatus) {
         DeploySourceStatus.changed => 'changed',
         DeploySourceStatus.unchanged => 'current',
         DeploySourceStatus.neverDeployed => null,
         DeploySourceStatus.unevaluated => null,
       };
 
-  EStatusTone? get _statusTone => switch (sourceStatus) {
+  static EStatusTone? _statusTone(DeploySourceStatus sourceStatus) =>
+      switch (sourceStatus) {
         DeploySourceStatus.changed => EStatusTone.warning,
         DeploySourceStatus.unchanged => EStatusTone.success,
         DeploySourceStatus.neverDeployed => null,
         DeploySourceStatus.unevaluated => null,
       };
 
-  String get _lastDeployedCaption {
-    final deployedAt = lastDeployedAt;
+  static String _lastDeployedCaption(DateTime? deployedAt) {
     if (deployedAt != null) {
       return 'Deployed ${deployedAt.relativeTimeAgo()}';
     }

@@ -1,10 +1,10 @@
--- phone_deploy role bootstrap
+-- ethan_workbench role bootstrap
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'phone_deploy') THEN
-    CREATE ROLE phone_deploy LOGIN;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ethan_workbench') THEN
+    CREATE ROLE ethan_workbench LOGIN;
   END IF;
 END
 $$;
 
-ALTER ROLE phone_deploy WITH REPLICATION;
+ALTER ROLE ethan_workbench WITH REPLICATION;

@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # Usage (from any Flutter app directory):
-#   ruby /path/to/phone_deploy/deploy.rb <macos|ios> [--force|-f]
-# Or from a sibling app: ruby ../phone_deploy/deploy.rb ios
+#   ruby /path/to/ethan_workbench/deploy.rb <macos|ios> [--force|-f]
+# Or from a sibling app: ruby ../ethan_workbench/deploy.rb ios
 
 
 require 'digest'
@@ -31,7 +31,7 @@ class Deployer
   private
 
   def phase(id)
-    puts "PHONE_DEPLOY_PHASE:#{id}"
+    puts "DEPLOY_PHASE:#{id}"
     $stdout.flush
   end
 

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../pairing/pairing_screen.dart';
 import '../projects/projects_screen.dart';
-import 'phone_deploy_session.dart';
+import 'paired_phone_session.dart';
 
 /// Loads saved session token and routes to pairing or projects.
 class PhoneHome extends StatefulWidget {
@@ -15,7 +15,7 @@ class PhoneHome extends StatefulWidget {
 }
 
 class _PhoneHomeState extends State<PhoneHome> {
-  final _session = PhoneDeploySession();
+  final _session = PairedPhoneSession();
   bool _loading = true;
 
   @override

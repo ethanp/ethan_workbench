@@ -12,6 +12,7 @@ class DeployTrigger {
     this.onUnauthorized,
     this.onUnpair,
     this.showUnpair = false,
+    this.showLineAgeAnalysis = false,
     this.title = 'Deploy',
     this.unreachableHint,
     this.preferredPlatforms = const [DeployPlatform.ios, DeployPlatform.macos],
@@ -29,6 +30,7 @@ class DeployTrigger {
   final Future<void> Function()? onUnauthorized;
   final Future<void> Function()? onUnpair;
   final bool showUnpair;
+  final bool showLineAgeAnalysis;
   final String title;
   final String? unreachableHint;
   final List<DeployPlatform> preferredPlatforms;

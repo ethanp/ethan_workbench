@@ -2,13 +2,13 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
-import 'package:phone_deploy/deploy/deploy_platform.dart';
-import 'package:phone_deploy/projects/deploy_source_hasher.dart';
+import 'package:ethan_workbench/deploy/deploy_platform.dart';
+import 'package:ethan_workbench/projects/deploy_source_hasher.dart';
 
 void main() {
   test('Dart source hash matches deploy.rb for a filtered tree', () async {
     final fixtureRoot = Directory.systemTemp.createTempSync(
-      'phone_deploy_hash_',
+      'ethan_workbench_hash_',
     );
     addTearDown(() => fixtureRoot.deleteSync(recursive: true));
 

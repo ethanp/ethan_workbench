@@ -4,14 +4,14 @@ import 'dart:io';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
-import 'package:phone_deploy/agent/agent_config.dart';
-import 'package:phone_deploy/agent/deploy_agent.dart';
+import 'package:ethan_workbench/agent/agent_config.dart';
+import 'package:ethan_workbench/agent/deploy_agent.dart';
 import 'package:shelf/shelf.dart';
 
 void main() {
   test('agent API requires pairing for projects', () async {
     final fixtureRoot = Directory.systemTemp.createTempSync(
-      'phone_deploy_smoke_',
+      'ethan_workbench_smoke_',
     );
     addTearDown(() => fixtureRoot.deleteSync(recursive: true));
 
@@ -29,10 +29,10 @@ void main() {
     dotenv.loadFromString(
       envString:
           '''
-PHONE_DEPLOY_AGENT_HOST=localhost
-PHONE_DEPLOY_AGENT_PORT=18787
-PHONE_DEPLOY_FLUTTER_ROOT=${fixtureRoot.path}
-PHONE_DEPLOY_DEPLOY_RB=$deployRbPath
+AGENT_HOST=localhost
+AGENT_PORT=18787
+FLUTTER_ROOT=${fixtureRoot.path}
+DEPLOY_RB=$deployRbPath
 ''',
     );
 

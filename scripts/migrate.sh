@@ -1,7 +1,7 @@
 #!/bin/bash
-# Apply a phone_deploy migration via the shared infra migrate script.
+# Apply a ethan_workbench migration via the shared infra migrate script.
 #
-# Usage (from Flutter/phone_deploy):
+# Usage (from Flutter/ethan_workbench):
 #   ./scripts/migrate.sh migrations/001_powersync_publication.sql
 #   ./scripts/migrate.sh --full migrations/001_powersync_publication.sql
 
@@ -38,4 +38,4 @@ if [ ! -f "$MIGRATION_FILE" ]; then
   exit 1
 fi
 
-exec "$INFRA_ROOT/migrate.sh" "${MODE_ARGS[@]}" --app phone_deploy "$MIGRATION_FILE"
+exec "$INFRA_ROOT/migrate.sh" "${MODE_ARGS[@]}" --app ethan_workbench "$MIGRATION_FILE"

@@ -1,33 +1,33 @@
-# PowerSync Open Edition Configuration for phone_deploy
+# PowerSync Open Edition Configuration for ethan_workbench
 
 replication:
   connections:
     - type: postgresql
       hostname: postgres
       port: 5432
-      database: phone_deploy
-      username: phone_deploy
+      database: ethan_workbench
+      username: ethan_workbench
       password: !env PS_PG_PASSWORD
       sslmode: disable
-      id: phone_deploy
+      id: ethan_workbench
 
 storage:
   type: postgresql
   hostname: postgres
   port: 5432
-  database: phone_deploy
-  username: phone_deploy
+  database: ethan_workbench
+  username: ethan_workbench
   password: !env PS_PG_PASSWORD
   sslmode: disable
 
 # PS_JWT_KEY is the base64url-encoded HMAC key (the JWK `k`); it must match the
-# raw secret the app signs with (POWERSYNC_JWT_SECRET in Flutter/phone_deploy/.env,
+# raw secret the app signs with (POWERSYNC_JWT_SECRET in Flutter/ethan_workbench/.env,
 # base64-encoded).
 client_auth:
   jwks:
     keys:
       - kty: oct
-        kid: phone-deploy-dev-key
+        kid: ethan-workbench-dev-key
         k: !env PS_JWT_KEY
         alg: HS256
   audience:
@@ -36,7 +36,7 @@ client_auth:
 sync_rules:
   content: |
     bucket_definitions:
-      phone_deploy_global:
+      ethan_workbench_global:
         priority: 0
         data:
           - SELECT * FROM deploy_runs

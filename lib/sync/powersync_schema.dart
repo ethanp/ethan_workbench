@@ -1,7 +1,7 @@
 import 'package:powersync/powersync.dart';
 
 /// Client mirror of `db/init.sql`. PowerSync adds `id` automatically.
-final Schema phoneDeploySchema = Schema([
+final Schema ethanWorkbenchSchema = Schema([
   Table('deploy_runs', [
     Column.text('project_id'),
     Column.text('project_name'),

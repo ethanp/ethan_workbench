@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phone_deploy/deploy/deploy_platform.dart';
-import 'package:phone_deploy/projects/deploy_source_hasher.dart';
-import 'package:phone_deploy/projects/deployable_project.dart';
+import 'package:ethan_workbench/deploy/deploy_platform.dart';
+import 'package:ethan_workbench/projects/deploy_source_hasher.dart';
+import 'package:ethan_workbench/projects/deployable_project.dart';
 
 void main() {
   test(

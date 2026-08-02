@@ -2,7 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Persists the phone's paired session token across app launches.
 class SessionTokenStore {
-  static const _tokenKey = 'phone_deploy_session_token';
+  static const _tokenKey = 'paired_session_token';
 
   Future<String?> loadToken() async {
     final preferences = await SharedPreferences.getInstance();

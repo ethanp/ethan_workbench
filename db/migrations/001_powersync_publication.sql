@@ -1,4 +1,4 @@
--- PowerSync logical-replication publication for phone_deploy.
+-- PowerSync logical-replication publication for ethan_workbench.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'powersync') THEN

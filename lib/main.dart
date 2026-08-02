@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'agent/macos_companion_screen.dart';
+import 'app_identity.dart';
 import 'phone/phone_home.dart';
 import 'sync/sync_config.dart';
 import 'package:ethan_ui/ethan_ui.dart';
@@ -18,33 +19,33 @@ Future<void> main() async {
   final preferences = await SharedPreferences.getInstance();
   final container = ProviderContainer(
     overrides: [
-      if (phoneDeploySyncConfigured())
+      if (ethanWorkbenchSyncConfigured())
         syncConfigProvider.overrideWith(
-          (ref) => buildPhoneDeploySyncConfig(preferences),
+          (ref) => buildEthanWorkbenchSyncConfig(preferences),
         ),
     ],
   );
-  if (phoneDeploySyncConfigured()) {
+  if (ethanWorkbenchSyncConfigured()) {
     await SyncLifecycle.start(container);
   }
 
   runApp(
     UncontrolledProviderScope(
       container: container,
-      child: PhoneDeployApp(container: container),
+      child: EthanWorkbenchApp(container: container),
     ),
   );
 }
 
-class PhoneDeployApp extends StatelessWidget {
-  const PhoneDeployApp({required this.container});
+class EthanWorkbenchApp extends StatelessWidget {
+  const EthanWorkbenchApp({required this.container});
 
   final ProviderContainer container;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Phone Deploy',
+      title: AppIdentity.displayName,
       debugShowCheckedModeBanner: false,
       theme: ETheme.build(),
       home: Platform.isMacOS

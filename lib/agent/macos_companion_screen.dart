@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../app_identity.dart';
 import '../deploy/deploy_job.dart';
 import '../projects/projects_screen.dart';
 import '../sync/deploy_ledger.dart';
@@ -56,12 +57,14 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   Future<void> _bootstrap() async {
     final lanAddress = await firstLanIpv4Address();
     setState(() => _lanAddress = lanAddress);
+    await _agent.restoreMacosRun();
+    if (mounted) setState(() {});
     await _attachSyncLedger();
     await _startAgent();
   }
 
   Future<void> _attachSyncLedger() async {
-    if (!phoneDeploySyncConfigured()) return;
+    if (!ethanWorkbenchSyncConfigured()) return;
     final container = widget.syncContainer;
     if (container == null) return;
     final databaseManager = await container.read(
@@ -139,7 +142,10 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
       body: IndexedStack(
         index: _tabIndex,
         children: [
-          ProjectsScreen(trigger: _agent.localDeployTrigger),
+          ProjectsScreen(
+            trigger: _agent.localDeployTrigger,
+            macosRun: _agent.macosRun,
+          ),
           _agentTab(),
         ],
       ),
@@ -168,7 +174,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Phone Deploy'),
+            const Text(AppIdentity.displayName),
             Text('Mac companion', style: EText.caption),
           ],
         ),
@@ -311,7 +317,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     final time = TimeOfDay.fromDateTime(pairedAt).format(context);
     return ESurface(
       kind: ESurfaceKind.inset,
-      borderRadius: ELayout.borderRadius(ELayout.radiusSm),
+      borderRadius: ELayout.borderRadiusSm,
       padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
       child: Row(
         children: [
@@ -350,10 +356,10 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
         children: [
           ESurface(
             kind: ESurfaceKind.inset,
-            borderRadius: ELayout.borderRadius(ELayout.radiusSm),
+            borderRadius: ELayout.borderRadiusSm,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: SelectableText(
-              phoneDeployAgentBaseUrl,
+              agentBaseUrl,
               style: EText.monoEmphasis,
             ),
           ),

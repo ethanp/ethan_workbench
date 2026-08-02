@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../agent/agent_endpoint.dart';
+import '../app_identity.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_trigger.dart';
@@ -9,8 +10,8 @@ import '../projects/deployable_project.dart';
 import 'deploy_http_client.dart';
 
 /// Phone-side session: restore pairing, talk to the Mac agent, unpair on revoke.
-class PhoneDeploySession {
-  PhoneDeploySession({
+class PairedPhoneSession {
+  PairedPhoneSession({
     MacAgentClient? agentClient,
     SessionTokenStore? tokenStore,
   }) : _agent = agentClient ?? MacAgentClient(),
@@ -29,11 +30,10 @@ class PhoneDeploySession {
     }
 
     return DeployTrigger(
-      title: 'Phone Deploy',
+      title: AppIdentity.displayName,
       showUnpair: true,
       preferredPlatforms: const [DeployPlatform.ios],
-      unreachableHint:
-          'Is the Mac companion running at $phoneDeployAgentBaseUrl?',
+      unreachableHint: 'Is the Mac companion running at $agentBaseUrl?',
       listProjects: listProjects,
       evaluateSourceChanges: evaluateSourceChanges,
       startDeploy: startDeploy,

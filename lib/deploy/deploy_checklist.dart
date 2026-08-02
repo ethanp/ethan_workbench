@@ -87,7 +87,7 @@ class DeployChecklistItem {
 }
 
 abstract final class DeployChecklist {
-  static const phasePrefix = 'PHONE_DEPLOY_PHASE:';
+  static const phasePrefix = 'DEPLOY_PHASE:';
 
   static List<DeployChecklistItem> planned({
     required DeployPlatform platform,
@@ -101,7 +101,7 @@ abstract final class DeployChecklist {
       if (!force)
         const DeployChecklistItem(
           id: 'checking',
-          label: 'Check for changes',
+          label: 'Ensure app has changed',
           status: DeployChecklistItemStatus.pending,
         ),
       const DeployChecklistItem(
