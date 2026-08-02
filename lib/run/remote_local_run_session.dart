@@ -8,10 +8,7 @@ import 'local_run_state.dart';
 
 /// Phone-side proxy: drives Mac [LocalRunSession] over the LAN agent.
 class RemoteLocalRunSession implements LocalRunControls {
-  RemoteLocalRunSession({
-    required this.agent,
-    this.onUnauthorized,
-  });
+  RemoteLocalRunSession({required this.agent, this.onUnauthorized});
 
   final MacAgentClient agent;
   Future<void> Function()? onUnauthorized;

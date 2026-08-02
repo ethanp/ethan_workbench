@@ -26,10 +26,7 @@ class AgentRequestException implements Exception {
 /// HTTP client for the Mac LAN agent (pair, list projects, start deploys).
 class MacAgentClient {
   MacAgentClient({String? baseUrl, this._bearerToken, http.Client? httpClient})
-    : _baseUrl = (baseUrl ?? agentBaseUrl).replaceAll(
-        RegExp(r'/+$'),
-        '',
-      ),
+    : _baseUrl = (baseUrl ?? agentBaseUrl).replaceAll(RegExp(r'/+$'), ''),
       _httpClient = httpClient ?? http.Client();
 
   final String _baseUrl;
@@ -217,8 +214,7 @@ class MacAgentClient {
       yield* _watchSseJson(
         client: eventsClient,
         path: '/jobs/events',
-        parse: (payload) =>
-            DeployJob.fromJson(payload as Map<String, dynamic>),
+        parse: (payload) => DeployJob.fromJson(payload as Map<String, dynamic>),
         failureMessage: 'Failed to open job events stream',
       );
     } finally {
@@ -267,10 +263,7 @@ class MacAgentClient {
     final response = await _httpClient.post(
       Uri.parse('$_baseUrl/run'),
       headers: _headers,
-      body: jsonEncode({
-        'projectId': projectId,
-        'deviceKey': deviceKey,
-      }),
+      body: jsonEncode({'projectId': projectId, 'deviceKey': deviceKey}),
     );
     _throwIfFailed(response, 'Failed to start local run');
     return LocalRunState.fromJson(
@@ -332,10 +325,7 @@ class MacAgentClient {
     request.headers.addAll(_sseHeaders);
     final streamedResponse = await client.send(request);
     if (streamedResponse.statusCode == 401) {
-      throw const AgentRequestException(
-        'Unauthorized',
-        statusCode: 401,
-      );
+      throw const AgentRequestException('Unauthorized', statusCode: 401);
     }
     if (streamedResponse.statusCode < 200 ||
         streamedResponse.statusCode >= 300) {

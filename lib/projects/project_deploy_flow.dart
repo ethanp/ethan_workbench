@@ -13,10 +13,7 @@ import 'deployable_project.dart';
 
 /// Confirm → start deploy → open [JobScreen], including conflict rejoin.
 class ProjectDeployFlow {
-  const ProjectDeployFlow({
-    required this.trigger,
-    required this.activeDeploy,
-  });
+  const ProjectDeployFlow({required this.trigger, required this.activeDeploy});
 
   final DeployTrigger trigger;
   final ActiveDeployWatch activeDeploy;

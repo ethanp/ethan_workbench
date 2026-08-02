@@ -76,9 +76,7 @@ class DeployAgentServer {
           )
           .timeout(const Duration(seconds: 5));
     } on TimeoutException {
-      throw TimeoutException(
-        'Timed out binding agent port ${config.port}',
-      );
+      throw TimeoutException('Timed out binding agent port ${config.port}');
     }
   }
 
@@ -187,9 +185,7 @@ class DeployAgentServer {
 
   Future<Response> _listHistory(Request request) async {
     final runs = await deployService.listRecentRuns();
-    return jsonOk({
-      'runs': runs.map((run) => run.toJson()).toList(),
-    });
+    return jsonOk({'runs': runs.map((run) => run.toJson()).toList()});
   }
 
   Future<Response> _getJob(Request request, String jobId) async {
@@ -315,10 +311,7 @@ class DeployAgentServer {
       }
       final device = FlutterRunDevice.forKey(deviceKey);
       if (device == null) {
-        return jsonError(
-          'deviceKey must be macos or meSim',
-          status: 400,
-        );
+        return jsonError('deviceKey must be macos or meSim', status: 400);
       }
       final project = await deployService.findProject(projectId);
       if (project == null) {

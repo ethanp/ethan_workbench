@@ -88,7 +88,9 @@ class LocalRunSession implements LocalRunControls {
       _liveness.cancel();
       _adoptFlutterRun(flutterRun);
       await _checkpoint(readyForKeyCommands: false);
-      _runProgress.appendLog('flutter attach started (pid ${flutterRun.pid}).\n');
+      _runProgress.appendLog(
+        'flutter attach started (pid ${flutterRun.pid}).\n',
+      );
     } catch (error) {
       _runProgress.appendLog('flutter attach failed: $error\n');
       if (persistedRunStillAlive) {
@@ -171,9 +173,7 @@ class LocalRunSession implements LocalRunControls {
         _runProgress.current.copyWith(flutterDeviceId: flutterDeviceId),
       );
       if (device.prepareDeviceId != null) {
-        _runProgress.appendLog(
-          '${device.label} ready ($flutterDeviceId).\n',
-        );
+        _runProgress.appendLog('${device.label} ready ($flutterDeviceId).\n');
       }
 
       final flutterRun = await _flutterRunBinding.startNew(
@@ -262,7 +262,8 @@ class LocalRunSession implements LocalRunControls {
 
   @override
   Future<void> stop() async {
-    if (!_flutterRunBinding.hasFlutterRun && _flutterRunBinding.trackedPid == null) {
+    if (!_flutterRunBinding.hasFlutterRun &&
+        _flutterRunBinding.trackedPid == null) {
       if (_runProgress.isActive) {
         _runProgress.emit(
           _runProgress.current.copyWith(
@@ -357,7 +358,8 @@ class LocalRunSession implements LocalRunControls {
   }
 
   Future<void> _sendKeyCommand(String key) async {
-    if (!_flutterRunBinding.hasFlutterRun || !_runProgress.current.readyForKeyCommands) {
+    if (!_flutterRunBinding.hasFlutterRun ||
+        !_runProgress.current.readyForKeyCommands) {
       return;
     }
     try {
@@ -376,7 +378,9 @@ class LocalRunSession implements LocalRunControls {
     if (parsedUri != null && parsedUri != _flutterRunBinding.vmServiceUri) {
       _flutterRunBinding.vmServiceUri = parsedUri;
       unawaited(
-        _checkpoint(readyForKeyCommands: _runProgress.current.readyForKeyCommands),
+        _checkpoint(
+          readyForKeyCommands: _runProgress.current.readyForKeyCommands,
+        ),
       );
     }
     if (_runProgress.current.readyForKeyCommands) return;
