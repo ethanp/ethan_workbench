@@ -316,7 +316,8 @@ class MacosRunSession {
 
   void _onOutputChunk(String chunk) {
     _progress.appendLog(chunk);
-    final parsedUri = FlutterRunOutput.vmServiceUriFrom(chunk) ??
+    final parsedUri =
+        FlutterRunOutput.vmServiceUriFrom(chunk) ??
         FlutterRunOutput.vmServiceUriFrom(_progress.logText);
     if (parsedUri != null && parsedUri != _handle.vmServiceUri) {
       _handle.vmServiceUri = parsedUri;
@@ -368,21 +369,24 @@ class MacosRunSession {
   }
 
   void _watchOrphanPid(int pid) {
-    _liveness.watch(pid, onDead: () async {
-      if (_handle.hasLiveTools || _disposed) return;
-      if (_handle.trackedPid != pid) return;
-      _handle.clearIdentity();
-      await _persistence.clear();
-      if (_progress.isActive) {
-        _progress.appendLog('Reclaimed flutter run exited (pid $pid).\n');
-        _progress.emit(
-          _progress.current.copyWith(
-            status: MacosRunStatus.exited,
-            readyForKeyCommands: false,
-            reattached: false,
-          ),
-        );
-      }
-    });
+    _liveness.watch(
+      pid,
+      onDead: () async {
+        if (_handle.hasLiveTools || _disposed) return;
+        if (_handle.trackedPid != pid) return;
+        _handle.clearIdentity();
+        await _persistence.clear();
+        if (_progress.isActive) {
+          _progress.appendLog('Reclaimed flutter run exited (pid $pid).\n');
+          _progress.emit(
+            _progress.current.copyWith(
+              status: MacosRunStatus.exited,
+              readyForKeyCommands: false,
+              reattached: false,
+            ),
+          );
+        }
+      },
+    );
   }
 }

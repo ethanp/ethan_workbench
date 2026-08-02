@@ -33,8 +33,8 @@ abstract final class FlutterRunOutput {
 /// Deep process module for one `flutter run` / `flutter attach` (and pid teardown).
 class MacosFlutterRun {
   MacosFlutterRun._(this._process)
-      : pid = _process.pid,
-        output = _mergeOutput(_process);
+    : pid = _process.pid,
+      output = _mergeOutput(_process);
 
   final Process _process;
 
