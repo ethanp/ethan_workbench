@@ -1,25 +1,25 @@
 import 'dart:async';
 
-import 'macos_run_state.dart';
+import 'local_run_state.dart';
 
 /// Published session snapshot + log for the UI.
 ///
-/// One job: hold [MacosRunState], append log lines, and broadcast changes.
-class MacosRunProgress {
-  MacosRunState _current = MacosRunState.idle;
-  final _changes = StreamController<MacosRunState>.broadcast();
+/// One job: hold [LocalRunState], append log lines, and broadcast changes.
+class LocalRunProgress {
+  LocalRunState _current = LocalRunState.idle;
+  final _changes = StreamController<LocalRunState>.broadcast();
   final _log = StringBuffer();
   bool _closed = false;
 
-  MacosRunState get current => _current;
-  Stream<MacosRunState> get changes => _changes.stream;
+  LocalRunState get current => _current;
+  Stream<LocalRunState> get changes => _changes.stream;
   bool get isActive => _current.status.isActive;
   bool get isClosed => _closed;
   String get logText => _log.toString();
 
   void clearLog() => _log.clear();
 
-  void emit(MacosRunState state) {
+  void emit(LocalRunState state) {
     _current = state;
     if (!_closed) {
       _changes.add(state);
@@ -35,15 +35,15 @@ class MacosRunProgress {
   Future<void> waitUntilNotStopping({
     Duration timeout = const Duration(seconds: 2),
   }) async {
-    if (_current.status != MacosRunStatus.stopping) return;
+    if (_current.status != LocalRunStatus.stopping) return;
     final settled = Completer<void>();
-    late final StreamSubscription<MacosRunState> subscription;
+    late final StreamSubscription<LocalRunState> subscription;
     subscription = changes.listen((state) {
-      if (state.status != MacosRunStatus.stopping && !settled.isCompleted) {
+      if (state.status != LocalRunStatus.stopping && !settled.isCompleted) {
         settled.complete();
       }
     });
-    if (_current.status != MacosRunStatus.stopping) {
+    if (_current.status != LocalRunStatus.stopping) {
       await subscription.cancel();
       return;
     }
@@ -51,10 +51,10 @@ class MacosRunProgress {
       await settled.future.timeout(
         timeout,
         onTimeout: () {
-          if (_current.status == MacosRunStatus.stopping) {
+          if (_current.status == LocalRunStatus.stopping) {
             emit(
               _current.copyWith(
-                status: MacosRunStatus.exited,
+                status: LocalRunStatus.exited,
                 readyForKeyCommands: false,
                 reattached: false,
               ),

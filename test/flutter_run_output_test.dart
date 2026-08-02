@@ -1,4 +1,4 @@
-import 'package:ethan_workbench/run/macos_flutter_run.dart';
+import 'package:ethan_workbench/run/local_flutter_run.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

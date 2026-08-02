@@ -4,6 +4,7 @@ import '../agent/agent_endpoint.dart';
 import '../app_identity.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
+import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_trigger.dart';
 import '../pairing/session_token_store.dart';
 import '../projects/deployable_project.dart';
@@ -38,6 +39,8 @@ class PairedPhoneSession {
       evaluateSourceChanges: evaluateSourceChanges,
       startDeploy: startDeploy,
       fetchJob: fetchJob,
+      fetchActiveJob: fetchActiveJob,
+      listDeployHistory: listDeployHistory,
       onUnauthorized: endSession,
       onUnpair: endSession,
     );
@@ -91,6 +94,11 @@ class PairedPhoneSession {
   }
 
   Future<DeployJob> fetchJob(String jobId) => _agent.fetchJob(jobId);
+
+  Future<DeployJob?> fetchActiveJob() => _agent.fetchActiveJob();
+
+  Future<List<DeployRunRecord>> listDeployHistory() =>
+      _agent.listDeployHistory();
 
   void close() => _agent.close();
 }

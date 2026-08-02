@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'os_process_tree.dart';
+
 /// Interprets `flutter run` / `flutter attach` log text.
 abstract final class FlutterRunOutput {
   static final _vmServiceUriPattern = RegExp(
@@ -30,9 +32,9 @@ abstract final class FlutterRunOutput {
   }
 }
 
-/// Deep process module for one `flutter run` / `flutter attach` (and pid teardown).
-class MacosFlutterRun {
-  MacosFlutterRun._(this._process)
+/// One `flutter run` / `flutter attach` process (stdin, merged output, quit).
+class LocalFlutterRun {
+  LocalFlutterRun._(this._process)
     : pid = _process.pid,
       output = _mergeOutput(_process);
 
@@ -43,23 +45,27 @@ class MacosFlutterRun {
   /// Merged stdout + stderr as text chunks.
   final Stream<String> output;
 
-  static Future<MacosFlutterRun> start({required String projectPath}) async {
+  static Future<LocalFlutterRun> start({
+    required String projectPath,
+    required String deviceId,
+  }) async {
     final process = await Process.start(
       'flutter',
-      const ['run', '-d', 'macos'],
+      ['run', '-d', deviceId],
       workingDirectory: projectPath,
       environment: _flutterEnvironment(),
       runInShell: false,
     );
-    return MacosFlutterRun._(process);
+    return LocalFlutterRun._(process);
   }
 
   /// Reattach hot-reload control to an already-running debug app.
-  static Future<MacosFlutterRun> attach({
+  static Future<LocalFlutterRun> attach({
     required String projectPath,
+    required String deviceId,
     String? vmServiceUri,
   }) async {
-    final arguments = <String>['attach', '-d', 'macos'];
+    final arguments = <String>['attach', '-d', deviceId];
     if (vmServiceUri != null && vmServiceUri.isNotEmpty) {
       arguments.addAll(['--debug-uri', vmServiceUri]);
     }
@@ -70,7 +76,7 @@ class MacosFlutterRun {
       environment: _flutterEnvironment(),
       runInShell: false,
     );
-    return MacosFlutterRun._(process);
+    return LocalFlutterRun._(process);
   }
 
   Future<void> sendKey(String key) async {
@@ -89,39 +95,15 @@ class MacosFlutterRun {
     try {
       return await _process.exitCode.timeout(const Duration(seconds: 4));
     } on TimeoutException {
-      await killPidTree(pid);
-      try {
-        return await _process.exitCode.timeout(const Duration(seconds: 2));
-      } on TimeoutException {
-        Process.killPid(pid, ProcessSignal.sigkill);
-        return await _process.exitCode;
-      }
+      await killTreeTillExit();
+      return await _process.exitCode;
     }
   }
 
   Future<int> waitForExit() => _process.exitCode;
 
-  static Future<bool> isPidAlive(int pid) async {
-    if (pid <= 0) return false;
-    final result = await Process.run('kill', ['-0', '$pid']);
-    return result.exitCode == 0;
-  }
-
-  static Future<void> killPidTree(int pid) async {
-    // Child macos app may outlive `flutter run` if we only signal the parent.
-    await Process.run('pkill', ['-P', '$pid']);
-    Process.killPid(pid, ProcessSignal.sigterm);
-  }
-
-  static Future<void> waitUntilPidExits(int pid) async {
-    final deadline = DateTime.now().add(const Duration(seconds: 6));
-    while (DateTime.now().isBefore(deadline)) {
-      if (!await isPidAlive(pid)) return;
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-    }
-    Process.killPid(pid, ProcessSignal.sigkill);
-    await Process.run('pkill', ['-9', '-P', '$pid']);
-  }
+  /// Signal this process tree and wait until it is gone.
+  Future<void> killTreeTillExit() => pid.asOsProcessTree.killTillExit();
 
   static Stream<String> _mergeOutput(Process process) {
     return Stream<String>.multi((controller) {

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../agent/agent_endpoint.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
+import '../deploy/deploy_run_record.dart';
 import '../projects/deployable_project.dart';
 
 class AgentRequestException implements Exception {
@@ -141,6 +142,20 @@ class MacAgentClient {
     return DeployJob.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+  }
+
+  Future<List<DeployRunRecord>> listDeployHistory() async {
+    final response = await _httpClient.get(
+      Uri.parse('$_baseUrl/jobs/history'),
+      headers: _headers,
+    );
+    _throwIfFailed(response, 'Failed to load deploy history');
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final runMaps = payload['runs'] as List<dynamic>? ?? const [];
+    return [
+      for (final runMap in runMaps)
+        DeployRunRecord.fromJson(runMap as Map<String, dynamic>),
+    ];
   }
 
   void _throwIfFailed(http.Response response, String fallbackMessage) {

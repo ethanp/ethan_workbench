@@ -10,6 +10,7 @@ import 'deploy_checklist.dart';
 import 'deploy_errors.dart';
 import 'deploy_job.dart';
 import 'deploy_platform.dart';
+import 'deploy_run_record.dart';
 import 'ruby_deploy_executor.dart';
 
 /// Owns the single active deploy job and project catalog lookup.
@@ -36,6 +37,12 @@ class DeployService {
 
   void attachLedger(DeployLedger? ledger) {
     _ledger = ledger;
+  }
+
+  Future<List<DeployRunRecord>> listRecentRuns({int limit = 100}) async {
+    final ledger = _ledger;
+    if (ledger == null) return const [];
+    return ledger.listRecentRuns(limit: limit);
   }
 
   Future<List<DeployableProject>> listProjects() async {

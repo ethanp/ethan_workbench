@@ -3,25 +3,29 @@ import 'dart:async';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
+import '../deploy/deploy_errors.dart';
+import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_trigger.dart';
 import '../deploy/job_screen.dart';
 import '../line_age/line_age_screen.dart';
 import '../phone/deploy_http_client.dart';
-import '../run/macos_run_screen.dart';
-import '../run/macos_run_session.dart';
-import '../run/macos_run_state.dart';
+import '../run/flutter_run_device.dart';
+import '../run/local_run_screen.dart';
+import '../run/local_run_session.dart';
+import '../run/local_run_state.dart';
 import 'package:ethan_ui/ethan_ui.dart';
 
 import '../ui/workbench_action_accents.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
 import 'deployable_project.dart';
+import 'project_app_icon_tile.dart';
 
 class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({required this.trigger, this.macosRun});
+  const ProjectsScreen({required this.trigger, this.localRun});
 
   final DeployTrigger trigger;
-  final MacosRunSession? macosRun;
+  final LocalRunSession? localRun;
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
@@ -34,8 +38,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   String? _errorMessage;
   DateTime? _lastChangesCheckedAt;
   Timer? _lastCheckedTicker;
-  StreamSubscription<MacosRunState>? _macosRunSubscription;
-  MacosRunState _macosRunState = MacosRunState.idle;
+  Timer? _activeJobPoll;
+  StreamSubscription<LocalRunState>? _localRunSubscription;
+  StreamSubscription<DeployJob>? _jobUpdatesSubscription;
+  LocalRunState _localRunState = LocalRunState.idle;
+  DeployJob? _ongoingDeploy;
 
   @override
   void initState() {
@@ -44,22 +51,87 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       if (!mounted || _lastChangesCheckedAt == null) return;
       setState(() {});
     });
-    final macosRun = widget.macosRun;
-    if (macosRun != null) {
-      _macosRunState = macosRun.state;
-      _macosRunSubscription = macosRun.updates.listen((state) {
+    final localRun = widget.localRun;
+    if (localRun != null) {
+      _localRunState = localRun.state;
+      _localRunSubscription = localRun.updates.listen((state) {
         if (!mounted) return;
-        setState(() => _macosRunState = state);
+        setState(() => _localRunState = state);
       });
     }
+    _listenForOngoingDeploy();
     unawaited(_loadProjects(evaluateChanges: true));
   }
 
   @override
   void dispose() {
     _lastCheckedTicker?.cancel();
-    unawaited(_macosRunSubscription?.cancel());
+    _activeJobPoll?.cancel();
+    unawaited(_localRunSubscription?.cancel());
+    unawaited(_jobUpdatesSubscription?.cancel());
     super.dispose();
+  }
+
+  void _listenForOngoingDeploy() {
+    final jobUpdates = widget.trigger.jobUpdates;
+    if (jobUpdates != null) {
+      _jobUpdatesSubscription = jobUpdates.listen(_onJobUpdate);
+    } else {
+      _activeJobPoll = Timer.periodic(
+        const Duration(seconds: 2),
+        (_) => unawaited(_refreshOngoingDeploy()),
+      );
+    }
+    unawaited(_refreshOngoingDeploy());
+  }
+
+  void _onJobUpdate(DeployJob job) {
+    if (!mounted) return;
+    setState(() {
+      _ongoingDeploy = job.status.isTerminal ? null : job;
+    });
+  }
+
+  Future<void> _refreshOngoingDeploy() async {
+    try {
+      final job = await widget.trigger.fetchActiveJob();
+      if (!mounted) return;
+      setState(() {
+        _ongoingDeploy =
+            job != null && !job.status.isTerminal ? job : null;
+      });
+    } on AgentRequestException catch (error) {
+      if (!mounted) return;
+      if (error.isUnauthorized) {
+        _activeJobPoll?.cancel();
+        await widget.trigger.onUnauthorized?.call();
+        return;
+      }
+      // Transient errors: keep the banner until the next successful poll.
+    } catch (_) {
+      // Banner stays as-is until the next successful poll.
+    }
+  }
+
+  Future<void> _openOngoingDeploy() async {
+    final job = _ongoingDeploy;
+    if (job == null) return;
+    await _openJobScreen(job);
+  }
+
+  Future<void> _openJobScreen(DeployJob job) async {
+    setState(() {
+      _ongoingDeploy = job.status.isTerminal ? null : job;
+    });
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) =>
+            JobScreen(trigger: widget.trigger, initialJob: job),
+      ),
+    );
+    if (!mounted) return;
+    await _refreshOngoingDeploy();
+    await _loadProjects(evaluateChanges: true);
   }
 
   Future<void> _refreshProjects() => _loadProjects(evaluateChanges: false);
@@ -130,6 +202,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return widget.trigger.preferredPlatforms.where(project.supports).toList();
   }
 
+  DeployJob? _ongoingDeployFor(DeployableProject project) {
+    final ongoing = _ongoingDeploy;
+    if (ongoing == null || ongoing.projectId != project.projectId) return null;
+    return ongoing;
+  }
+
   Future<void> _confirmAndDeploy(
     DeployableProject project,
     DeployPlatform platform,
@@ -147,20 +225,35 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         force: force,
       );
       if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (context) =>
-              JobScreen(trigger: widget.trigger, initialJob: job),
-        ),
-      );
+      await _openJobScreen(job);
+    } on DeployAlreadyRunning catch (error) {
       if (!mounted) return;
-      await _loadProjects(evaluateChanges: true);
+      try {
+        final job = await widget.trigger.fetchJob(error.jobId);
+        if (!mounted) return;
+        await _openJobScreen(job);
+      } catch (_) {
+        await _refreshOngoingDeploy();
+        if (_ongoingDeploy != null && mounted) {
+          await _openJobScreen(_ongoingDeploy!);
+        }
+      }
     } on AgentRequestException catch (error) {
       if (!mounted) return;
       if (error.isUnauthorized) {
         await widget.trigger.onUnauthorized?.call();
         return;
       }
+      if (error.statusCode == 409) {
+        await _refreshOngoingDeploy();
+        if (!mounted) return;
+        final ongoing = _ongoingDeploy;
+        if (ongoing != null) {
+          await _openJobScreen(ongoing);
+          return;
+        }
+      }
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
@@ -334,11 +427,32 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ELayout.spaceXl,
           ELayout.spaceXl + 8,
         ),
-        itemCount: _projects.length,
+        itemCount: _projects.length + (_ongoingDeploy != null ? 1 : 0),
         separatorBuilder: (context, index) =>
             const SizedBox(height: ELayout.spaceMd + 2),
-        itemBuilder: (context, index) => _projectRow(_projects[index]),
+        itemBuilder: (context, index) {
+          final ongoing = _ongoingDeploy;
+          if (ongoing != null) {
+            if (index == 0) return _ongoingDeployBanner(ongoing);
+            return _projectRow(_projects[index - 1]);
+          }
+          return _projectRow(_projects[index]);
+        },
       ),
+    );
+  }
+
+  Widget _ongoingDeployBanner(DeployJob job) {
+    return ETintedAction(
+      accent: EColors.accentGlow,
+      icon: Icons.rocket_launch_rounded,
+      title: job.projectName,
+      subtitle: '${job.platform.label} deploy in progress — tap to open',
+      chipLabel: job.status.name,
+      chipTone: job.status == DeployJobStatus.queued
+          ? EStatusTone.warning
+          : EStatusTone.accent,
+      onTap: () => unawaited(_openOngoingDeploy()),
     );
   }
 
@@ -379,17 +493,23 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget _projectRow(DeployableProject project) {
     final platforms = _platformsFor(project);
-    final runStatus = _activeRunStatusFor(project);
+    final macosRunStatus = _activeRunStatusFor(project, FlutterRunDevice.macos);
+    final meSimRunStatus = _activeRunStatusFor(project, FlutterRunDevice.meSim);
     final showLineAge = widget.trigger.showLineAgeAnalysis;
-    final showMacosRun = widget.macosRun != null &&
+    final showMacosRun = widget.localRun != null &&
         project.supports(DeployPlatform.macos);
+    final showMeSimRun = widget.localRun != null &&
+        project.supports(DeployPlatform.ios);
     return ESurface(
       kind: ESurfaceKind.row,
-      attention: project.hasChangedSources || runStatus != null,
+      attention: project.hasChangedSources ||
+          macosRunStatus != null ||
+          meSimRunStatus != null ||
+          _ongoingDeployFor(project) != null,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
         children: [
-          _projectAppIcon(project),
+          ProjectAppIconTile(iconPngBytes: project.iconPngBytes),
           const SizedBox(width: ELayout.spaceLg),
           Expanded(
             flex: 4,
@@ -418,23 +538,26 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 ],
                 if (showMacosRun) ...[
                   Expanded(
-                    child: ETintedAction(
+                    child: _localRunPlate(
+                      project: project,
+                      device: FlutterRunDevice.macos,
+                      runStatus: macosRunStatus,
                       accent: EColors.success,
-                      icon: runStatus != null
-                          ? Icons.play_circle_filled_rounded
-                          : Icons.play_arrow_rounded,
-                      title: 'Run',
-                      subtitle: runStatus != null
-                          ? _runStatusSubtitle(runStatus)
-                          : 'macOS debug session',
-                      chipLabel: runStatus != null
-                          ? _runStatusLabel(runStatus)
-                          : null,
-                      chipTone: runStatus != null
-                          ? _runStatusTone(runStatus)
-                          : null,
-                      trailing: _runStopControl(runStatus),
-                      onTap: () => unawaited(_openMacosRun(project)),
+                      icon: Icons.desktop_mac_rounded,
+                      idleSubtitle: 'macOS debug session',
+                    ),
+                  ),
+                  const SizedBox(width: ELayout.spaceSm + 2),
+                ],
+                if (showMeSimRun) ...[
+                  Expanded(
+                    child: _localRunPlate(
+                      project: project,
+                      device: FlutterRunDevice.meSim,
+                      runStatus: meSimRunStatus,
+                      accent: EColors.platformIos,
+                      icon: Icons.phone_iphone_rounded,
+                      idleSubtitle: 'iPhone Simulator',
                     ),
                   ),
                   const SizedBox(width: ELayout.spaceSm + 2),
@@ -445,6 +568,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     platforms: platforms,
                     lastDeployedAt: project.lastDeployedAt,
                     sourceStatus: project.sourceStatus,
+                    ongoingDeploy: _ongoingDeployFor(project),
+                    onOpenOngoing: () => unawaited(_openOngoingDeploy()),
                     onSelected: (platform) =>
                         unawaited(_confirmAndDeploy(project, platform)),
                   ),
@@ -457,23 +582,49 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  String _runStatusSubtitle(MacosRunStatus status) => switch (status) {
-    MacosRunStatus.starting => 'Starting flutter run…',
-    MacosRunStatus.running => 'Session open',
-    MacosRunStatus.stopping => 'Stopping…',
-    MacosRunStatus.idle ||
-    MacosRunStatus.exited ||
-    MacosRunStatus.failed => 'macOS debug session',
-  };
+  Widget _localRunPlate({
+    required DeployableProject project,
+    required FlutterRunDevice device,
+    required LocalRunStatus? runStatus,
+    required Color accent,
+    required IconData icon,
+    required String idleSubtitle,
+  }) {
+    return ETintedAction(
+      accent: accent,
+      icon: runStatus != null ? Icons.play_circle_filled_rounded : icon,
+      title: device.label,
+      subtitle: runStatus != null
+          ? _runStatusSubtitle(runStatus, idleSubtitle: idleSubtitle)
+          : idleSubtitle,
+      chipLabel: runStatus != null ? _runStatusLabel(runStatus) : null,
+      chipTone: runStatus != null ? _runStatusTone(runStatus) : null,
+      trailing: _runStopControl(runStatus),
+      onTap: () => unawaited(_openLocalRun(project, device)),
+    );
+  }
 
-  Widget? _runStopControl(MacosRunStatus? runStatus) {
-    if (runStatus != MacosRunStatus.starting &&
-        runStatus != MacosRunStatus.running) {
+  String _runStatusSubtitle(
+    LocalRunStatus status, {
+    required String idleSubtitle,
+  }) =>
+      switch (status) {
+        LocalRunStatus.starting => 'Starting flutter run…',
+        LocalRunStatus.running => 'Session open',
+        LocalRunStatus.stopping => 'Stopping…',
+        LocalRunStatus.idle ||
+        LocalRunStatus.exited ||
+        LocalRunStatus.failed => idleSubtitle,
+      };
+
+  Widget? _runStopControl(LocalRunStatus? runStatus) {
+    if (runStatus != LocalRunStatus.starting &&
+        runStatus != LocalRunStatus.running) {
       return null;
     }
     return IconButton(
       tooltip: 'Stop run',
-      onPressed: () => unawaited(_stopMacosRun()),
+      onPressed: () => unawaited(_stopLocalRun()),
       iconSize: 20,
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
@@ -486,8 +637,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  Future<void> _stopMacosRun() async {
-    final session = widget.macosRun;
+  Future<void> _stopLocalRun() async {
+    final session = widget.localRun;
     if (session == null || !session.isActive) return;
     try {
       await session.stop();
@@ -499,45 +650,53 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
   }
 
-  MacosRunStatus? _activeRunStatusFor(DeployableProject project) {
-    if (_macosRunState.projectId != project.projectId) return null;
-    if (!_macosRunState.status.isActive) return null;
-    return _macosRunState.status;
+  LocalRunStatus? _activeRunStatusFor(
+    DeployableProject project,
+    FlutterRunDevice device,
+  ) {
+    if (_localRunState.projectId != project.projectId) return null;
+    if (_localRunState.deviceKey != device.key) return null;
+    if (!_localRunState.status.isActive) return null;
+    return _localRunState.status;
   }
 
-  String _runStatusLabel(MacosRunStatus status) => switch (status) {
-    MacosRunStatus.starting => 'starting',
-    MacosRunStatus.running => 'running',
-    MacosRunStatus.stopping => 'stopping',
-    MacosRunStatus.idle ||
-    MacosRunStatus.exited ||
-    MacosRunStatus.failed => 'idle',
+  String _runStatusLabel(LocalRunStatus status) => switch (status) {
+    LocalRunStatus.starting => 'starting',
+    LocalRunStatus.running => 'running',
+    LocalRunStatus.stopping => 'stopping',
+    LocalRunStatus.idle ||
+    LocalRunStatus.exited ||
+    LocalRunStatus.failed => 'idle',
   };
 
-  EStatusTone _runStatusTone(MacosRunStatus status) => switch (status) {
-    MacosRunStatus.starting => EStatusTone.accent,
-    MacosRunStatus.running => EStatusTone.success,
-    MacosRunStatus.stopping => EStatusTone.warning,
-    MacosRunStatus.idle ||
-    MacosRunStatus.exited ||
-    MacosRunStatus.failed => EStatusTone.muted,
+  EStatusTone _runStatusTone(LocalRunStatus status) => switch (status) {
+    LocalRunStatus.starting => EStatusTone.accent,
+    LocalRunStatus.running => EStatusTone.success,
+    LocalRunStatus.stopping => EStatusTone.warning,
+    LocalRunStatus.idle ||
+    LocalRunStatus.exited ||
+    LocalRunStatus.failed => EStatusTone.muted,
   };
 
-  Future<void> _openMacosRun(DeployableProject project) async {
-    final session = widget.macosRun;
+  Future<void> _openLocalRun(
+    DeployableProject project,
+    FlutterRunDevice device,
+  ) async {
+    final session = widget.localRun;
     if (session == null) return;
 
     final activeState = session.state;
     if (activeState.status.isActive &&
-        activeState.projectId != null &&
-        activeState.projectId != project.projectId) {
+        (activeState.projectId != project.projectId ||
+            activeState.deviceKey != device.key)) {
       final shouldSwitch = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Stop current run?'),
           content: Text(
-            '${activeState.projectName ?? 'Another app'} is already running. '
-            'Stop it and run ${project.name}?',
+            '${activeState.projectName ?? 'Another app'}'
+            '${activeState.deviceLabel != null ? ' (${activeState.deviceLabel})' : ''} '
+            'is already running. Stop it and run ${project.name} on ${device.label}?',
           ),
           actions: [
             TextButton(
@@ -552,11 +711,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         ),
       );
       if (shouldSwitch != true || !mounted) return;
-      await session.stop();
+      try {
+        await session.stop();
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        return;
+      }
     }
 
     try {
-      await session.start(project);
+      await session.start(project, device: device);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -567,7 +734,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => MacosRunScreen(session: session),
+        builder: (context) => LocalRunScreen(session: session),
       ),
     );
   }
@@ -578,44 +745,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         builder: (context) => LineAgeScreen(
           repoPath: project.path,
           repoName: project.name,
-        ),
-      ),
-    );
-  }
-
-  Widget _projectAppIcon(DeployableProject project) {
-    final iconPngBytes = project.iconPngBytes;
-    final radius = ELayout.borderRadiusLg;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: SizedBox(
-          width: ELayout.iconTile,
-          height: ELayout.iconTile,
-          child: iconPngBytes == null
-              ? const ColoredBox(
-                  color: EColors.surfaceInset,
-                  child: Icon(
-                    Icons.apps_rounded,
-                    size: 34,
-                    color: EColors.textMuted,
-                  ),
-                )
-              : Image.memory(
-                  iconPngBytes,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                ),
         ),
       ),
     );

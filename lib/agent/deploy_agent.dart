@@ -4,12 +4,13 @@ import 'package:shelf/shelf.dart';
 
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
+import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_service.dart';
 import '../deploy/deploy_trigger.dart';
 import '../pairing/pairing_auth.dart';
 import '../projects/deployable_project.dart';
-import '../run/macos_run_session.dart';
-import '../run/macos_run_state.dart';
+import '../run/local_run_session.dart';
+import '../run/local_run_state.dart';
 import '../sync/deploy_ledger.dart';
 import 'agent_config.dart';
 import 'deploy_agent_server.dart';
@@ -23,7 +24,7 @@ class DeployAgent {
       flutterRoots: _config.flutterRoots,
       deployRbPath: _config.deployRbPath,
     );
-    _macosRun = MacosRunSession(
+    _localRun = LocalRunSession(
       isDeployBlocking: () {
         final job = _deployService.activeJob;
         return job != null && !job.status.isTerminal;
@@ -44,13 +45,13 @@ class DeployAgent {
   final PairingAuth _pairingAuth;
   late final DeployService _deployService;
   late final DeployAgentServer _server;
-  late final MacosRunSession _macosRun;
+  late final LocalRunSession _localRun;
 
   AgentConfig get config => _config;
   PairingAuth get pairingAuth => _pairingAuth;
   DeployJob? get activeJob => _deployService.activeJob;
   Stream<DeployJob> get jobUpdates => _deployService.jobUpdates;
-  MacosRunSession get macosRun => _macosRun;
+  LocalRunSession get localRun => _localRun;
   bool get isRunning => _server.isRunning;
   int? get boundPort => _server.boundPort;
 
@@ -63,6 +64,9 @@ class DeployAgent {
     evaluateSourceChanges: evaluateSourceChanges,
     startDeploy: startDeploy,
     fetchJob: fetchJob,
+    fetchActiveJob: () async => activeJob,
+    listDeployHistory: listDeployHistory,
+    jobUpdates: jobUpdates,
   );
 
   Handler buildHandler() => _server.buildHandler();
@@ -78,10 +82,10 @@ class DeployAgent {
     required DeployPlatform platform,
     bool force = false,
   }) {
-    if (_macosRun.isActive) {
-      throw MacosRunBlocksDeploy(
-        projectName: _macosRun.state.projectName ?? 'macOS run',
-        statusName: _macosRun.state.status.name,
+    if (_localRun.isActive) {
+      throw LocalRunBlocksDeploy(
+        projectName: _localRun.state.projectName ?? 'local run',
+        statusName: _localRun.state.status.name,
       );
     }
     return _deployService.startDeploy(
@@ -93,19 +97,29 @@ class DeployAgent {
 
   Future<DeployJob> fetchJob(String jobId) => _deployService.fetchJob(jobId);
 
+  Future<List<DeployRunRecord>> listDeployHistory() =>
+      _deployService.listRecentRuns();
+
   void attachLedger(DeployLedger ledger) {
     _deployService.attachLedger(ledger);
   }
 
-  Future<void> start() => _server.start();
+  Future<void> start() async {
+    await _pairingAuth.restorePersistedSessions();
+    await _server.start();
+  }
 
   Future<void> stop() => _server.stop();
 
   /// Reclaim a `flutter run` left alive across workbench hot restart.
-  Future<void> restoreMacosRun() => _macosRun.restorePersisted();
+  Future<void> restoreLocalRun() => _localRun.restorePersisted();
+
+  /// Reload paired phone sessions from disk (also runs inside [start]).
+  Future<void> restorePairedSessions() =>
+      _pairingAuth.restorePersistedSessions();
 
   Future<void> dispose() async {
-    await _macosRun.dispose();
+    await _localRun.dispose();
     await stop();
     await _deployService.dispose();
     await _pairingAuth.dispose();

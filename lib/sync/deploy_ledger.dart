@@ -4,6 +4,7 @@ import 'package:powersync/powersync.dart';
 import '../deploy/deploy_checklist.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
+import '../deploy/deploy_run_record.dart';
 
 /// Persists deploy runs/state into the synced PowerSync ledger.
 class DeployLedger {
@@ -62,6 +63,19 @@ class DeployLedger {
       'last_deployed_at': lastDeployedAt,
       'last_run_id': job.jobId,
     });
+  }
+
+  /// Newest deploy runs first (activity history).
+  Future<List<DeployRunRecord>> listRecentRuns({int limit = 100}) async {
+    final rows = await _powerSync.getAll(
+      'SELECT id, project_id, project_name, platform, force, status, '
+      'started_at, finished_at, exit_code '
+      'FROM deploy_runs ORDER BY started_at DESC LIMIT ?',
+      [limit],
+    );
+    return [
+      for (final row in rows) DeployRunRecord.fromLedgerRow(row),
+    ];
   }
 
   /// Latest successful deploy times keyed by platform, for one project.

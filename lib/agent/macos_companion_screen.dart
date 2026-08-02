@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app_identity.dart';
+import '../deploy/deploy_history_screen.dart';
 import '../deploy/deploy_job.dart';
 import '../projects/projects_screen.dart';
 import '../sync/deploy_ledger.dart';
@@ -38,6 +39,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   Timer? _pinTicker;
   bool _busy = false;
   int _tabIndex = 0;
+  int _ledgerGeneration = 0;
 
   @override
   void initState() {
@@ -57,10 +59,12 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   Future<void> _bootstrap() async {
     final lanAddress = await firstLanIpv4Address();
     setState(() => _lanAddress = lanAddress);
-    await _agent.restoreMacosRun();
+    await _agent.restorePairedSessions();
+    await _agent.restoreLocalRun();
     if (mounted) setState(() {});
+    // Agent must come up even if PowerSync ledger attach is slow/hangs.
+    await _startAgent(announce: false);
     await _attachSyncLedger();
-    await _startAgent();
   }
 
   Future<void> _attachSyncLedger() async {
@@ -71,6 +75,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
       powerSyncDatabaseManagerProvider.future,
     );
     _agent.attachLedger(DeployLedger(databaseManager.database));
+    if (mounted) setState(() => _ledgerGeneration++);
   }
 
   void _listenPairingUpdates() {
@@ -86,8 +91,15 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     });
   }
 
-  Future<void> _startAgent() async {
-    if (_busy) return;
+  void _showAgentMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _startAgent({bool announce = true}) async {
+    if (_busy || _agent.isRunning) return;
     setState(() {
       _busy = true;
       _statusMessage = null;
@@ -100,12 +112,20 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
         setState(() => _activeJob = job);
       });
       _listenPairingUpdates();
+      if (!mounted) return;
       setState(() {
         _activeJob = _agent.activeJob;
         _statusMessage = null;
       });
+      if (announce) {
+        _showAgentMessage(
+          'Agent listening on port ${_agent.boundPort ?? AgentConfig.defaultPort}',
+        );
+      }
     } catch (error) {
-      setState(() => _statusMessage = 'Failed to start: $error');
+      final message = 'Failed to start: $error';
+      if (mounted) setState(() => _statusMessage = message);
+      _showAgentMessage(message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -122,9 +142,13 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
       await _jobSubscription?.cancel();
       _jobSubscription = null;
       await _agent.stop();
+      if (!mounted) return;
       setState(() => _statusMessage = 'Server stopped');
+      _showAgentMessage('Agent stopped');
     } catch (error) {
-      setState(() => _statusMessage = 'Failed to stop: $error');
+      final message = 'Failed to stop: $error';
+      if (mounted) setState(() => _statusMessage = message);
+      _showAgentMessage(message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -144,7 +168,11 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
         children: [
           ProjectsScreen(
             trigger: _agent.localDeployTrigger,
-            macosRun: _agent.macosRun,
+            localRun: _agent.localRun,
+          ),
+          DeployHistoryScreen(
+            key: ValueKey(_ledgerGeneration),
+            trigger: _agent.localDeployTrigger,
           ),
           _agentTab(),
         ],
@@ -157,6 +185,10 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
             ESegment(
               icon: Icons.rocket_launch_rounded,
               label: 'Deploy',
+            ),
+            ESegment(
+              icon: Icons.history_rounded,
+              label: 'History',
             ),
             ESegment(
               icon: Icons.dns_rounded,
@@ -213,17 +245,33 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
           const SizedBox(height: 14),
           Row(
             children: [
-              FilledButton(
-                onPressed: _busy || _agent.isRunning ? null : _startAgent,
-                child: const Text('Start'),
-              ),
+              if (_agent.isRunning)
+                const OutlinedButton(
+                  onPressed: null,
+                  child: Text('Start'),
+                )
+              else
+                FilledButton(
+                  onPressed: _busy ? null : () => unawaited(_startAgent()),
+                  child: Text(_busy ? 'Starting…' : 'Start'),
+                ),
               const SizedBox(width: 10),
-              OutlinedButton(
-                onPressed: _busy || !_agent.isRunning ? null : _stopAgent,
-                child: const Text('Stop'),
-              ),
+              if (_agent.isRunning)
+                FilledButton(
+                  onPressed: _busy ? null : () => unawaited(_stopAgent()),
+                  child: const Text('Stop'),
+                )
+              else
+                const OutlinedButton(
+                  onPressed: null,
+                  child: Text('Stop'),
+                ),
             ],
           ),
+          if (_statusMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(_statusMessage!, style: EText.caption),
+          ],
         ],
       ),
     );

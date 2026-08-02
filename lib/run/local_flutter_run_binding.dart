@@ -1,109 +1,114 @@
 import 'dart:async';
 
-import 'macos_flutter_run.dart';
+import 'local_flutter_run.dart';
+import 'os_process_tree.dart';
 
-/// OS-side binding for the active `flutter run` / `flutter attach` tools process.
+/// OS-side binding for the active `flutter run` / `flutter attach` process.
 ///
-/// Tracks the tools handle, the pid used for Stop (may predate attach), and the
+/// Tracks that process, the pid used for Stop (may predate attach), and the
 /// VM service URI. Output/exit from a superseded generation are ignored.
-class MacosRunHandle {
-  MacosFlutterRun? _tools;
+class LocalFlutterRunBinding {
+  LocalFlutterRun? _flutterRun;
   StreamSubscription<String>? _outputSubscription;
   int? trackedPid;
   String? vmServiceUri;
   int _generation = 0;
 
-  bool get hasLiveTools => _tools != null;
-  MacosFlutterRun? get tools => _tools;
-  int? get toolsPid => _tools?.pid;
+  bool get hasFlutterRun => _flutterRun != null;
+  LocalFlutterRun? get flutterRun => _flutterRun;
+  int? get flutterRunPid => _flutterRun?.pid;
 
   /// Invalidate in-flight output/exit watchers (e.g. workbench dispose).
   void invalidate() {
     _generation++;
   }
 
-  Future<MacosFlutterRun> startNew(String projectPath) {
-    return MacosFlutterRun.start(projectPath: projectPath);
+  Future<LocalFlutterRun> startNew({
+    required String projectPath,
+    required String deviceId,
+  }) {
+    return LocalFlutterRun.start(
+      projectPath: projectPath,
+      deviceId: deviceId,
+    );
   }
 
-  Future<MacosFlutterRun> attachToRunning({
+  Future<LocalFlutterRun> attachToRunning({
     required String projectPath,
+    required String deviceId,
     String? vmServiceUri,
   }) {
-    return MacosFlutterRun.attach(
+    return LocalFlutterRun.attach(
       projectPath: projectPath,
+      deviceId: deviceId,
       vmServiceUri: vmServiceUri,
     );
   }
 
-  /// Adopt [tools] as the live connection and listen until exit or [drop].
+  /// Adopt [flutterRun] as the live connection and listen until exit or [drop].
   void adopt(
-    MacosFlutterRun tools, {
+    LocalFlutterRun flutterRun, {
     required void Function(String chunk) onOutput,
     required void Function(int exitCode) onExit,
   }) {
     unawaited(_outputSubscription?.cancel());
-    _tools = tools;
-    trackedPid ??= tools.pid;
+    _flutterRun = flutterRun;
+    trackedPid ??= flutterRun.pid;
     final generation = ++_generation;
-    _outputSubscription = tools.output.listen((chunk) {
+    _outputSubscription = flutterRun.output.listen((chunk) {
       if (generation != _generation) return;
       onOutput(chunk);
     });
     unawaited(() async {
-      final exitCode = await tools.waitForExit();
+      final exitCode = await flutterRun.waitForExit();
       if (generation != _generation) return;
       onExit(exitCode);
     }());
   }
 
   Future<void> sendKey(String key) async {
-    final tools = _tools;
-    if (tools == null) return;
-    await tools.sendKey(key);
+    final flutterRun = _flutterRun;
+    if (flutterRun == null) return;
+    await flutterRun.sendKey(key);
   }
 
-  /// Quit live tools; if [trackedPid] is a different orphaned tools process, kill it too.
+  /// Quit the live process; if [trackedPid] is a different orphan, kill it too.
   Future<int> quit() async {
-    final tools = _tools;
+    final flutterRun = _flutterRun;
     final pid = trackedPid;
-    if (tools == null) {
+    if (flutterRun == null) {
       if (pid != null) {
-        await MacosFlutterRun.killPidTree(pid);
-        await MacosFlutterRun.waitUntilPidExits(pid);
+        await pid.asOsProcessTree.killTillExit();
       }
       trackedPid = null;
       vmServiceUri = null;
       return 0;
     }
 
-    final exitCode = await tools.quit();
-    if (pid != null &&
-        pid != tools.pid &&
-        await MacosFlutterRun.isPidAlive(pid)) {
-      await MacosFlutterRun.killPidTree(pid);
-      await MacosFlutterRun.waitUntilPidExits(pid);
+    final exitCode = await flutterRun.quit();
+    if (pid != null && pid != flutterRun.pid) {
+      await pid.asOsProcessTree.killTillExit();
     }
     return exitCode;
   }
 
   /// Best-effort `d` detach so the app keeps running across workbench restart.
   Future<void> detachLeavingApp() async {
-    final tools = _tools;
-    _tools = null;
+    final flutterRun = _flutterRun;
+    _flutterRun = null;
     await _outputSubscription?.cancel();
     _outputSubscription = null;
-    if (tools == null) return;
+    if (flutterRun == null) return;
     try {
-      await tools.sendKey('d');
+      await flutterRun.sendKey('d');
     } catch (_) {
       // Persistence still allows reclaim via VM service URI.
     }
   }
 
-  /// Drop the Dart handle without signaling the OS process.
+  /// Drop the Dart reference without signaling the OS process.
   Future<void> drop() async {
-    _tools = null;
+    _flutterRun = null;
     await _outputSubscription?.cancel();
     _outputSubscription = null;
   }
@@ -113,11 +118,11 @@ class MacosRunHandle {
     vmServiceUri = null;
   }
 
-  bool owns(MacosFlutterRun tools) => identical(_tools, tools);
+  bool owns(LocalFlutterRun flutterRun) => identical(_flutterRun, flutterRun);
 
-  Future<void> releaseAfterExit(MacosFlutterRun tools) async {
-    if (!identical(_tools, tools)) return;
-    _tools = null;
+  Future<void> releaseAfterExit(LocalFlutterRun flutterRun) async {
+    if (!identical(_flutterRun, flutterRun)) return;
+    _flutterRun = null;
     trackedPid = null;
     vmServiceUri = null;
     final outputSubscription = _outputSubscription;
@@ -126,14 +131,14 @@ class MacosRunHandle {
   }
 }
 
-/// Polls a pid until it dies (reattach-without-tools fallback).
+/// Polls a pid until it dies (reattach-without-process fallback).
 class PidLivenessWatch {
   Timer? _timer;
 
   void watch(int pid, {required Future<void> Function() onDead}) {
     cancel();
     _timer = Timer.periodic(const Duration(seconds: 2), (_) async {
-      if (await MacosFlutterRun.isPidAlive(pid)) return;
+      if (await pid.asOsProcessTree.isAlive) return;
       cancel();
       await onDead();
     });

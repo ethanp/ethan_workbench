@@ -3,21 +3,21 @@ import 'dart:async';
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
-import 'macos_run_session.dart';
-import 'macos_run_state.dart';
+import 'local_run_session.dart';
+import 'local_run_state.dart';
 
-class MacosRunScreen extends StatefulWidget {
-  const MacosRunScreen({required this.session});
+class LocalRunScreen extends StatefulWidget {
+  const LocalRunScreen({required this.session});
 
-  final MacosRunSession session;
+  final LocalRunSession session;
 
   @override
-  State<MacosRunScreen> createState() => _MacosRunScreenState();
+  State<LocalRunScreen> createState() => _LocalRunScreenState();
 }
 
-class _MacosRunScreenState extends State<MacosRunScreen> {
-  late MacosRunState _state;
-  StreamSubscription<MacosRunState>? _subscription;
+class _LocalRunScreenState extends State<LocalRunScreen> {
+  late LocalRunState _state;
+  StreamSubscription<LocalRunState>? _subscription;
   final _logScrollController = ScrollController();
 
   @override
@@ -53,7 +53,11 @@ class _MacosRunScreenState extends State<MacosRunScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_state.projectName ?? 'macOS run'),
+        title: Text(
+          _state.deviceLabel == null
+              ? (_state.projectName ?? 'Local run')
+              : '${_state.projectName ?? 'App'} · ${_state.deviceLabel}',
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
@@ -142,8 +146,8 @@ class _MacosRunScreenState extends State<MacosRunScreen> {
     final canKeys = _state.readyForKeyCommands;
     final canStop = _state.status.isActive;
     final canFullRestart = _state.projectPath != null &&
-        _state.status != MacosRunStatus.starting &&
-        _state.status != MacosRunStatus.stopping;
+        _state.status != LocalRunStatus.starting &&
+        _state.status != LocalRunStatus.stopping;
     return Wrap(
       spacing: 10,
       runSpacing: 10,
@@ -175,20 +179,20 @@ class _MacosRunScreenState extends State<MacosRunScreen> {
   }
 
   String get _statusLabel => switch (_state.status) {
-    MacosRunStatus.idle => 'idle',
-    MacosRunStatus.starting => 'starting',
-    MacosRunStatus.running => 'running',
-    MacosRunStatus.stopping => 'stopping',
-    MacosRunStatus.exited => 'exited',
-    MacosRunStatus.failed => 'failed',
+    LocalRunStatus.idle => 'idle',
+    LocalRunStatus.starting => 'starting',
+    LocalRunStatus.running => 'running',
+    LocalRunStatus.stopping => 'stopping',
+    LocalRunStatus.exited => 'exited',
+    LocalRunStatus.failed => 'failed',
   };
 
   EStatusTone get _statusTone => switch (_state.status) {
-    MacosRunStatus.idle => EStatusTone.muted,
-    MacosRunStatus.starting => EStatusTone.accent,
-    MacosRunStatus.running => EStatusTone.success,
-    MacosRunStatus.stopping => EStatusTone.warning,
-    MacosRunStatus.exited => EStatusTone.muted,
-    MacosRunStatus.failed => EStatusTone.danger,
+    LocalRunStatus.idle => EStatusTone.muted,
+    LocalRunStatus.starting => EStatusTone.accent,
+    LocalRunStatus.running => EStatusTone.success,
+    LocalRunStatus.stopping => EStatusTone.warning,
+    LocalRunStatus.exited => EStatusTone.muted,
+    LocalRunStatus.failed => EStatusTone.danger,
   };
 }

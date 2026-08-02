@@ -1,6 +1,7 @@
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
+import '../../deploy/deploy_job.dart';
 import '../../deploy/deploy_platform.dart';
 import '../../projects/deployable_project.dart';
 import 'package:ethan_ui/ethan_ui.dart';
@@ -30,12 +31,18 @@ class DeployPlatformActionGroup extends StatelessWidget {
     required this.onSelected,
     this.lastDeployedAt = const {},
     this.sourceStatus = const {},
+    this.ongoingDeploy,
+    this.onOpenOngoing,
   });
 
   final List<DeployPlatform> platforms;
   final ValueChanged<DeployPlatform> onSelected;
   final Map<DeployPlatform, DateTime?> lastDeployedAt;
   final Map<DeployPlatform, DeploySourceStatus> sourceStatus;
+
+  /// When set and its platform matches a plate, that plate shows in-progress UI.
+  final DeployJob? ongoingDeploy;
+  final VoidCallback? onOpenOngoing;
 
   @override
   Widget build(BuildContext context) {
@@ -45,24 +52,46 @@ class DeployPlatformActionGroup extends StatelessWidget {
         for (var index = 0; index < platforms.length; index++) ...[
           if (index > 0) const SizedBox(width: ELayout.spaceSm + 2),
           Expanded(
-            child: ETintedAction(
-              accent: platforms[index].accent,
-              icon: platforms[index].icon,
-              title: platforms[index].label,
-              subtitle: _lastDeployedCaption(lastDeployedAt[platforms[index]]),
-              chipLabel: _statusLabel(
-                sourceStatus[platforms[index]] ??
-                    DeploySourceStatus.unevaluated,
-              ),
-              chipTone: _statusTone(
-                sourceStatus[platforms[index]] ??
-                    DeploySourceStatus.unevaluated,
-              ),
-              onTap: () => onSelected(platforms[index]),
-            ),
+            child: _platformPlate(platforms[index]),
           ),
         ],
       ],
+    );
+  }
+
+  Widget _platformPlate(DeployPlatform platform) {
+    final ongoing = ongoingDeploy;
+    final isThisDeployRunning =
+        ongoing != null &&
+        !ongoing.status.isTerminal &&
+        ongoing.platform == platform;
+
+    if (isThisDeployRunning) {
+      return ETintedAction(
+        accent: platform.accent,
+        icon: platform.icon,
+        title: platform.label,
+        subtitle: 'In progress — tap to open',
+        chipLabel: ongoing.status.name,
+        chipTone: ongoing.status == DeployJobStatus.queued
+            ? EStatusTone.warning
+            : EStatusTone.accent,
+        onTap: onOpenOngoing ?? () {},
+      );
+    }
+
+    return ETintedAction(
+      accent: platform.accent,
+      icon: platform.icon,
+      title: platform.label,
+      subtitle: _lastDeployedCaption(lastDeployedAt[platform]),
+      chipLabel: _statusLabel(
+        sourceStatus[platform] ?? DeploySourceStatus.unevaluated,
+      ),
+      chipTone: _statusTone(
+        sourceStatus[platform] ?? DeploySourceStatus.unevaluated,
+      ),
+      onTap: () => onSelected(platform),
     );
   }
 

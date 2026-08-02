@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
+import '../deploy/deploy_history_screen.dart';
+import '../deploy/deploy_trigger.dart';
 import '../pairing/pairing_screen.dart';
 import '../projects/projects_screen.dart';
 import 'paired_phone_session.dart';
@@ -17,6 +20,7 @@ class PhoneHome extends StatefulWidget {
 class _PhoneHomeState extends State<PhoneHome> {
   final _session = PairedPhoneSession();
   bool _loading = true;
+  int _tabIndex = 0;
 
   @override
   void initState() {
@@ -37,8 +41,17 @@ class _PhoneHomeState extends State<PhoneHome> {
   }
 
   void _onPaired() {
-    setState(() {});
+    setState(() => _tabIndex = 0);
   }
+
+  void _onSessionEnded() {
+    if (!mounted) return;
+    setState(() => _tabIndex = 0);
+  }
+
+  DeployTrigger get _deployTrigger => _session.deployTrigger(
+    onSessionEnded: _onSessionEnded,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -48,11 +61,31 @@ class _PhoneHomeState extends State<PhoneHome> {
     if (!_session.isPaired) {
       return PairingScreen(session: _session, onPaired: _onPaired);
     }
-    return ProjectsScreen(
-      trigger: _session.deployTrigger(
-        onSessionEnded: () {
-          if (mounted) setState(() {});
-        },
+    final trigger = _deployTrigger;
+    return Scaffold(
+      backgroundColor: EColors.background,
+      body: IndexedStack(
+        index: _tabIndex,
+        children: [
+          ProjectsScreen(trigger: trigger),
+          DeployHistoryScreen(trigger: trigger),
+        ],
+      ),
+      bottomNavigationBar: EFrostedBottomBar(
+        child: ESegmentedControl(
+          selectedIndex: _tabIndex,
+          onSelected: (index) => setState(() => _tabIndex = index),
+          segments: const [
+            ESegment(
+              icon: Icons.rocket_launch_rounded,
+              label: 'Deploy',
+            ),
+            ESegment(
+              icon: Icons.history_rounded,
+              label: 'History',
+            ),
+          ],
+        ),
       ),
     );
   }

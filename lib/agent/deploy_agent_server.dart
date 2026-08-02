@@ -38,6 +38,7 @@ class DeployAgentServer {
       ..get('/projects', _listProjects)
       ..post('/projects/evaluate-changes', _evaluateSourceChanges)
       ..post('/deploy', _startDeploy)
+      ..get('/jobs/history', _listHistory)
       ..get('/jobs/active', _activeJob)
       ..get('/jobs/<jobId>', _getJob)
       ..get('/jobs/<jobId>/log', _streamLog);
@@ -51,11 +52,20 @@ class DeployAgentServer {
   Future<void> start() async {
     if (_httpServer != null) return;
     pairingAuth.ensureFreshPin();
-    _httpServer = await shelf_io.serve(
-      buildHandler(),
-      InternetAddress.anyIPv4,
-      config.port,
-    );
+    try {
+      _httpServer = await shelf_io
+          .serve(
+            buildHandler(),
+            InternetAddress.anyIPv4,
+            config.port,
+            shared: true,
+          )
+          .timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      throw TimeoutException(
+        'Timed out binding agent port ${config.port}',
+      );
+    }
   }
 
   Future<void> stop() async {
@@ -145,6 +155,13 @@ class DeployAgentServer {
       return jsonError('No active job', status: 404);
     }
     return jsonOk(job.toJson());
+  }
+
+  Future<Response> _listHistory(Request request) async {
+    final runs = await deployService.listRecentRuns();
+    return jsonOk({
+      'runs': runs.map((run) => run.toJson()).toList(),
+    });
   }
 
   Future<Response> _getJob(Request request, String jobId) async {
