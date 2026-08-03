@@ -10,7 +10,6 @@ import 'deploy_run_record.dart';
 import 'deploy_trigger.dart';
 import '../phone/deploy_http_client.dart';
 import '../projects/project_app_icon_tile.dart';
-import '../ui/widgets/deploy_platform_controls.dart';
 
 /// Activity list of past (and in-progress) deploys from the ledger / agent.
 class DeployHistoryScreen extends StatefulWidget {
@@ -202,8 +201,8 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               EStatusChip(
-                label: run.status.name,
-                tone: _statusTone(run.status),
+                label: run.status.pillLabel,
+                tone: run.status.statusTone,
               ),
               const SizedBox(height: 6),
               Text(
@@ -223,13 +222,6 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
     final force = run.force ? ' · force' : '';
     return '$where · $when$force';
   }
-
-  EStatusTone _statusTone(DeployJobStatus status) => switch (status) {
-    DeployJobStatus.queued => EStatusTone.warning,
-    DeployJobStatus.running => EStatusTone.accent,
-    DeployJobStatus.succeeded => EStatusTone.success,
-    DeployJobStatus.failed => EStatusTone.danger,
-  };
 
   Widget _emptyMessage({
     required String title,

@@ -1,15 +1,25 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:ethan_ui/ethan_ui.dart';
+
 import '../deploy/deploy_platform.dart';
 
 /// Result of comparing current sources to `.deploy_*_hash`.
 enum DeploySourceStatus {
   /// CTA has not been run for this platform yet.
-  unevaluated,
-  neverDeployed,
-  unchanged,
-  changed;
+  unevaluated(chipLabel: null, chipTone: null),
+  neverDeployed(chipLabel: null, chipTone: null),
+  unchanged(chipLabel: 'current', chipTone: EStatusTone.success),
+  changed(chipLabel: 'changed', chipTone: EStatusTone.warning);
+
+  const DeploySourceStatus({
+    required this.chipLabel,
+    required this.chipTone,
+  });
+
+  final String? chipLabel;
+  final EStatusTone? chipTone;
 
   static DeploySourceStatus fromName(String name) {
     return DeploySourceStatus.values.firstWhere(

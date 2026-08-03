@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'local_run_cursor_mirror.dart';
 import 'local_run_state.dart';
 
 /// Published session snapshot + log for the UI.
@@ -17,10 +18,14 @@ class LocalRunProgress {
   bool get isClosed => _closed;
   String get logText => _log.toString();
 
-  void clearLog() => _log.clear();
+  void clearLog() {
+    _log.clear();
+    unawaited(LocalRunCursorMirror.clearLog());
+  }
 
   void emit(LocalRunState state) {
     _current = state;
+    LocalRunCursorMirror.scheduleStatus(state);
     if (!_closed) {
       _changes.add(state);
     }
@@ -28,6 +33,7 @@ class LocalRunProgress {
 
   void appendLog(String chunk) {
     _log.write(chunk);
+    unawaited(LocalRunCursorMirror.appendLog(chunk));
     emit(_current.copyWith(log: _log.toString()));
   }
 

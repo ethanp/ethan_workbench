@@ -6,23 +6,6 @@ import '../../deploy/deploy_job.dart';
 import '../../deploy/deploy_platform.dart';
 import '../../projects/deployable_project.dart';
 
-extension DeployPlatformVisuals on DeployPlatform {
-  IconData get icon => switch (this) {
-        DeployPlatform.ios => Icons.phone_iphone_rounded,
-        DeployPlatform.macos => Icons.desktop_mac_rounded,
-      };
-
-  Color get accent => switch (this) {
-        DeployPlatform.ios => EColors.platformIos,
-        DeployPlatform.macos => EColors.platformMacos,
-      };
-
-  Color get accentSoft => switch (this) {
-        DeployPlatform.ios => EColors.platformIosSoft,
-        DeployPlatform.macos => EColors.platformMacosSoft,
-      };
-}
-
 /// Deploy cell for an [EActionCluster] under a platform rail.
 EActionClusterCell deployActionCell({
   required DeployPlatform platform,
@@ -45,9 +28,7 @@ EActionClusterCell deployActionCell({
       subtitle: 'In progress',
       condensedLabel: '…',
       statusLabel: ongoing.status.name,
-      statusTone: ongoing.status == DeployJobStatus.queued
-          ? EStatusTone.warning
-          : EStatusTone.accent,
+      statusTone: ongoing.status.statusTone,
       live: true,
       onTap: onOpenOngoing ?? () {},
     );
@@ -61,18 +42,8 @@ EActionClusterCell deployActionCell({
         : 'Never',
     condensedLabel:
         lastDeployedAt != null ? lastDeployedAt.relativeTimeShort() : '—',
-    statusLabel: switch (sourceStatus) {
-      DeploySourceStatus.changed => 'changed',
-      DeploySourceStatus.unchanged => 'current',
-      DeploySourceStatus.neverDeployed ||
-      DeploySourceStatus.unevaluated => null,
-    },
-    statusTone: switch (sourceStatus) {
-      DeploySourceStatus.changed => EStatusTone.warning,
-      DeploySourceStatus.unchanged => EStatusTone.success,
-      DeploySourceStatus.neverDeployed ||
-      DeploySourceStatus.unevaluated => null,
-    },
+    statusLabel: sourceStatus.chipLabel,
+    statusTone: sourceStatus.chipTone,
     onTap: onSelected,
   );
 }
@@ -87,9 +58,7 @@ class DeployPlatformBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return EStatusChip(
       label: platform.label,
-      tone: platform == DeployPlatform.ios
-          ? EStatusTone.accent
-          : EStatusTone.muted,
+      tone: platform.badgeTone,
       uppercase: true,
     );
   }

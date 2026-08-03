@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 import '../projects/deployable_project.dart';
 import 'flutter_run_device.dart';
 import 'local_flutter_run.dart';
@@ -9,6 +11,8 @@ import 'local_run_persistence.dart';
 import 'local_run_progress.dart';
 import 'local_run_state.dart';
 import 'os_process_tree.dart';
+
+const _log = ELogger('LocalRun');
 
 /// Session policy for one local `flutter run`: start/stop/reclaim and when to persist.
 ///
@@ -30,6 +34,10 @@ class LocalRunSession implements LocalRunControls {
   final LocalFlutterRunBinding _flutterRunBinding = LocalFlutterRunBinding();
   final PidLivenessWatch _liveness = PidLivenessWatch();
   bool _disposed = false;
+
+  /// Ignore EXCEPTION CAUGHT dumps at or before this log offset (hot reload /
+  /// restart clear). Combined with restart banners inside [FlutterRunOutput].
+  int _exceptionLogFloor = 0;
 
   @override
   LocalRunState get state => _runProgress.current;
@@ -55,6 +63,7 @@ class LocalRunSession implements LocalRunControls {
     _flutterRunBinding.trackedPid = persistedRunStillAlive ? record.pid : null;
     _flutterRunBinding.vmServiceUri = record.vmServiceUri;
     _runProgress.clearLog();
+    _exceptionLogFloor = 0;
     _runProgress.appendLog(
       'Reclaimed session after workbench restart'
       '${persistedRunStillAlive ? ' (pid ${record.pid})' : ''}.\n'
@@ -147,6 +156,7 @@ class LocalRunSession implements LocalRunControls {
 
     _liveness.cancel();
     _runProgress.clearLog();
+    _exceptionLogFloor = 0;
     _flutterRunBinding.vmServiceUri = null;
     _runProgress.emit(
       LocalRunState(
@@ -202,13 +212,20 @@ class LocalRunSession implements LocalRunControls {
   }
 
   @override
-  Future<void> hotReload() => _sendKeyCommand('r');
+  Future<void> hotReload() async {
+    _clearFlutterException();
+    await _sendKeyCommand('r');
+  }
 
   @override
-  Future<void> hotRestart() => _sendKeyCommand('R');
+  Future<void> hotRestart() async {
+    _clearFlutterException();
+    await _sendKeyCommand('R');
+  }
 
   @override
   Future<void> fullRestart() async {
+    _clearFlutterException();
     final projectId = _runProgress.current.projectId;
     final projectName = _runProgress.current.projectName;
     final projectPath = _runProgress.current.projectPath;
@@ -383,6 +400,36 @@ class LocalRunSession implements LocalRunControls {
         ),
       );
     }
+
+    final parsedException = FlutterRunOutput.exceptionFrom(
+      _runProgress.logText,
+      floor: _exceptionLogFloor,
+    );
+    final scanStart = FlutterRunOutput.exceptionScanStart(
+      _runProgress.logText,
+      floor: _exceptionLogFloor,
+    );
+    if (scanStart > _exceptionLogFloor) {
+      _exceptionLogFloor = scanStart;
+      if (_runProgress.current.flutterException != null &&
+          parsedException == null) {
+        _runProgress.emit(
+          _runProgress.current.copyWith(clearFlutterException: true),
+        );
+      }
+    }
+    if (parsedException != null &&
+        parsedException.isRicherThan(_runProgress.current.flutterException)) {
+      _log.warn(
+        'Flutter exception '
+        '${parsedException.widget ?? parsedException.library ?? 'unknown'} '
+        '${parsedException.displayLocation ?? ''}'.trim(),
+      );
+      _runProgress.emit(
+        _runProgress.current.copyWith(flutterException: parsedException),
+      );
+    }
+
     if (_runProgress.current.readyForKeyCommands) return;
     final status = _runProgress.current.status;
     if (status == LocalRunStatus.stopping ||
@@ -401,6 +448,14 @@ class LocalRunSession implements LocalRunControls {
       );
       unawaited(_checkpoint(readyForKeyCommands: true));
     }
+  }
+
+  void _clearFlutterException() {
+    _exceptionLogFloor = _runProgress.logText.length;
+    if (_runProgress.current.flutterException == null) return;
+    _runProgress.emit(
+      _runProgress.current.copyWith(clearFlutterException: true),
+    );
   }
 
   Future<void> _checkpoint({required bool readyForKeyCommands}) async {

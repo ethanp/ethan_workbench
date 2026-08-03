@@ -8,7 +8,6 @@ import '../deploy/deploy_platform.dart';
 import '../run/flutter_run_device.dart';
 import '../run/local_run_controls.dart';
 import '../run/local_run_state.dart';
-import '../run/local_run_status_visuals.dart';
 import '../ui/workbench_action_accents.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
 import 'deployable_project.dart';
@@ -207,6 +206,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
     final runDevice = _runDeviceFor(platform);
     final canRun = localRun != null && runDevice != null;
     final runStatus = canRun ? _activeRunStatus(runDevice) : null;
+    final runHasException = canRun && _runHasException(runDevice);
     final idleSubtitle =
         platform == DeployPlatform.macos ? 'Debug' : 'Simulator';
 
@@ -222,11 +222,15 @@ class ProjectWorkbenchRow extends StatelessWidget {
                 : Icons.play_arrow_rounded,
             title: 'Run',
             subtitle: runStatus != null
-                ? runStatus.subtitleGivenIdle(idleSubtitle)
+                ? (runHasException
+                      ? 'Exception'
+                      : runStatus.subtitleGivenIdle(idleSubtitle))
                 : idleSubtitle,
             condensedLabel: 'Run',
-            statusLabel: runStatus?.chipLabel,
-            statusTone: runStatus?.chipTone,
+            statusLabel: runHasException ? 'exception' : runStatus?.chipLabel,
+            statusTone: runHasException
+                ? EStatusTone.danger
+                : runStatus?.chipTone,
             live: runStatus != null,
             trailing: _runStopControl(runStatus),
             onTap: () => onRun(runDevice),
@@ -270,6 +274,13 @@ class ProjectWorkbenchRow extends StatelessWidget {
     return localRunState.status;
   }
 
+  bool _runHasException(FlutterRunDevice device) {
+    if (localRunState.projectId != project.projectId) return false;
+    if (localRunState.deviceKey != device.key) return false;
+    if (!localRunState.status.isActive) return false;
+    return localRunState.flutterException != null;
+  }
+
   static FlutterRunDevice? _runDeviceFor(DeployPlatform platform) =>
       switch (platform) {
         DeployPlatform.macos => FlutterRunDevice.macos,
@@ -296,9 +307,7 @@ class OngoingDeployBanner extends StatelessWidget {
       title: job.projectName,
       subtitle: '${job.platform.label} deploy in progress — tap to open',
       chipLabel: job.status.name,
-      chipTone: job.status == DeployJobStatus.queued
-          ? EStatusTone.warning
-          : EStatusTone.accent,
+      chipTone: job.status.statusTone,
       onTap: onOpen,
     );
   }

@@ -1,11 +1,39 @@
+import 'package:ethan_ui/ethan_ui.dart';
+
+import 'flutter_run_exception.dart';
+
 /// Lifecycle of a local `flutter run` session.
 enum LocalRunStatus {
-  idle,
-  starting,
-  running,
-  stopping,
-  exited,
-  failed;
+  idle(chipLabel: 'idle', chipTone: EStatusTone.muted, actionSubtitle: null),
+  starting(
+    chipLabel: 'starting',
+    chipTone: EStatusTone.accent,
+    actionSubtitle: 'Starting…',
+  ),
+  running(
+    chipLabel: 'running',
+    chipTone: EStatusTone.success,
+    actionSubtitle: 'Open',
+  ),
+  stopping(
+    chipLabel: 'stopping',
+    chipTone: EStatusTone.warning,
+    actionSubtitle: 'Stopping…',
+  ),
+  exited(chipLabel: 'exited', chipTone: EStatusTone.muted, actionSubtitle: null),
+  failed(chipLabel: 'failed', chipTone: EStatusTone.danger, actionSubtitle: null);
+
+  const LocalRunStatus({
+    required this.chipLabel,
+    required this.chipTone,
+    required this.actionSubtitle,
+  });
+
+  final String chipLabel;
+  final EStatusTone chipTone;
+
+  /// Fixed plate subtitle while active; null means use the idle caption.
+  final String? actionSubtitle;
 
   bool get isActive =>
       this == LocalRunStatus.starting ||
@@ -13,6 +41,9 @@ enum LocalRunStatus {
       this == LocalRunStatus.stopping;
 
   bool get canSendKeyCommands => this == LocalRunStatus.running;
+
+  String subtitleGivenIdle(String idleSubtitle) =>
+      actionSubtitle ?? idleSubtitle;
 }
 
 /// Snapshot of the current local `flutter run` session.
@@ -30,6 +61,7 @@ class LocalRunState {
     this.errorMessage,
     this.exitCode,
     this.reattached = false,
+    this.flutterException,
   });
 
   static const idle = LocalRunState(
@@ -57,7 +89,11 @@ class LocalRunState {
   /// True when this session was reclaimed after a workbench restart (no stdin).
   final bool reattached;
 
+  /// Latest high-signal Flutter EXCEPTION CAUGHT dump, if any.
+  final FlutterRunException? flutterException;
+
   factory LocalRunState.fromJson(Map<String, dynamic> json) {
+    final exceptionJson = json['flutterException'];
     return LocalRunState(
       status: LocalRunStatus.values.firstWhere(
         (value) => value.name == json['status'],
@@ -74,6 +110,9 @@ class LocalRunState {
       errorMessage: json['errorMessage'] as String?,
       exitCode: json['exitCode'] as int?,
       reattached: json['reattached'] as bool? ?? false,
+      flutterException: exceptionJson is Map<String, dynamic>
+          ? FlutterRunException.fromJson(exceptionJson)
+          : null,
     );
   }
 
@@ -90,6 +129,7 @@ class LocalRunState {
     'errorMessage': errorMessage,
     'exitCode': exitCode,
     'reattached': reattached,
+    'flutterException': flutterException?.toJson(),
   };
 
   LocalRunState copyWith({
@@ -105,9 +145,11 @@ class LocalRunState {
     String? errorMessage,
     int? exitCode,
     bool? reattached,
+    FlutterRunException? flutterException,
     bool clearError = false,
     bool clearExitCode = false,
     bool clearProject = false,
+    bool clearFlutterException = false,
   }) {
     return LocalRunState(
       status: status ?? this.status,
@@ -124,6 +166,9 @@ class LocalRunState {
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       exitCode: clearExitCode ? null : (exitCode ?? this.exitCode),
       reattached: reattached ?? this.reattached,
+      flutterException: clearFlutterException
+          ? null
+          : (flutterException ?? this.flutterException),
     );
   }
 }

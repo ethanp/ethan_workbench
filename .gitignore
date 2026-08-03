@@ -1,3 +1,5 @@
+.workbench/
+
 # Local machine config (see .env.example)
 .env
 !.env.example

@@ -62,6 +62,7 @@ class DeployAgentServer {
       ..get('/jobs/<jobId>', _getJob)
       ..get('/jobs/<jobId>/log', _streamLog)
       ..get('/run', _getLocalRun)
+      ..get('/run/log', _getLocalRunLog)
       ..get('/run/events', _streamLocalRunEvents)
       ..post('/run', _startLocalRun)
       ..post('/run/stop', _stopLocalRun)
@@ -293,6 +294,16 @@ class DeployAgentServer {
 
   Future<Response> _getLocalRun(Request request) async {
     return jsonOk(localRun.state.toJson());
+  }
+
+  Future<Response> _getLocalRunLog(Request request) async {
+    return Response.ok(
+      localRun.state.log,
+      headers: const {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store',
+      },
+    );
   }
 
   FutureOr<Response> _streamLocalRunEvents(Request request) {

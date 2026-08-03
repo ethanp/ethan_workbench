@@ -146,9 +146,9 @@ class _JobScreenState extends State<JobScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return EScaffoldShell(
       appBar: AppBar(
-        title: Text(_job.projectName),
+        title: Text(_job.projectName, style: EText.title),
         actions: [
           IconButton(
             tooltip: 'Refresh',

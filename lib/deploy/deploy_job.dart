@@ -1,11 +1,20 @@
+import 'package:ethan_ui/ethan_ui.dart';
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'deploy_checklist.dart';
 import 'deploy_platform.dart';
 
 enum DeployJobStatus {
-  queued,
-  running,
-  succeeded,
-  failed;
+  queued(statusTone: EStatusTone.warning),
+  running(statusTone: EStatusTone.accent),
+  succeeded(statusTone: EStatusTone.success),
+  failed(statusTone: EStatusTone.danger);
+
+  const DeployJobStatus({required this.statusTone});
+
+  final EStatusTone statusTone;
+
+  String get pillLabel => nameAsCapitalizedWords;
 
   static DeployJobStatus fromName(String name) {
     return DeployJobStatus.values.firstWhere(

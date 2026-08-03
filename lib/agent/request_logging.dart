@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:shelf/shelf.dart';
+
+const _log = ELogger('AgentHttp');
 
 /// Logs meaningful traffic; skips noisy job/health polls from the phone UI.
 Middleware quietRequestLog() {
@@ -21,8 +24,7 @@ Middleware quietRequestLog() {
       final elapsed = DateTime.now().difference(startedAt);
       final path = effectiveRequest.requestedUri.path;
       if (response.statusCode < 400) {
-        // ignore: avoid_print — companion console feedback for deploy actions
-        print(
+        _log.log(
           '${startedAt.toIso8601String()}  '
           '${elapsed.toString().padLeft(15)} '
           '${effectiveRequest.method.padRight(7)} '
@@ -36,8 +38,7 @@ Middleware quietRequestLog() {
       final responseBody = await response.readAsString();
       final errorDetail = _errorDetailForLog(responseBody);
       final details = [?requestDetail, ?errorDetail].join(' — ');
-      // ignore: avoid_print — companion console feedback for deploy actions
-      print(
+      _log.warn(
         '${startedAt.toIso8601String()}  '
         '${elapsed.toString().padLeft(15)} '
         '${effectiveRequest.method.padRight(7)} '
@@ -89,8 +90,9 @@ String? _errorDetailForLog(String body) {
 }
 
 bool _shouldLogRequest(Request request, Response response) {
-  if (response.statusCode >= 400) return true;
   final path = request.requestedUri.path;
+  // Quiet regardless of status — phone polls these every couple seconds,
+  // including expected 404 when nothing is active.
   if (request.method == 'GET' && path == '/health') return false;
   if (request.method == 'GET' && path.startsWith('/jobs/')) return false;
   if (request.method == 'GET' &&

@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import 'flutter_run_exception.dart';
+import 'local_flutter_run.dart';
 import 'local_run_controls.dart';
 import 'local_run_state.dart';
 
@@ -18,7 +21,6 @@ class LocalRunScreen extends StatefulWidget {
 class _LocalRunScreenState extends State<LocalRunScreen> {
   late LocalRunState _state;
   StreamSubscription<LocalRunState>? _subscription;
-  final _logScrollController = ScrollController();
 
   @override
   void initState() {
@@ -26,39 +28,23 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
     _state = widget.session.state;
     _subscription = widget.session.updates.listen((state) {
       if (!mounted) return;
-      final shouldStickToBottom =
-          !_logScrollController.hasClients ||
-          _logScrollController.position.pixels >=
-              _logScrollController.position.maxScrollExtent - 40;
       setState(() => _state = state);
-      if (shouldStickToBottom) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!_logScrollController.hasClients) return;
-          _logScrollController.jumpTo(
-            _logScrollController.position.maxScrollExtent,
-          );
-        });
-      }
     });
   }
 
   @override
   void dispose() {
     unawaited(_subscription?.cancel());
-    _logScrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _state.deviceLabel == null
-              ? (_state.projectName ?? 'Local run')
-              : '${_state.projectName ?? 'App'} · ${_state.deviceLabel}',
-        ),
-      ),
+    final title = _state.deviceLabel == null
+        ? (_state.projectName ?? 'Local run')
+        : '${_state.projectName ?? 'App'} · ${_state.deviceLabel}';
+    return EScaffoldShell(
+      appBar: AppBar(title: Text(title, style: EText.title)),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
         child: Column(
@@ -73,8 +59,13 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
             Expanded(
               child: LogConsole(
                 log: _state.log,
-                controller: _logScrollController,
                 emptyMessage: '(waiting for flutter run…)',
+                highlights: [
+                  LogConsoleHighlight(
+                    pattern: FlutterRunOutput.sessionResetPattern,
+                    color: EColors.success,
+                  ),
+                ],
               ),
             ),
           ],
@@ -84,6 +75,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
   }
 
   Widget _statusPanel() {
+    final flutterException = _state.flutterException;
     return ESurface(
       kind: ESurfaceKind.panel,
       padding: const EdgeInsets.all(ELayout.spaceMd + 2),
@@ -105,6 +97,14 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
                   uppercase: true,
                 ),
               ],
+              if (flutterException != null) ...[
+                const SizedBox(width: 10),
+                const EStatusChip(
+                  label: 'exception',
+                  tone: EStatusTone.danger,
+                  uppercase: true,
+                ),
+              ],
               if (_state.reattached) ...[
                 const SizedBox(width: 10),
                 const EStatusChip(
@@ -119,6 +119,10 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
               ],
             ],
           ),
+          if (flutterException != null) ...[
+            const SizedBox(height: 10),
+            _exceptionHighlight(flutterException),
+          ],
           if (_state.reattached) ...[
             const SizedBox(height: 8),
             Text(
@@ -142,57 +146,172 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
     );
   }
 
+  Widget _exceptionHighlight(FlutterRunException flutterException) {
+    final widgetName = flutterException.widget;
+    final location = flutterException.displayLocation;
+    final creatorChain = flutterException.creatorChain;
+    final constraints = flutterException.constraints;
+    final size = flutterException.size;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onLongPress: () => unawaited(_copyExceptionPrompt()),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widgetName != null)
+                      Text(
+                        widgetName,
+                        style: EText.section.copyWith(color: EColors.danger),
+                      ),
+                    if (location != null)
+                      Text(
+                        location,
+                        style: EText.mono.copyWith(
+                          color: EColors.danger,
+                          fontSize: ELayout.typeSize(12),
+                        ),
+                      ),
+                    if (flutterException.library != null)
+                      Text(
+                        flutterException.library!,
+                        style: EText.caption.copyWith(
+                          color: EColors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Copy for Cursor',
+              onPressed: () => unawaited(_copyExceptionPrompt()),
+              icon: const Icon(Icons.copy_rounded),
+              color: EColors.danger,
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+        if (creatorChain != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            creatorChain,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: EText.caption.copyWith(color: EColors.textSecondary),
+          ),
+        ],
+        if (constraints != null || size != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            [
+              ?constraints,
+              if (size != null) 'size: $size',
+            ].join(' · '),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: EText.caption.copyWith(color: EColors.textMuted),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _copyExceptionPrompt() async {
+    final flutterException = _state.flutterException;
+    if (flutterException == null) return;
+    await Clipboard.setData(ClipboardData(text: flutterException.promptText));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copied for Cursor')),
+    );
+  }
+
   Widget _actions() {
     final canKeys = _state.readyForKeyCommands;
     final canStop = _state.status.isActive;
-    final canFullRestart = _state.projectPath != null &&
+    final canFullRestart =
+        _state.projectPath != null &&
         _state.status != LocalRunStatus.starting &&
         _state.status != LocalRunStatus.stopping;
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+
+    return Column(
       children: [
-        FilledButton.tonal(
-          onPressed: canKeys
-              ? () => unawaited(widget.session.hotReload())
-              : null,
-          child: const Text('Hot reload'),
+        Row(
+          children: [
+            Expanded(
+              child: _runAction(
+                accent: EColors.success,
+                icon: Icons.bolt_rounded,
+                title: 'Hot reload',
+                enabled: canKeys,
+                onTap: () => unawaited(widget.session.hotReload()),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _runAction(
+                accent: EColors.warning,
+                icon: Icons.restart_alt_rounded,
+                title: 'Hot restart',
+                enabled: canKeys,
+                onTap: () => unawaited(widget.session.hotRestart()),
+              ),
+            ),
+          ],
         ),
-        FilledButton.tonal(
-          onPressed: canKeys
-              ? () => unawaited(widget.session.hotRestart())
-              : null,
-          child: const Text('Hot restart'),
-        ),
-        FilledButton.tonal(
-          onPressed: canFullRestart
-              ? () => unawaited(widget.session.fullRestart())
-              : null,
-          child: const Text('Full restart'),
-        ),
-        OutlinedButton(
-          onPressed: canStop ? () => unawaited(widget.session.stop()) : null,
-          child: const Text('Stop'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _runAction(
+                accent: EColors.accentGlow,
+                icon: Icons.replay_circle_filled_rounded,
+                title: 'Full restart',
+                enabled: canFullRestart,
+                onTap: () => unawaited(widget.session.fullRestart()),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _runAction(
+                accent: EColors.danger,
+                icon: Icons.stop_circle_rounded,
+                title: 'Stop',
+                enabled: canStop,
+                onTap: () => unawaited(widget.session.stop()),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  String get _statusLabel => switch (_state.status) {
-    LocalRunStatus.idle => 'idle',
-    LocalRunStatus.starting => 'starting',
-    LocalRunStatus.running => 'running',
-    LocalRunStatus.stopping => 'stopping',
-    LocalRunStatus.exited => 'exited',
-    LocalRunStatus.failed => 'failed',
-  };
+  Widget _runAction({
+    required Color accent,
+    required IconData icon,
+    required String title,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    final plate = ETintedAction.compact(
+      accent: enabled ? accent : EColors.textMuted,
+      icon: icon,
+      title: title,
+      onTap: enabled ? onTap : () {},
+    );
+    if (enabled) return plate;
+    return Opacity(opacity: 0.42, child: IgnorePointer(child: plate));
+  }
 
-  EStatusTone get _statusTone => switch (_state.status) {
-    LocalRunStatus.idle => EStatusTone.muted,
-    LocalRunStatus.starting => EStatusTone.accent,
-    LocalRunStatus.running => EStatusTone.success,
-    LocalRunStatus.stopping => EStatusTone.warning,
-    LocalRunStatus.exited => EStatusTone.muted,
-    LocalRunStatus.failed => EStatusTone.danger,
-  };
+  String get _statusLabel => _state.status.chipLabel;
+
+  EStatusTone get _statusTone => _state.status.chipTone;
 }

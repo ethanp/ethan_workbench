@@ -21,16 +21,7 @@ class StatusPill extends StatelessWidget {
   }
 
   factory StatusPill.job(DeployJobStatus status) {
-    return switch (status) {
-      DeployJobStatus.queued =>
-        const StatusPill(label: 'Queued', tone: EStatusTone.warning),
-      DeployJobStatus.running =>
-        const StatusPill(label: 'Running', tone: EStatusTone.accent),
-      DeployJobStatus.succeeded =>
-        const StatusPill(label: 'Succeeded', tone: EStatusTone.success),
-      DeployJobStatus.failed =>
-        const StatusPill(label: 'Failed', tone: EStatusTone.danger),
-    };
+    return StatusPill(label: status.pillLabel, tone: status.statusTone);
   }
 
   @override
