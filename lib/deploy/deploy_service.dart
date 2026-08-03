@@ -5,6 +5,7 @@ import 'dart:math';
 import '../projects/deployable_project.dart';
 import '../projects/deploy_source_hasher.dart';
 import '../projects/project_scanner.dart';
+import '../projects/source_changes_progress.dart';
 import '../sync/deploy_ledger.dart';
 import 'deploy_checklist.dart';
 import 'deploy_errors.dart';
@@ -13,27 +14,38 @@ import 'deploy_platform.dart';
 import 'deploy_run_record.dart';
 import 'ruby_deploy_executor.dart';
 
-/// Owns the single active deploy job and project catalog lookup.
+/// Owns the active deploy job, FIFO wait queue, and project catalog lookup.
 class DeployService {
   DeployService({
     required this.flutterRoots,
     required this.deployRbPath,
     DeployScriptRunner? scriptRunner,
     this._ledger,
-  }) : _scriptRunner = scriptRunner ?? DeployScriptRunner();
+    Future<DeployableProject?> Function(String projectId)? resolveProject,
+    Future<bool> Function()? deployScriptExists,
+  }) : _scriptRunner = scriptRunner ?? DeployScriptRunner(),
+       _resolveProject = resolveProject,
+       _deployScriptExists = deployScriptExists;
 
   final List<String> flutterRoots;
   final String deployRbPath;
   final DeployScriptRunner _scriptRunner;
+  final Future<DeployableProject?> Function(String projectId)? _resolveProject;
+  final Future<bool> Function()? _deployScriptExists;
   DeployLedger? _ledger;
 
   DeployJob? _activeJob;
+  final List<DeployJob> _waitingQueue = [];
   final _jobUpdatedController = StreamController<DeployJob>.broadcast();
+  final _queueUpdatedController =
+      StreamController<List<DeployJob>>.broadcast();
   final _logListeners = <String, Set<StreamController<String>>>{};
   String _logLineBuffer = '';
 
   DeployJob? get activeJob => _activeJob;
+  List<DeployJob> get waitingQueue => List.unmodifiable(_waitingQueue);
   Stream<DeployJob> get jobUpdates => _jobUpdatedController.stream;
+  Stream<List<DeployJob>> get queueUpdates => _queueUpdatedController.stream;
 
   void attachLedger(DeployLedger? ledger) {
     _ledger = ledger;
@@ -53,16 +65,29 @@ class DeployService {
   }
 
   /// Recomputes deploy.rb source hashes for every project/platform.
-  Future<List<DeployableProject>> evaluateSourceChanges() async {
+  Future<List<DeployableProject>> evaluateSourceChanges({
+    void Function(SourceChangesProgress progress)? onProgress,
+  }) async {
     final projects = await listProjects();
+    onProgress?.call(
+      SourceChangesProgress(completed: 0, total: projects.length),
+    );
     final evaluated = <DeployableProject>[];
-    for (final project in projects) {
+    for (var index = 0; index < projects.length; index++) {
+      final project = projects[index];
       evaluated.add(
         project.copyWith(
           sourceStatus: await DeploySourceHasher.statusesFor(
             projectPath: project.path,
             platforms: project.platforms,
           ),
+        ),
+      );
+      onProgress?.call(
+        SourceChangesProgress(
+          completed: index + 1,
+          total: projects.length,
+          projectName: project.name,
         ),
       );
     }
@@ -78,6 +103,8 @@ class DeployService {
   }
 
   Future<DeployableProject?> findProject(String projectId) async {
+    final override = _resolveProject;
+    if (override != null) return override(projectId);
     final projects = await listProjects();
     for (final project in projects) {
       if (project.projectId == projectId) return project;
@@ -90,16 +117,6 @@ class DeployService {
     required DeployPlatform platform,
     bool force = false,
   }) async {
-    final activeJob = _activeJob;
-    if (activeJob != null && !activeJob.status.isTerminal) {
-      throw DeployAlreadyRunning(
-        projectName: activeJob.projectName,
-        jobId: activeJob.jobId,
-        statusName: activeJob.status.name,
-        job: activeJob,
-      );
-    }
-
     final project = await findProject(projectId);
     if (project == null) {
       throw UnknownProject(projectId);
@@ -111,8 +128,37 @@ class DeployService {
       );
     }
 
-    if (!await File(deployRbPath).exists()) {
+    final scriptExists = _deployScriptExists != null
+        ? await _deployScriptExists()
+        : await File(deployRbPath).exists();
+    if (!scriptExists) {
       throw DeployScriptMissing(deployRbPath);
+    }
+
+    final activeJob = _activeJob;
+    if (activeJob != null && activeJob.status.isActiveRunner) {
+      if (activeJob.projectId == projectId && activeJob.platform == platform) {
+        return activeJob;
+      }
+      for (final waiting in _waitingQueue) {
+        if (waiting.projectId == projectId && waiting.platform == platform) {
+          throw DeployAlreadyQueued(waiting);
+        }
+      }
+      final waitingJob = DeployJob(
+        jobId: _newJobId(),
+        projectId: project.projectId,
+        projectName: project.name,
+        platform: platform,
+        force: force,
+        status: DeployJobStatus.waiting,
+        log: '',
+        createdAt: DateTime.now(),
+        checklist: DeployChecklist.planned(platform: platform, force: force),
+      );
+      _waitingQueue.add(waitingJob);
+      _emitQueue();
+      return waitingJob;
     }
 
     final job = DeployJob(
@@ -134,12 +180,22 @@ class DeployService {
     return job;
   }
 
+  /// Removes a waiting job. Returns false if [jobId] is not in the queue.
+  bool cancelWaiting(String jobId) {
+    final index = _waitingQueue.indexWhere((job) => job.jobId == jobId);
+    if (index < 0) return false;
+    _waitingQueue.removeAt(index);
+    _emitQueue();
+    return true;
+  }
+
   Future<DeployJob> fetchJob(String jobId) async {
-    final job = _activeJob;
-    if (job == null || job.jobId != jobId) {
-      throw DeployJobNotFound(jobId);
+    final active = _activeJob;
+    if (active != null && active.jobId == jobId) return active;
+    for (final waiting in _waitingQueue) {
+      if (waiting.jobId == jobId) return waiting;
     }
-    return job;
+    throw DeployJobNotFound(jobId);
   }
 
   Stream<String> watchLog(String jobId) {
@@ -165,6 +221,7 @@ class DeployService {
 
   Future<void> dispose() async {
     await _jobUpdatedController.close();
+    await _queueUpdatedController.close();
     for (final listeners in _logListeners.values) {
       for (final controller in listeners) {
         await controller.close();
@@ -230,6 +287,32 @@ class DeployService {
       );
       _updateJob(failedJob);
       await _recordFinished(failedJob, projectPath: project.path);
+    }
+
+    await _promoteNextWaiting();
+  }
+
+  Future<void> _promoteNextWaiting() async {
+    while (_waitingQueue.isNotEmpty) {
+      final next = _waitingQueue.removeAt(0);
+      _emitQueue();
+      final project = await findProject(next.projectId);
+      if (project == null || !project.supports(next.platform)) {
+        continue;
+      }
+      final starting = next.copyWith(
+        status: DeployJobStatus.queued,
+        checklist: DeployChecklist.planned(
+          platform: next.platform,
+          force: next.force,
+        ),
+      );
+      _activeJob = starting;
+      _logLineBuffer = '';
+      _emitJob(starting);
+      unawaited(_ledger?.recordRunStarted(starting));
+      unawaited(_runJob(starting, project));
+      return;
     }
   }
 
@@ -326,6 +409,12 @@ class DeployService {
   void _emitJob(DeployJob job) {
     if (!_jobUpdatedController.isClosed) {
       _jobUpdatedController.add(job);
+    }
+  }
+
+  void _emitQueue() {
+    if (!_queueUpdatedController.isClosed) {
+      _queueUpdatedController.add(List.unmodifiable(_waitingQueue));
     }
   }
 

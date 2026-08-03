@@ -203,6 +203,10 @@ class ProjectWorkbenchRow extends StatelessWidget {
   }
 
   Widget _platformCluster(DeployPlatform platform) {
+    if (!project.supports(platform)) {
+      return _unavailablePlatformCluster(platform);
+    }
+
     final runDevice = _runDeviceFor(platform);
     final canRun = localRun != null && runDevice != null;
     final runStatus = canRun ? _activeRunStatus(runDevice) : null;
@@ -244,6 +248,28 @@ class ProjectWorkbenchRow extends StatelessWidget {
           onSelected: () => onDeploy(platform),
         ),
       ],
+    );
+  }
+
+  Widget _unavailablePlatformCluster(DeployPlatform platform) {
+    return Opacity(
+      opacity: 0.42,
+      child: IgnorePointer(
+        child: EActionCluster(
+          accent: EColors.textMuted,
+          icon: platform.icon,
+          label: platform.label,
+          cells: [
+            EActionClusterCell(
+              icon: Icons.phonelink_off_rounded,
+              title: 'Not available',
+              subtitle: 'No ${platform.label} target',
+              condensedLabel: 'N/A',
+              onTap: () {},
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -294,19 +320,25 @@ class OngoingDeployBanner extends StatelessWidget {
     super.key,
     required this.job,
     required this.onOpen,
+    this.queuedCount = 0,
   });
 
   final DeployJob job;
   final VoidCallback onOpen;
+  final int queuedCount;
 
   @override
   Widget build(BuildContext context) {
+    final queueSuffix = queuedCount == 0
+        ? ''
+        : ' · +$queuedCount queued';
     return ETintedAction(
       accent: EColors.accentGlow,
       icon: Icons.rocket_launch_rounded,
       title: job.projectName,
-      subtitle: '${job.platform.label} deploy in progress — tap to open',
-      chipLabel: job.status.name,
+      subtitle:
+          '${job.platform.label} deploy in progress — tap to open$queueSuffix',
+      chipLabel: job.status.pillLabel,
       chipTone: job.status.statusTone,
       onTap: onOpen,
     );

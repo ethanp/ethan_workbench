@@ -7,8 +7,10 @@ import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_service.dart';
 import '../deploy/deploy_trigger.dart';
+import '../deploy/deploy_errors.dart';
 import '../pairing/pairing_auth.dart';
 import '../projects/deployable_project.dart';
+import '../projects/source_changes_progress.dart';
 import '../run/local_run_session.dart';
 import '../run/local_run_state.dart';
 import '../sync/deploy_ledger.dart';
@@ -27,7 +29,7 @@ class DeployAgent {
     _localRun = LocalRunSession(
       isDeployBlocking: () {
         final job = _deployService.activeJob;
-        return job != null && !job.status.isTerminal;
+        return job != null && job.status.isActiveRunner;
       },
       deployBlockMessage: () {
         final job = _deployService.activeJob;
@@ -51,7 +53,9 @@ class DeployAgent {
   AgentConfig get config => _config;
   PairingAuth get pairingAuth => _pairingAuth;
   DeployJob? get activeJob => _deployService.activeJob;
+  List<DeployJob> get waitingQueue => _deployService.waitingQueue;
   Stream<DeployJob> get jobUpdates => _deployService.jobUpdates;
+  Stream<List<DeployJob>> get queueUpdates => _deployService.queueUpdates;
   LocalRunSession get localRun => _localRun;
   bool get isRunning => _server.isRunning;
   int? get boundPort => _server.boundPort;
@@ -65,9 +69,16 @@ class DeployAgent {
     evaluateSourceChanges: evaluateSourceChanges,
     startDeploy: startDeploy,
     fetchJob: fetchJob,
-    fetchActiveJob: () async => activeJob,
+    fetchActiveJob: () async {
+      final job = activeJob;
+      if (job == null || job.status.isTerminal) return null;
+      return job;
+    },
     listDeployHistory: listDeployHistory,
+    fetchDeployQueue: () async => waitingQueue,
+    cancelQueuedDeploy: cancelQueuedDeploy,
     jobUpdates: jobUpdates,
+    queueUpdates: queueUpdates,
   );
 
   Handler buildHandler() => _server.buildHandler();
@@ -75,8 +86,11 @@ class DeployAgent {
   Future<List<DeployableProject>> listProjects() =>
       _deployService.listProjects();
 
-  Future<List<DeployableProject>> evaluateSourceChanges() =>
-      _deployService.evaluateSourceChanges();
+  Future<List<DeployableProject>> evaluateSourceChanges({
+    void Function(SourceChangesProgress progress)? onProgress,
+  }) {
+    return _deployService.evaluateSourceChanges(onProgress: onProgress);
+  }
 
   Future<DeployJob> startDeploy({
     required String projectId,
@@ -100,6 +114,12 @@ class DeployAgent {
 
   Future<List<DeployRunRecord>> listDeployHistory() =>
       _deployService.listRecentRuns();
+
+  Future<void> cancelQueuedDeploy(String jobId) async {
+    if (!_deployService.cancelWaiting(jobId)) {
+      throw DeployJobNotFound(jobId);
+    }
+  }
 
   void attachLedger(DeployLedger ledger) {
     _deployService.attachLedger(ledger);

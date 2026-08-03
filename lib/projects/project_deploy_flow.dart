@@ -7,11 +7,10 @@ import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_trigger.dart';
 import '../deploy/job_screen.dart';
 import '../phone/deploy_http_client.dart';
-import '../ui/widgets/deploy_platform_controls.dart';
 import 'active_deploy_watch.dart';
 import 'deployable_project.dart';
 
-/// Confirm → start deploy → open [JobScreen], including conflict rejoin.
+/// Confirm → start deploy → open [JobScreen], or enqueue when busy.
 class ProjectDeployFlow {
   const ProjectDeployFlow({required this.trigger, required this.activeDeploy});
 
@@ -40,10 +39,26 @@ class ProjectDeployFlow {
   }) async {
     final ongoing = activeDeploy.ongoing;
     if (ongoing != null &&
-        !ongoing.status.isTerminal &&
+        ongoing.status.isActiveRunner &&
         ongoing.projectId == project.projectId &&
         ongoing.platform == platform) {
       await openJob(context, ongoing, onReturned: onReturned);
+      return;
+    }
+
+    final alreadyWaiting = activeDeploy.waitingFor(
+      projectId: project.projectId,
+      platformName: platform.name,
+    );
+    if (alreadyWaiting != null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Already queued: ${project.name} (${platform.label})',
+          ),
+        ),
+      );
       return;
     }
 
@@ -60,7 +75,25 @@ class ProjectDeployFlow {
         force: force,
       );
       if (!context.mounted) return;
+      if (job.status.isWaiting) {
+        await activeDeploy.refresh();
+        if (!context.mounted) return;
+        final behind = activeDeploy.ongoing?.projectName ?? 'current deploy';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Queued ${project.name} behind $behind'),
+          ),
+        );
+        return;
+      }
       await openJob(context, job, onReturned: onReturned);
+    } on DeployAlreadyQueued catch (error) {
+      if (!context.mounted) return;
+      await activeDeploy.refresh();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
     } on DeployAlreadyRunning catch (error) {
       if (!context.mounted) return;
       await _openConflict(context, error, onReturned: onReturned);

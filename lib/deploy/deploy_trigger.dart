@@ -1,4 +1,5 @@
 import '../projects/deployable_project.dart';
+import '../projects/source_changes_progress.dart';
 import 'deploy_job.dart';
 import 'deploy_platform.dart';
 import 'deploy_run_record.dart';
@@ -12,7 +13,10 @@ class DeployTrigger {
     required this.fetchJob,
     required this.fetchActiveJob,
     required this.listDeployHistory,
+    required this.fetchDeployQueue,
+    required this.cancelQueuedDeploy,
     this.jobUpdates,
+    this.queueUpdates,
     this.onUnauthorized,
     this.onUnpair,
     this.showUnpair = false,
@@ -23,7 +27,10 @@ class DeployTrigger {
   });
 
   final Future<List<DeployableProject>> Function() listProjects;
-  final Future<List<DeployableProject>> Function() evaluateSourceChanges;
+  final Future<List<DeployableProject>> Function({
+    void Function(SourceChangesProgress progress)? onProgress,
+  })
+  evaluateSourceChanges;
   final Future<DeployJob> Function({
     required String projectId,
     required DeployPlatform platform,
@@ -33,10 +40,16 @@ class DeployTrigger {
   final Future<DeployJob> Function(String jobId) fetchJob;
   final Future<DeployJob?> Function() fetchActiveJob;
   final Future<List<DeployRunRecord>> Function() listDeployHistory;
+  final Future<List<DeployJob>> Function() fetchDeployQueue;
+  final Future<void> Function(String jobId) cancelQueuedDeploy;
 
   /// Live job updates when available (Mac in-process, phone via SSE).
   /// Otherwise the UI polls [fetchActiveJob] / [fetchJob].
   final Stream<DeployJob>? jobUpdates;
+
+  /// Live wait-queue snapshots when available (Mac in-process).
+  /// Otherwise the UI polls [fetchDeployQueue].
+  final Stream<List<DeployJob>>? queueUpdates;
   final Future<void> Function()? onUnauthorized;
   final Future<void> Function()? onUnpair;
   final bool showUnpair;

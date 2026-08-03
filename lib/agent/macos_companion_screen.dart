@@ -202,14 +202,10 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
 
   Widget _agentTab() {
     return EScaffoldShell(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(AppIdentity.displayName),
-            Text('Mac companion', style: EText.caption),
-          ],
-        ),
+      appBar: EAppHeader(
+        eyebrow: AppIdentity.displayName,
+        title: 'Agent',
+        subtitle: 'Mac companion',
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),

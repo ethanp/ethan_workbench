@@ -1,0 +1,202 @@
+import 'package:ethan_ui/ethan_ui.dart';
+import 'package:flutter/material.dart';
+
+import 'deploy_checklist.dart';
+import 'deploy_job.dart';
+
+/// Right-rail queue: active deploy + FIFO wait list.
+class DeployQueuePanel extends StatelessWidget {
+  const DeployQueuePanel({
+    super.key,
+    required this.ongoing,
+    required this.waiting,
+    required this.onOpenOngoing,
+    required this.onCancelWaiting,
+    this.ongoingRemaining,
+    this.width = 260,
+  });
+
+  final DeployJob? ongoing;
+  final List<DeployJob> waiting;
+  final VoidCallback onOpenOngoing;
+  final Future<void> Function(String jobId) onCancelWaiting;
+
+  /// Estimated time left for [ongoing] vs typical successful runs.
+  final Duration? ongoingRemaining;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return ESidePanel(
+      title: 'Queue',
+      width: width,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          ELayout.spaceMd,
+          0,
+          ELayout.spaceMd,
+          ELayout.spaceLg,
+        ),
+        children: [
+          if (ongoing != null) ...[
+            Text('Now', style: EText.label),
+            const SizedBox(height: ELayout.spaceSm),
+            _QueueJobTile(
+              job: ongoing!,
+              onTap: onOpenOngoing,
+              stageLabel: ongoing!.activeStageLabel,
+              remaining: ongoingRemaining,
+            ),
+            const SizedBox(height: ELayout.spaceLg),
+          ],
+          Text('Up next', style: EText.label),
+          const SizedBox(height: ELayout.spaceSm),
+          if (waiting.isEmpty)
+            Text(
+              'Nothing queued',
+              style: EText.caption,
+            )
+          else
+            for (var index = 0; index < waiting.length; index++) ...[
+              if (index > 0) const SizedBox(height: ELayout.spaceSm),
+              _QueueJobTile(
+                job: waiting[index],
+                position: index + 1,
+                onCancel: () => onCancelWaiting(waiting[index].jobId),
+              ),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _QueueJobTile extends StatelessWidget {
+  const _QueueJobTile({
+    required this.job,
+    this.position,
+    this.onTap,
+    this.onCancel,
+    this.stageLabel,
+    this.remaining,
+  });
+
+  final DeployJob job;
+  final int? position;
+  final VoidCallback? onTap;
+  final VoidCallback? onCancel;
+  final String? stageLabel;
+  final Duration? remaining;
+
+  @override
+  Widget build(BuildContext context) {
+    final platformLine = job.force
+        ? '${job.platform.label} · force'
+        : job.platform.label;
+    final detailLine = stageLabel == null
+        ? platformLine
+        : '$platformLine · $stageLabel';
+    final remainingLine = _remainingCaption(remaining);
+
+    return ESurface(
+      kind: ESurfaceKind.tinted,
+      accent: job.platform.accent,
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (position != null) ...[
+            Text(
+              '$position',
+              style: EText.mono.copyWith(
+                color: EColors.textMuted,
+                fontSize: ELayout.typeSize(12),
+              ),
+            ),
+            const SizedBox(width: ELayout.spaceSm),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  job.projectName,
+                  style: EText.label.copyWith(
+                    color: EColors.textPrimary,
+                    letterSpacing: 0.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(
+                      job.platform.icon,
+                      size: 12,
+                      color: job.platform.accent,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        detailLine,
+                        style: EText.caption.copyWith(
+                          fontSize: ELayout.typeSize(11),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                if (remainingLine != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    remainingLine,
+                    style: EText.caption.copyWith(
+                      color: EColors.accentGlow,
+                      fontSize: ELayout.typeSize(11),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (onCancel != null)
+            IconButton(
+              tooltip: 'Remove from queue',
+              onPressed: onCancel,
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              color: EColors.textMuted,
+            ),
+        ],
+      ),
+    );
+  }
+
+  String? _remainingCaption(Duration? remaining) {
+    if (remaining == null) return null;
+    if (remaining > Duration.zero) {
+      return '~${DeployChecklist.formatElapsed(remaining)} left';
+    }
+    // Past the typical wall time — only call it "wrapping up" on late stages.
+    final stageId = _activeStageId(job);
+    if (stageId == 'installing' ||
+        stageId == 'recording' ||
+        stageId == 'done') {
+      return 'Wrapping up…';
+    }
+    return 'Taking longer than usual';
+  }
+
+  String? _activeStageId(DeployJob job) {
+    for (final item in job.checklist) {
+      if (item.status == DeployChecklistItemStatus.active) return item.id;
+    }
+    return null;
+  }
+}

@@ -142,6 +142,8 @@ class MacAgentClient {
       }),
     );
     if (response.statusCode == 409) {
+      final alreadyQueued = _deployAlreadyQueuedFromConflict(response);
+      if (alreadyQueued != null) throw alreadyQueued;
       final conflict = _deployAlreadyRunningFromConflict(response);
       if (conflict != null) throw conflict;
     }
@@ -149,6 +151,20 @@ class MacAgentClient {
     return DeployJob.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+  }
+
+  DeployAlreadyQueued? _deployAlreadyQueuedFromConflict(
+    http.Response response,
+  ) {
+    try {
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      if (payload['alreadyQueued'] != true) return null;
+      final jobJson = payload['job'];
+      if (jobJson is! Map<String, dynamic>) return null;
+      return DeployAlreadyQueued(DeployJob.fromJson(jobJson));
+    } catch (_) {
+      return null;
+    }
   }
 
   DeployAlreadyRunning? _deployAlreadyRunningFromConflict(
@@ -193,6 +209,28 @@ class MacAgentClient {
     );
   }
 
+  Future<List<DeployJob>> fetchDeployQueue() async {
+    final response = await _httpClient.get(
+      Uri.parse('$_baseUrl/deploy/queue'),
+      headers: _headers,
+    );
+    _throwIfFailed(response, 'Failed to load deploy queue');
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final jobMaps = payload['jobs'] as List<dynamic>? ?? const [];
+    return [
+      for (final jobMap in jobMaps)
+        DeployJob.fromJson(jobMap as Map<String, dynamic>),
+    ];
+  }
+
+  Future<void> cancelQueuedDeploy(String jobId) async {
+    final response = await _httpClient.delete(
+      Uri.parse('$_baseUrl/deploy/queue/$jobId'),
+      headers: _headers,
+    );
+    _throwIfFailed(response, 'Failed to cancel queued deploy');
+  }
+
   Future<List<DeployRunRecord>> listDeployHistory() async {
     final response = await _httpClient.get(
       Uri.parse('$_baseUrl/jobs/history'),
@@ -209,6 +247,8 @@ class MacAgentClient {
 
   /// Live job snapshots from `GET /jobs/events` (SSE). Completes when the
   /// connection drops; callers should reconnect while still paired.
+  /// Queue envelope events (`type: queue`) are skipped here — use
+  /// [fetchDeployQueue] / poll.
   Stream<DeployJob> watchJobEvents() async* {
     cancelJobEvents();
     final eventsClient = http.Client();
@@ -218,7 +258,11 @@ class MacAgentClient {
       yield* _watchSseJson(
         client: eventsClient,
         path: '/jobs/events',
-        parse: (payload) => DeployJob.fromJson(payload as Map<String, dynamic>),
+        parse: (payload) {
+          final map = payload as Map<String, dynamic>;
+          if (map['type'] == 'queue') return null;
+          return DeployJob.fromJson(map);
+        },
         failureMessage: 'Failed to open job events stream',
         onOpened: (statusCode) {
           _log.log('jobs/events opened status=$statusCode');
@@ -333,7 +377,7 @@ class MacAgentClient {
   Stream<T> _watchSseJson<T>({
     required http.Client client,
     required String path,
-    required T Function(Object? payload) parse,
+    required T? Function(Object? payload) parse,
     required String failureMessage,
     void Function(int statusCode)? onOpened,
     void Function(Object error, StackTrace stackTrace, String payloadPreview)?
@@ -362,7 +406,8 @@ class MacAgentClient {
       final payload = line.substring(5).trimLeft();
       if (payload.isEmpty || payload == '[DONE]') continue;
       try {
-        yield parse(jsonDecode(payload));
+        final parsed = parse(jsonDecode(payload));
+        if (parsed != null) yield parsed;
       } catch (error, stackTrace) {
         final preview = payload.length <= 120
             ? payload

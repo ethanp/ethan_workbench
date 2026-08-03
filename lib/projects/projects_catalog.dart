@@ -2,18 +2,21 @@ import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_trigger.dart';
 import '../phone/deploy_http_client.dart';
 import 'deployable_project.dart';
+import 'source_changes_progress.dart';
 
 enum ProjectsCatalogLoadOutcome { succeeded, unauthorized, failed }
 
 /// Loads and refreshes the deployable project list (with optional change eval).
 class ProjectsCatalog {
-  ProjectsCatalog({required this.trigger});
+  ProjectsCatalog({required this.trigger, this.onChanged});
 
   final DeployTrigger trigger;
+  final void Function()? onChanged;
 
   List<DeployableProject> projects = const [];
   bool loading = true;
   bool evaluatingChanges = false;
+  SourceChangesProgress? changesProgress;
   String? errorMessage;
   DateTime? lastChangesCheckedAt;
 
@@ -27,23 +30,34 @@ class ProjectsCatalog {
   }) async {
     loading = true;
     evaluatingChanges = evaluateChanges;
+    changesProgress = null;
     errorMessage = null;
     lastFailureMessage = null;
+    _notify();
 
     try {
       final loaded = evaluateChanges
-          ? await trigger.evaluateSourceChanges()
+          ? await trigger.evaluateSourceChanges(
+              onProgress: (progress) {
+                changesProgress = progress;
+                _notify();
+              },
+            )
           : await trigger.listProjects();
       projects = loaded;
       loading = false;
       evaluatingChanges = false;
+      changesProgress = null;
       if (evaluateChanges) {
         lastChangesCheckedAt = DateTime.now();
       }
+      _notify();
       return ProjectsCatalogLoadOutcome.succeeded;
     } on AgentRequestException catch (error) {
       loading = false;
       evaluatingChanges = false;
+      changesProgress = null;
+      _notify();
       if (error.isUnauthorized) {
         return ProjectsCatalogLoadOutcome.unauthorized;
       }
@@ -56,8 +70,10 @@ class ProjectsCatalog {
     } catch (error) {
       loading = false;
       evaluatingChanges = false;
+      changesProgress = null;
       lastFailureMessage = error.toString();
       errorMessage = error.toString();
+      _notify();
       return ProjectsCatalogLoadOutcome.failed;
     }
   }
@@ -70,6 +86,10 @@ class ProjectsCatalog {
   }
 
   List<DeployPlatform> platformsFor(DeployableProject project) {
-    return trigger.preferredPlatforms.where(project.supports).toList();
+    // Always reserve a slot per preferred platform so rows align; unsupported
+    // platforms render as a muted placeholder in [ProjectWorkbenchRow].
+    return List<DeployPlatform>.of(trigger.preferredPlatforms);
   }
+
+  void _notify() => onChanged?.call();
 }

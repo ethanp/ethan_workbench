@@ -5,6 +5,9 @@ import 'deploy_checklist.dart';
 import 'deploy_platform.dart';
 
 enum DeployJobStatus {
+  /// Waiting in the FIFO behind the active deploy.
+  waiting(statusTone: EStatusTone.muted),
+  /// Accepted; deploy script is about to start.
   queued(statusTone: EStatusTone.warning),
   running(statusTone: EStatusTone.accent),
   succeeded(statusTone: EStatusTone.success),
@@ -25,6 +28,12 @@ enum DeployJobStatus {
 
   bool get isTerminal =>
       this == DeployJobStatus.succeeded || this == DeployJobStatus.failed;
+
+  bool get isWaiting => this == DeployJobStatus.waiting;
+
+  /// Active runner (not sitting in the wait queue).
+  bool get isActiveRunner =>
+      this == DeployJobStatus.queued || this == DeployJobStatus.running;
 }
 
 class DeployJob {
@@ -123,5 +132,14 @@ class DeployJob {
         : checklist.map((item) => '${item.id}:${item.status.name}').join(',');
     return '$jobId $projectName/${platform.name} ${status.name} '
         'log=${log.length}c checklist=[$checklistSummary]';
+  }
+
+  /// Label of the checklist step currently marked active, if any.
+  String? get activeStageLabel {
+    for (final item in checklist) {
+      if (item.status == DeployChecklistItemStatus.active) return item.label;
+    }
+    if (status == DeployJobStatus.queued) return 'Starting…';
+    return null;
   }
 }

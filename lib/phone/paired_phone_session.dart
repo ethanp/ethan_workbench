@@ -4,13 +4,13 @@ import 'dart:io';
 import 'package:ethan_utils/ethan_utils.dart';
 
 import '../agent/agent_endpoint.dart';
-import '../app_identity.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_trigger.dart';
 import '../pairing/session_token_store.dart';
 import '../projects/deployable_project.dart';
+import '../projects/source_changes_progress.dart';
 import '../run/local_run_controls.dart';
 import '../run/remote_local_run_session.dart';
 import 'deploy_http_client.dart';
@@ -52,7 +52,7 @@ class PairedPhoneSession {
     _localRun.setOnUnauthorized(endSession);
 
     return DeployTrigger(
-      title: AppIdentity.displayName,
+      title: 'Deploy',
       showUnpair: true,
       preferredPlatforms: const [DeployPlatform.macos, DeployPlatform.ios],
       unreachableHint: 'Is the Mac companion running at $agentBaseUrl?',
@@ -62,6 +62,8 @@ class PairedPhoneSession {
       fetchJob: fetchJob,
       fetchActiveJob: fetchActiveJob,
       listDeployHistory: listDeployHistory,
+      fetchDeployQueue: fetchDeployQueue,
+      cancelQueuedDeploy: cancelQueuedDeploy,
       jobUpdates: jobUpdates,
       onUnauthorized: endSession,
       onUnpair: endSession,
@@ -99,8 +101,11 @@ class PairedPhoneSession {
 
   Future<List<DeployableProject>> listProjects() => _agent.listProjects();
 
-  Future<List<DeployableProject>> evaluateSourceChanges() =>
-      _agent.evaluateSourceChanges();
+  Future<List<DeployableProject>> evaluateSourceChanges({
+    void Function(SourceChangesProgress progress)? onProgress,
+  }) {
+    return _agent.evaluateSourceChanges();
+  }
 
   Future<DeployJob> startDeploy({
     required String projectId,
@@ -120,6 +125,11 @@ class PairedPhoneSession {
 
   Future<List<DeployRunRecord>> listDeployHistory() =>
       _agent.listDeployHistory();
+
+  Future<List<DeployJob>> fetchDeployQueue() => _agent.fetchDeployQueue();
+
+  Future<void> cancelQueuedDeploy(String jobId) =>
+      _agent.cancelQueuedDeploy(jobId);
 
   void _ensureJobEventsListening() {
     if (_jobEventsLoopRunning) {

@@ -18,6 +18,17 @@ class DeployAlreadyRunning implements Exception {
       'A deploy is already running: $projectName ($statusName, $jobId)';
 }
 
+/// Same project+platform is already sitting in the wait queue.
+class DeployAlreadyQueued implements Exception {
+  final DeployJob job;
+
+  const DeployAlreadyQueued(this.job);
+
+  @override
+  String toString() =>
+      'A deploy is already queued: ${job.projectName} (${job.platform.label})';
+}
+
 class UnknownProject implements Exception {
   final String projectId;
 

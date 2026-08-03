@@ -56,6 +56,8 @@ class DeployAgentServer {
       ..get('/projects', _listProjects)
       ..post('/projects/evaluate-changes', _evaluateSourceChanges)
       ..post('/deploy', _startDeploy)
+      ..get('/deploy/queue', _listDeployQueue)
+      ..delete('/deploy/queue/<jobId>', _cancelQueuedDeploy)
       ..get('/jobs/history', _listHistory)
       ..get('/jobs/active', _activeJob)
       ..get('/jobs/events', _streamJobEvents)
@@ -168,12 +170,14 @@ class DeployAgentServer {
         force: force,
       );
       return jsonOk(job.toJson());
-    } on DeployAlreadyRunning catch (error) {
-      final job = error.job;
+    } on DeployAlreadyQueued catch (error) {
       return jsonError(
         error.toString(),
         status: 409,
-        extra: job == null ? null : {'job': job.toJson()},
+        extra: {
+          'job': error.job.toJson(),
+          'alreadyQueued': true,
+        },
       );
     } on LocalRunBlocksDeploy catch (error) {
       return jsonError(error.toString(), status: 409);
@@ -188,9 +192,22 @@ class DeployAgentServer {
     }
   }
 
+  Future<Response> _listDeployQueue(Request request) async {
+    return jsonOk({
+      'jobs': deployService.waitingQueue.map((job) => job.toJson()).toList(),
+    });
+  }
+
+  Future<Response> _cancelQueuedDeploy(Request request, String jobId) async {
+    if (!deployService.cancelWaiting(jobId)) {
+      return jsonError('Queued job not found', status: 404);
+    }
+    return jsonOk({'ok': true});
+  }
+
   Future<Response> _activeJob(Request request) async {
     final job = deployService.activeJob;
-    if (job == null) {
+    if (job == null || job.status.isTerminal) {
       return jsonError('No active job', status: 404);
     }
     return jsonOk(job.toJson());
@@ -202,11 +219,12 @@ class DeployAgentServer {
   }
 
   Future<Response> _getJob(Request request, String jobId) async {
-    final job = deployService.activeJob;
-    if (job == null || job.jobId != jobId) {
+    try {
+      final job = await deployService.fetchJob(jobId);
+      return jsonOk(job.toJson());
+    } on DeployJobNotFound {
       return jsonError('Job not found', status: 404);
     }
-    return jsonOk(job.toJson());
   }
 
   FutureOr<Response> _streamJobEvents(Request request) {
@@ -215,7 +233,7 @@ class DeployAgentServer {
     String? lastStatus;
     String? lastChecklist;
 
-    void emit(DeployJob job) {
+    void emitJob(DeployJob job) {
       if (controller.isClosed) return;
       emitCount += 1;
       final checklistSignature = job.checklist
@@ -234,17 +252,30 @@ class DeployAgentServer {
       controller.add(utf8.encode('data: ${jsonEncode(job.toJson())}\n\n'));
     }
 
+    void emitQueue(List<DeployJob> jobs) {
+      if (controller.isClosed) return;
+      controller.add(
+        utf8.encode(
+          'data: ${jsonEncode({
+            'type': 'queue',
+            'jobs': jobs.map((job) => job.toJson()).toList(),
+          })}\n\n',
+        ),
+      );
+    }
+
     final activeJob = deployService.activeJob;
     _log.log(
       'SSE subscriber open active='
       '${activeJob?.debugSummary ?? 'none'}',
     );
-    if (activeJob != null) {
-      emit(activeJob);
+    if (activeJob != null && !activeJob.status.isTerminal) {
+      emitJob(activeJob);
     }
+    emitQueue(deployService.waitingQueue);
 
-    final subscription = deployService.jobUpdates.listen(
-      emit,
+    final jobSubscription = deployService.jobUpdates.listen(
+      emitJob,
       onError: (Object error, StackTrace stackTrace) {
         _log.warn('SSE jobUpdates error', error, stackTrace);
         controller.addError(error, stackTrace);
@@ -256,10 +287,12 @@ class DeployAgentServer {
         }
       },
     );
+    final queueSubscription = deployService.queueUpdates.listen(emitQueue);
 
     controller.onCancel = () {
       _log.log('SSE subscriber cancel emits=$emitCount');
-      unawaited(subscription.cancel());
+      unawaited(jobSubscription.cancel());
+      unawaited(queueSubscription.cancel());
     };
 
     return Response.ok(

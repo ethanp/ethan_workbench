@@ -4,7 +4,9 @@ import 'package:ethan_utils/ethan_utils.dart';
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
+import '../app_identity.dart';
 import '../deploy/deploy_platform.dart';
+import '../deploy/deploy_queue_panel.dart';
 import '../deploy/deploy_trigger.dart';
 import '../line_age/line_age_screen.dart';
 import '../run/flutter_run_device.dart';
@@ -40,7 +42,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   @override
   void initState() {
     super.initState();
-    _catalog = ProjectsCatalog(trigger: widget.trigger);
+    _catalog = ProjectsCatalog(
+      trigger: widget.trigger,
+      onChanged: () {
+        if (mounted) setState(() {});
+      },
+    );
     _activeDeploy = ActiveDeployWatch(
       trigger: widget.trigger,
       onChanged: () {
@@ -159,9 +166,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final showQueuePanel =
+        !compact && _activeDeploy.hasQueuePanelContent;
+
     return EScaffoldShell(
-      appBar: AppBar(
-        title: Text(widget.trigger.title, style: EText.title),
+      contentMaxWidth:
+          showQueuePanel ? double.infinity : ELayout.contentMaxWidth,
+      appBar: EAppHeader(
+        eyebrow: AppIdentity.displayName,
+        title: widget.trigger.title,
         actions: [
           _checkForChangesAction(),
           if (widget.trigger.showUnpair)
@@ -170,10 +184,24 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               onPressed: () => unawaited(_unpair()),
               icon: const Icon(Icons.link_off_rounded),
             ),
-          const SizedBox(width: ELayout.spaceSm),
         ],
       ),
-      body: _body(),
+      body: showQueuePanel
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _body()),
+                DeployQueuePanel(
+                  ongoing: _activeDeploy.ongoing,
+                  waiting: _activeDeploy.waiting,
+                  ongoingRemaining: _activeDeploy.ongoingRemainingEstimate,
+                  onOpenOngoing: () => unawaited(_openOngoingDeploy()),
+                  onCancelWaiting: (jobId) =>
+                      _activeDeploy.cancelWaiting(jobId),
+                ),
+              ],
+            )
+          : _body(),
     );
   }
 
@@ -184,79 +212,48 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         ? null
         : () => unawaited(_reload(evaluateChanges: true));
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final tooltip = lastCheckedLabel == null
+        ? 'Refresh changed status'
+        : 'Refresh changed status · $lastCheckedLabel';
+    final progressIndicator = _catalog.evaluatingChanges
+        ? SizedBox(
+            width: compact ? 18 : 14,
+            height: compact ? 18 : 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              value: _catalog.changesProgress?.fraction,
+            ),
+          )
+        : null;
 
     if (compact) {
-      final tooltip = lastCheckedLabel == null
-          ? 'Refresh changed status'
-          : 'Refresh changed status · $lastCheckedLabel';
       return IconButton(
         tooltip: tooltip,
         onPressed: onPressed,
-        icon: _catalog.evaluatingChanges
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.refresh_rounded),
+        icon: progressIndicator ?? const Icon(Icons.refresh_rounded),
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: ELayout.spaceSm),
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          backgroundColor: EColors.surfaceRaised.withValues(alpha: 0.55),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: ELayout.borderRadiusMd,
-            side: const BorderSide(color: EColors.border),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_catalog.evaluatingChanges)
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            else
-              const Icon(Icons.refresh_rounded, size: 18),
-            const SizedBox(width: ELayout.spaceSm),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Refresh changed status',
-                  style: EText.label.copyWith(
-                    color: EColors.textPrimary,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                if (lastCheckedLabel != null)
-                  Text(
-                    lastCheckedLabel,
-                    style: EText.caption.copyWith(
-                      color: EColors.textMuted,
-                      fontSize: ELayout.typeSize(11),
-                      height: 1.1,
-                    ),
-                  ),
-              ],
-            ),
-          ],
+    return SizedBox(
+      width: 140,
+      child: Tooltip(
+        message: tooltip,
+        child: ETintedAction.compact(
+          accent: onPressed == null ? EColors.textMuted : EColors.accentGlow,
+          icon: Icons.refresh_rounded,
+          title: 'Refresh',
+          subtitle: lastCheckedLabel ?? 'Changed status',
+          onTap: onPressed,
+          trailing: progressIndicator,
         ),
       ),
     );
   }
 
   String? get _lastChangesCheckedLabel {
-    if (_catalog.evaluatingChanges) return 'Refreshing…';
+    if (_catalog.evaluatingChanges) {
+      return _catalog.changesProgress?.caption ?? 'Checking…';
+    }
     final lastCheckedAt = _catalog.lastChangesCheckedAt;
     if (lastCheckedAt == null) return null;
     return lastCheckedAt.relativeTimeAgo();
@@ -294,6 +291,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             if (index == 0) {
               return OngoingDeployBanner(
                 job: ongoing,
+                queuedCount: _activeDeploy.waiting.length,
                 onOpen: () => unawaited(_openOngoingDeploy()),
               );
             }

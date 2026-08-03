@@ -5,6 +5,7 @@ import 'package:ethan_ui/ethan_ui.dart';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
+import '../app_identity.dart';
 import 'deploy_job.dart';
 import 'deploy_run_record.dart';
 import 'deploy_trigger.dart';
@@ -108,8 +109,10 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return EScaffoldShell(
-      appBar: AppBar(
-        title: Text('History', style: EText.title),
+      contentMaxWidth: ELayout.feedContentMaxWidth,
+      appBar: EAppHeader(
+        eyebrow: AppIdentity.displayName,
+        title: 'History',
       ),
       body: _body(),
     );
@@ -184,7 +187,7 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
                       size: 14,
                     ),
                     const SizedBox(width: ELayout.spaceSm),
-                    Expanded(
+                    Flexible(
                       child: Text(
                         _runSubtitle(run),
                         style: EText.caption,
