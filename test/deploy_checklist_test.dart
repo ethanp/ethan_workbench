@@ -66,5 +66,24 @@ void main() {
       expect(skipped[3].status, DeployChecklistItemStatus.skipped);
       expect(skipped[4].status, DeployChecklistItemStatus.skipped);
     });
+
+    test('marks active step failed and skips the rest', () {
+      final afterResolving = DeployChecklist.applyPhase(
+        DeployChecklist.applyPhase(planned, 'checking', at: at),
+        'resolving',
+        at: at.add(const Duration(seconds: 2)),
+      );
+      final failed = DeployChecklist.applyPhase(
+        afterResolving,
+        'failed',
+        at: at.add(const Duration(seconds: 10)),
+      );
+      expect(failed[0].status, DeployChecklistItemStatus.done);
+      expect(failed[1].status, DeployChecklistItemStatus.failed);
+      expect(failed[1].finishedAt, at.add(const Duration(seconds: 10)));
+      expect(failed[2].status, DeployChecklistItemStatus.skipped);
+      expect(failed[3].status, DeployChecklistItemStatus.skipped);
+      expect(failed[4].status, DeployChecklistItemStatus.skipped);
+    });
   });
 }

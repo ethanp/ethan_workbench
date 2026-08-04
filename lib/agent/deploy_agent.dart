@@ -2,12 +2,13 @@ import 'dart:async';
 
 import 'package:shelf/shelf.dart';
 
+import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
+import '../deploy/deploy_pipeline.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_run_record.dart';
-import '../deploy/deploy_service.dart';
+import '../deploy/deploy_session_persistence.dart';
 import '../deploy/deploy_trigger.dart';
-import '../deploy/deploy_errors.dart';
 import '../pairing/pairing_auth.dart';
 import '../projects/deployable_project.dart';
 import '../projects/source_changes_progress.dart';
@@ -22,40 +23,41 @@ class DeployAgent {
   DeployAgent({AgentConfig? config})
     : _config = config ?? AgentConfig(),
       _pairingAuth = PairingAuth() {
-    _deployService = DeployService(
+    _deployPipeline = DeployPipeline(
       flutterRoots: _config.flutterRoots,
       deployRbPath: _config.deployRbPath,
+      persistence: DeploySessionPersistence(),
     );
     _localRun = LocalRunSession(
       isDeployBlocking: () {
-        final job = _deployService.activeJob;
+        final job = _deployPipeline.activeJob;
         return job != null && job.status.isActiveRunner;
       },
       deployBlockMessage: () {
-        final job = _deployService.activeJob;
+        final job = _deployPipeline.activeJob;
         return job?.projectName;
       },
     );
     _server = DeployAgentServer(
       config: _config,
       pairingAuth: _pairingAuth,
-      deployService: _deployService,
+      deployPipeline: _deployPipeline,
       localRun: _localRun,
     );
   }
 
   final AgentConfig _config;
   final PairingAuth _pairingAuth;
-  late final DeployService _deployService;
+  late final DeployPipeline _deployPipeline;
   late final DeployAgentServer _server;
   late final LocalRunSession _localRun;
 
   AgentConfig get config => _config;
   PairingAuth get pairingAuth => _pairingAuth;
-  DeployJob? get activeJob => _deployService.activeJob;
-  List<DeployJob> get waitingQueue => _deployService.waitingQueue;
-  Stream<DeployJob> get jobUpdates => _deployService.jobUpdates;
-  Stream<List<DeployJob>> get queueUpdates => _deployService.queueUpdates;
+  DeployJob? get activeJob => _deployPipeline.activeJob;
+  List<DeployJob> get waitingQueue => _deployPipeline.waitingQueue;
+  Stream<DeployJob> get jobUpdates => _deployPipeline.jobUpdates;
+  Stream<List<DeployJob>> get queueUpdates => _deployPipeline.queueUpdates;
   LocalRunSession get localRun => _localRun;
   bool get isRunning => _server.isRunning;
   int? get boundPort => _server.boundPort;
@@ -84,12 +86,12 @@ class DeployAgent {
   Handler buildHandler() => _server.buildHandler();
 
   Future<List<DeployableProject>> listProjects() =>
-      _deployService.listProjects();
+      _deployPipeline.listProjects();
 
   Future<List<DeployableProject>> evaluateSourceChanges({
     void Function(SourceChangesProgress progress)? onProgress,
   }) {
-    return _deployService.evaluateSourceChanges(onProgress: onProgress);
+    return _deployPipeline.evaluateSourceChanges(onProgress: onProgress);
   }
 
   Future<DeployJob> startDeploy({
@@ -103,26 +105,26 @@ class DeployAgent {
         statusName: _localRun.state.status.name,
       );
     }
-    return _deployService.startDeploy(
+    return _deployPipeline.startDeploy(
       projectId: projectId,
       platform: platform,
       force: force,
     );
   }
 
-  Future<DeployJob> fetchJob(String jobId) => _deployService.fetchJob(jobId);
+  Future<DeployJob> fetchJob(String jobId) => _deployPipeline.fetchJob(jobId);
 
   Future<List<DeployRunRecord>> listDeployHistory() =>
-      _deployService.listRecentRuns();
+      _deployPipeline.listRecentRuns();
 
   Future<void> cancelQueuedDeploy(String jobId) async {
-    if (!_deployService.cancelWaiting(jobId)) {
+    if (!_deployPipeline.cancelWaiting(jobId)) {
       throw DeployJobNotFound(jobId);
     }
   }
 
   void attachLedger(DeployLedger ledger) {
-    _deployService.attachLedger(ledger);
+    _deployPipeline.attachLedger(ledger);
   }
 
   Future<void> start() async {
@@ -135,6 +137,10 @@ class DeployAgent {
   /// Reclaim a `flutter run` left alive across workbench hot restart.
   Future<void> restoreLocalRun() => _localRun.restorePersisted();
 
+  /// Reclaim a deploy left running across workbench hot restart.
+  Future<void> restoreDeploySession() =>
+      _deployPipeline.restorePersistedSession();
+
   /// Reload paired phone sessions from disk (also runs inside [start]).
   Future<void> restorePairedSessions() =>
       _pairingAuth.restorePersistedSessions();
@@ -142,7 +148,7 @@ class DeployAgent {
   Future<void> dispose() async {
     await _localRun.dispose();
     await stop();
-    await _deployService.dispose();
+    await _deployPipeline.dispose();
     await _pairingAuth.dispose();
   }
 }

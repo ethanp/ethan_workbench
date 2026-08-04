@@ -10,6 +10,9 @@ import '../deploy/deploy_run_record.dart';
 class DeployLedger {
   DeployLedger(this._powerSync);
 
+  /// Keep synced logs bounded — Cursor should prefer the on-disk mirror.
+  static const maxSyncedLogChars = 150000;
+
   final PowerSyncDatabase _powerSync;
 
   Future<void> recordRunStarted(DeployJob job) async {
@@ -24,6 +27,24 @@ class DeployLedger {
       'started_at': job.createdAt.millisecondsSinceEpoch,
       'finished_at': null,
       'exit_code': null,
+      'log': truncatedLog(job.log),
+    });
+  }
+
+  /// Debounced mid-run upsert of status + log (avoids line-by-line sync).
+  Future<void> flushRunProgress(DeployJob job) async {
+    await _powerSync.upsert('deploy_runs', {
+      'id': job.jobId,
+      'project_id': job.projectId,
+      'project_name': job.projectName,
+      'platform': job.platform.name,
+      'force': job.force ? 1 : 0,
+      'status': job.status.name,
+      'source_hash': null,
+      'started_at': job.createdAt.millisecondsSinceEpoch,
+      'finished_at': job.finishedAt?.millisecondsSinceEpoch,
+      'exit_code': job.exitCode,
+      'log': truncatedLog(job.log),
     });
   }
 
@@ -40,6 +61,7 @@ class DeployLedger {
       'started_at': job.createdAt.millisecondsSinceEpoch,
       'finished_at': finishedAt.millisecondsSinceEpoch,
       'exit_code': job.exitCode,
+      'log': truncatedLog(job.log),
     });
 
     final stateId = '${job.projectId}:${job.platform.name}';
@@ -78,6 +100,34 @@ class DeployLedger {
     ];
   }
 
+  /// Finished (or mid-run) job with persisted log, for history / HTTP fetch.
+  Future<DeployJob?> fetchJob(String jobId) async {
+    final row = await _powerSync.getOptional(
+      'SELECT id, project_id, project_name, platform, force, status, '
+      'started_at, finished_at, exit_code, log '
+      'FROM deploy_runs WHERE id = ?',
+      [jobId],
+    );
+    if (row == null) return null;
+    final finishedMillis = row['finished_at'] as int?;
+    return DeployJob(
+      jobId: row['id'] as String,
+      projectId: row['project_id'] as String,
+      projectName: row['project_name'] as String,
+      platform: DeployPlatform.fromName(row['platform'] as String),
+      force: (row['force'] as int? ?? 0) != 0,
+      status: DeployJobStatus.fromName(row['status'] as String),
+      log: row['log'] as String? ?? '',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        row['started_at'] as int,
+      ),
+      finishedAt: finishedMillis == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(finishedMillis),
+      exitCode: row['exit_code'] as int?,
+    );
+  }
+
   /// Latest successful deploy times keyed by platform, for one project.
   Future<Map<DeployPlatform, DateTime?>> lastDeployedAtFor(
     String projectId,
@@ -99,5 +149,10 @@ class DeployLedger {
       }
     }
     return lastDeployedAt;
+  }
+
+  static String truncatedLog(String log) {
+    if (log.length <= maxSyncedLogChars) return log;
+    return '…(truncated)\n${log.substring(log.length - maxSyncedLogChars)}';
   }
 }

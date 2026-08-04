@@ -1,3 +1,4 @@
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
 import '../run/flutter_run_device.dart';
@@ -61,9 +62,7 @@ class ProjectLocalRunFlow {
         await session.stop();
       } catch (error) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        context.textSnackBar(error.toString());
         return;
       }
       if (!context.mounted) return;
@@ -78,9 +77,7 @@ class ProjectLocalRunFlow {
         await _openConsole(context, session);
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      context.textSnackBar(error.toString());
       return;
     }
     if (!context.mounted) return;
@@ -96,9 +93,7 @@ class ProjectLocalRunFlow {
       await session.stop();
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      context.textSnackBar(error.toString());
     }
   }
 

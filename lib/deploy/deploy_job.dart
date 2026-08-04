@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:ethan_utils/ethan_utils.dart';
 
@@ -62,6 +64,16 @@ class DeployJob {
     this.exitCode,
     this.checklist = const [],
   });
+
+  /// Timestamp + short hex suffix, unique enough for local deploy runs.
+  static String newId() {
+    final random = Random();
+    final suffix = List.generate(
+      6,
+      (_) => random.nextInt(16).toRadixString(16),
+    ).join();
+    return '${DateTime.now().millisecondsSinceEpoch}-$suffix';
+  }
 
   factory DeployJob.fromJson(Map<String, dynamic> json) {
     final checklistJson = json['checklist'] as List<dynamic>?;

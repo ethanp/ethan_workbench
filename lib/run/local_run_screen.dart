@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ethan_ui/ethan_ui.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -60,6 +61,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
               child: LogConsole(
                 log: _state.log,
                 emptyMessage: '(waiting for flutter run…)',
+                trimBeforeLastHighlight: true,
                 highlights: [
                   LogConsoleHighlight(
                     pattern: FlutterRunOutput.sessionResetPattern,
@@ -85,8 +87,8 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
           Row(
             children: [
               EStatusChip(
-                label: _statusLabel,
-                tone: _statusTone,
+                label: _state.status.chipLabel,
+                tone: _state.status.chipTone,
                 uppercase: true,
               ),
               if (_state.readyForKeyCommands) ...[
@@ -228,9 +230,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
     if (flutterException == null) return;
     await Clipboard.setData(ClipboardData(text: flutterException.promptText));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied for Cursor')),
-    );
+    context.textSnackBar('Copied for Cursor');
   }
 
   Widget _actions() {
@@ -310,8 +310,4 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
     if (enabled) return plate;
     return Opacity(opacity: 0.42, child: IgnorePointer(child: plate));
   }
-
-  String get _statusLabel => _state.status.chipLabel;
-
-  EStatusTone get _statusTone => _state.status.chipTone;
 }

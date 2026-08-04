@@ -12,6 +12,7 @@ final Schema ethanWorkbenchSchema = Schema([
     Column.integer('started_at'),
     Column.integer('finished_at'),
     Column.integer('exit_code'),
+    Column.text('log'),
   ]),
   Table('deploy_state', [
     Column.text('project_id'),

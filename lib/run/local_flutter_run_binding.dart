@@ -131,21 +131,3 @@ class LocalFlutterRunBinding {
   }
 }
 
-/// Polls a pid until it dies (reattach-without-process fallback).
-class PidLivenessWatch {
-  Timer? _timer;
-
-  void watch(int pid, {required Future<void> Function() onDead}) {
-    cancel();
-    _timer = Timer.periodic(const Duration(seconds: 2), (_) async {
-      if (await pid.asOsProcessTree.isAlive) return;
-      cancel();
-      await onDead();
-    });
-  }
-
-  void cancel() {
-    _timer?.cancel();
-    _timer = null;
-  }
-}

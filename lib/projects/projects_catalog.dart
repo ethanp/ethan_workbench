@@ -33,14 +33,14 @@ class ProjectsCatalog {
     changesProgress = null;
     errorMessage = null;
     lastFailureMessage = null;
-    _notify();
+    onChanged?.call();
 
     try {
       final loaded = evaluateChanges
           ? await trigger.evaluateSourceChanges(
               onProgress: (progress) {
                 changesProgress = progress;
-                _notify();
+                onChanged?.call();
               },
             )
           : await trigger.listProjects();
@@ -51,13 +51,13 @@ class ProjectsCatalog {
       if (evaluateChanges) {
         lastChangesCheckedAt = DateTime.now();
       }
-      _notify();
+      onChanged?.call();
       return ProjectsCatalogLoadOutcome.succeeded;
     } on AgentRequestException catch (error) {
       loading = false;
       evaluatingChanges = false;
       changesProgress = null;
-      _notify();
+      onChanged?.call();
       if (error.isUnauthorized) {
         return ProjectsCatalogLoadOutcome.unauthorized;
       }
@@ -73,7 +73,7 @@ class ProjectsCatalog {
       changesProgress = null;
       lastFailureMessage = error.toString();
       errorMessage = error.toString();
-      _notify();
+      onChanged?.call();
       return ProjectsCatalogLoadOutcome.failed;
     }
   }
@@ -90,6 +90,4 @@ class ProjectsCatalog {
     // platforms render as a muted placeholder in [ProjectWorkbenchRow].
     return List<DeployPlatform>.of(trigger.preferredPlatforms);
   }
-
-  void _notify() => onChanged?.call();
 }

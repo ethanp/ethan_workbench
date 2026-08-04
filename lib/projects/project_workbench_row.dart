@@ -42,6 +42,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
     required this.showLineAge,
     this.localRun,
     this.ongoingDeploy,
+    this.waitingDeploys = const [],
     required this.onLineAge,
     required this.onDeploy,
     required this.onRun,
@@ -55,6 +56,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
   final bool showLineAge;
   final LocalRunControls? localRun;
   final DeployJob? ongoingDeploy;
+  final List<DeployJob> waitingDeploys;
   final VoidCallback onLineAge;
   final ValueChanged<DeployPlatform> onDeploy;
   final ValueChanged<FlutterRunDevice> onRun;
@@ -244,6 +246,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
           lastDeployedAt: project.lastDeployedAt[platform],
           sourceStatus: project.sourceStatusFor(platform),
           ongoingDeploy: ongoingDeploy,
+          waitingDeploy: _waitingDeployFor(platform),
           onOpenOngoing: onOpenOngoingDeploy,
           onSelected: () => onDeploy(platform),
         ),
@@ -291,6 +294,15 @@ class ProjectWorkbenchRow extends StatelessWidget {
       ),
       icon: const Icon(Icons.stop_circle_rounded),
     );
+  }
+
+  DeployJob? _waitingDeployFor(DeployPlatform platform) {
+    for (final job in waitingDeploys) {
+      if (job.projectId == project.projectId && job.platform == platform) {
+        return job;
+      }
+    }
+    return null;
   }
 
   LocalRunStatus? _activeRunStatus(FlutterRunDevice device) {

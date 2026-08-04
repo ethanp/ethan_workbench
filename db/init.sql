@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS deploy_runs (
     source_hash TEXT,
     started_at BIGINT NOT NULL,
     finished_at BIGINT,
-    exit_code INTEGER
+    exit_code INTEGER,
+    log TEXT
 );
 
 CREATE INDEX IF NOT EXISTS deploy_runs_project_platform_started_idx

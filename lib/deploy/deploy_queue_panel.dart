@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'deploy_checklist.dart';
 import 'deploy_job.dart';
 
-/// Right-rail queue: active deploy + FIFO wait list.
+/// Right-rail queue: active deploy + FIFO wait list (+ optional job detail).
 class DeployQueuePanel extends StatelessWidget {
   const DeployQueuePanel({
     super.key,
@@ -13,6 +13,7 @@ class DeployQueuePanel extends StatelessWidget {
     required this.onOpenOngoing,
     required this.onCancelWaiting,
     this.ongoingRemaining,
+    this.jobDetail,
     this.width = 260,
   });
 
@@ -23,50 +24,71 @@ class DeployQueuePanel extends StatelessWidget {
 
   /// Estimated time left for [ongoing] vs typical successful runs.
   final Duration? ongoingRemaining;
+
+  /// Live deploy detail shown under the queue (Mac workbench).
+  final Widget? jobDetail;
   final double width;
 
   @override
   Widget build(BuildContext context) {
     return ESidePanel(
-      title: 'Queue',
+      title: jobDetail == null ? 'Queue' : 'Deploy',
       width: width,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          ELayout.spaceMd,
-          0,
-          ELayout.spaceMd,
-          ELayout.spaceLg,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (ongoing != null) ...[
-            Text('Now', style: EText.label),
-            const SizedBox(height: ELayout.spaceSm),
-            _QueueJobTile(
-              job: ongoing!,
-              onTap: onOpenOngoing,
-              stageLabel: ongoing!.activeStageLabel,
-              remaining: ongoingRemaining,
+          if (jobDetail == null)
+            Expanded(child: _queueList())
+          else ...[
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: _queueList(),
             ),
-            const SizedBox(height: ELayout.spaceLg),
+            const Divider(height: 1),
+            Expanded(child: jobDetail!),
           ],
-          Text('Up next', style: EText.label),
-          const SizedBox(height: ELayout.spaceSm),
-          if (waiting.isEmpty)
-            Text(
-              'Nothing queued',
-              style: EText.caption,
-            )
-          else
-            for (var index = 0; index < waiting.length; index++) ...[
-              if (index > 0) const SizedBox(height: ELayout.spaceSm),
-              _QueueJobTile(
-                job: waiting[index],
-                position: index + 1,
-                onCancel: () => onCancelWaiting(waiting[index].jobId),
-              ),
-            ],
         ],
       ),
+    );
+  }
+
+  Widget _queueList() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        ELayout.spaceMd,
+        0,
+        ELayout.spaceMd,
+        ELayout.spaceLg,
+      ),
+      children: [
+        if (ongoing != null) ...[
+          Text('Now', style: EText.label),
+          const SizedBox(height: ELayout.spaceSm),
+          _QueueJobTile(
+            job: ongoing!,
+            onTap: onOpenOngoing,
+            stageLabel: ongoing!.activeStageLabel,
+            remaining: ongoingRemaining,
+          ),
+          const SizedBox(height: ELayout.spaceLg),
+        ],
+        Text('Up next', style: EText.label),
+        const SizedBox(height: ELayout.spaceSm),
+        if (waiting.isEmpty)
+          Text(
+            'Nothing queued',
+            style: EText.caption,
+          )
+        else
+          for (var index = 0; index < waiting.length; index++) ...[
+            if (index > 0) const SizedBox(height: ELayout.spaceSm),
+            _QueueJobTile(
+              job: waiting[index],
+              position: index + 1,
+              onCancel: () => onCancelWaiting(waiting[index].jobId),
+            ),
+          ],
+      ],
     );
   }
 }

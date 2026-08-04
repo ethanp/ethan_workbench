@@ -59,6 +59,9 @@ class LineAgeReport {
 }
 
 /// Analyzes Dart line age via `git blame --line-porcelain`.
+///
+/// [repoPath] may be any directory inside a git checkout (e.g. a Flutter app
+/// under a monorepo). Analysis always covers the whole git root once found.
 class LineAgeAnalyzer {
   static const generatedSuffixes = [
     '.g.dart',
@@ -75,6 +78,7 @@ class LineAgeAnalyzer {
     this.extraExcludeSuffixes = const [],
   });
 
+  /// Directory used to locate the git root (not necessarily the root itself).
   final String repoPath;
   final List<String> extraExcludeSuffixes;
 
@@ -82,18 +86,33 @@ class LineAgeAnalyzer {
 
   void cancel() => _cancelled = true;
 
+  /// Walks from [startPath] upward until a `.git` directory or file is found.
+  static String? findGitRoot(String startPath) {
+    var current = path.normalize(startPath);
+    while (true) {
+      final gitMarker = path.join(current, '.git');
+      if (Directory(gitMarker).existsSync() || File(gitMarker).existsSync()) {
+        return current;
+      }
+      final parent = path.dirname(current);
+      if (parent == current) return null;
+      current = parent;
+    }
+  }
+
   Future<LineAgeReport> analyze({
     void Function(LineAgeProgress progress)? onProgress,
   }) async {
-    final repo = Directory(repoPath);
-    if (!repo.existsSync()) {
+    final startDirectory = Directory(repoPath);
+    if (!startDirectory.existsSync()) {
       throw StateError('Not a directory: $repoPath');
     }
-    if (!Directory(path.join(repoPath, '.git')).existsSync()) {
-      throw StateError('Not a git repository: $repoPath');
+    final gitRoot = findGitRoot(repoPath);
+    if (gitRoot == null) {
+      throw StateError('Not inside a git repository: $repoPath');
     }
 
-    final dartFiles = _findDartFiles();
+    final dartFiles = _findDartFiles(gitRoot);
     if (dartFiles.isEmpty) {
       throw StateError('No non-generated Dart files found.');
     }
@@ -106,7 +125,7 @@ class LineAgeAnalyzer {
         throw StateError('Line age analysis cancelled.');
       }
       final file = dartFiles[index];
-      final relativePath = path.relative(file.path, from: repoPath);
+      final relativePath = path.relative(file.path, from: gitRoot);
       onProgress?.call(
         LineAgeProgress(
           completedFiles: index,
@@ -115,7 +134,10 @@ class LineAgeAnalyzer {
         ),
       );
 
-      final fileCounts = await _blameFile(relativePath);
+      final fileCounts = await _blameFile(
+        relativePath,
+        workingDirectory: gitRoot,
+      );
       for (final entry in fileCounts.entries) {
         totalByMonth.update(
           entry.key,
@@ -174,7 +196,7 @@ class LineAgeAnalyzer {
     }
 
     return LineAgeReport(
-      repoName: path.basename(repoPath),
+      repoName: path.basename(gitRoot),
       months: months,
       filesByTotalLines: [for (final entry in filesByTotal) entry.key],
       totalLines: totalByMonth.values.fold(0, (sum, count) => sum + count),
@@ -182,10 +204,10 @@ class LineAgeAnalyzer {
     );
   }
 
-  List<File> _findDartFiles() {
+  List<File> _findDartFiles(String scanRoot) {
     final excludes = [...generatedSuffixes, ...extraExcludeSuffixes];
     final dartFiles = <File>[];
-    final queue = Queue<Directory>()..add(Directory(repoPath));
+    final queue = Queue<Directory>()..add(Directory(scanRoot));
     while (queue.isNotEmpty) {
       final directory = queue.removeFirst();
       late final List<FileSystemEntity> children;
@@ -198,6 +220,7 @@ class LineAgeAnalyzer {
         final name = path.basename(entity.path);
         if (entity is Directory) {
           if (skipDirectoryNames.contains(name)) continue;
+          if (name == '.git') continue;
           queue.add(entity);
           continue;
         }
@@ -211,11 +234,14 @@ class LineAgeAnalyzer {
     return dartFiles;
   }
 
-  Future<Map<String, int>> _blameFile(String relativePath) async {
+  Future<Map<String, int>> _blameFile(
+    String relativePath, {
+    required String workingDirectory,
+  }) async {
     final process = await Process.run(
       'git',
       ['blame', '--line-porcelain', relativePath],
-      workingDirectory: repoPath,
+      workingDirectory: workingDirectory,
       stdoutEncoding: utf8,
       stderrEncoding: utf8,
     );
@@ -238,3 +264,4 @@ class LineAgeAnalyzer {
     return counts;
   }
 }
+

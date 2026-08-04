@@ -92,14 +92,19 @@ class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
             ),
             style: EText.mono.copyWith(color: EColors.accentGlow),
           ),
-        if (item.status == DeployChecklistItemStatus.done &&
+        if ((item.status == DeployChecklistItemStatus.done ||
+                item.status == DeployChecklistItemStatus.failed) &&
             item.startedAt != null &&
             item.finishedAt != null)
           Text(
             DeployChecklist.formatElapsed(
               item.finishedAt!.difference(item.startedAt!),
             ),
-            style: EText.caption,
+            style: EText.caption.copyWith(
+              color: item.status == DeployChecklistItemStatus.failed
+                  ? EColors.danger
+                  : null,
+            ),
           ),
       ],
     );
@@ -111,6 +116,11 @@ class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
         Icons.check_circle_rounded,
         size: 18,
         color: EColors.success,
+      ),
+      DeployChecklistItemStatus.failed => const Icon(
+        Icons.cancel_rounded,
+        size: 18,
+        color: EColors.danger,
       ),
       DeployChecklistItemStatus.active => const SizedBox(
         width: 18,
@@ -133,6 +143,7 @@ class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
   Color _labelColor(DeployChecklistItemStatus status) => switch (status) {
     DeployChecklistItemStatus.active => EColors.textPrimary,
     DeployChecklistItemStatus.done => EColors.textSecondary,
+    DeployChecklistItemStatus.failed => EColors.danger,
     DeployChecklistItemStatus.skipped => EColors.textMuted,
     DeployChecklistItemStatus.pending => EColors.textMuted,
   };

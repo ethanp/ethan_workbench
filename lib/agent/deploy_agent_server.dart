@@ -10,7 +10,7 @@ import 'package:shelf_router/shelf_router.dart';
 import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
-import '../deploy/deploy_service.dart';
+import '../deploy/deploy_pipeline.dart';
 import '../pairing/auth_middleware.dart';
 import '../pairing/pairing_auth.dart';
 import '../run/flutter_run_device.dart';
@@ -27,13 +27,13 @@ class DeployAgentServer {
   DeployAgentServer({
     required this.config,
     required this.pairingAuth,
-    required this.deployService,
+    required this.deployPipeline,
     required this.localRun,
   });
 
   final AgentConfig config;
   final PairingAuth pairingAuth;
-  final DeployService deployService;
+  final DeployPipeline deployPipeline;
   final LocalRunSession localRun;
   HttpServer? _httpServer;
 
@@ -104,7 +104,7 @@ class DeployAgentServer {
   Future<Response> _health(Request request) async {
     return jsonOk({
       'ok': true,
-      'activeJobId': deployService.activeJob?.jobId,
+      'activeJobId': deployPipeline.activeJob?.jobId,
       'localRunActive': localRun.isActive,
       'pairedSessions': pairingAuth.sessionCount,
     });
@@ -130,14 +130,14 @@ class DeployAgentServer {
   }
 
   Future<Response> _listProjects(Request request) async {
-    final projects = await deployService.listProjects();
+    final projects = await deployPipeline.listProjects();
     return jsonOk({
       'projects': projects.map((project) => project.toJson()).toList(),
     });
   }
 
   Future<Response> _evaluateSourceChanges(Request request) async {
-    final projects = await deployService.evaluateSourceChanges();
+    final projects = await deployPipeline.evaluateSourceChanges();
     return jsonOk({
       'projects': projects.map((project) => project.toJson()).toList(),
     });
@@ -164,7 +164,7 @@ class DeployAgentServer {
           platformName != DeployPlatform.macos.name) {
         return jsonError('platform must be ios or macos', status: 400);
       }
-      final job = await deployService.startDeploy(
+      final job = await deployPipeline.startDeploy(
         projectId: projectId,
         platform: DeployPlatform.fromName(platformName),
         force: force,
@@ -194,19 +194,19 @@ class DeployAgentServer {
 
   Future<Response> _listDeployQueue(Request request) async {
     return jsonOk({
-      'jobs': deployService.waitingQueue.map((job) => job.toJson()).toList(),
+      'jobs': deployPipeline.waitingQueue.map((job) => job.toJson()).toList(),
     });
   }
 
   Future<Response> _cancelQueuedDeploy(Request request, String jobId) async {
-    if (!deployService.cancelWaiting(jobId)) {
+    if (!deployPipeline.cancelWaiting(jobId)) {
       return jsonError('Queued job not found', status: 404);
     }
     return jsonOk({'ok': true});
   }
 
   Future<Response> _activeJob(Request request) async {
-    final job = deployService.activeJob;
+    final job = deployPipeline.activeJob;
     if (job == null || job.status.isTerminal) {
       return jsonError('No active job', status: 404);
     }
@@ -214,13 +214,13 @@ class DeployAgentServer {
   }
 
   Future<Response> _listHistory(Request request) async {
-    final runs = await deployService.listRecentRuns();
+    final runs = await deployPipeline.listRecentRuns();
     return jsonOk({'runs': runs.map((run) => run.toJson()).toList()});
   }
 
   Future<Response> _getJob(Request request, String jobId) async {
     try {
-      final job = await deployService.fetchJob(jobId);
+      final job = await deployPipeline.fetchJob(jobId);
       return jsonOk(job.toJson());
     } on DeployJobNotFound {
       return jsonError('Job not found', status: 404);
@@ -264,7 +264,7 @@ class DeployAgentServer {
       );
     }
 
-    final activeJob = deployService.activeJob;
+    final activeJob = deployPipeline.activeJob;
     _log.log(
       'SSE subscriber open active='
       '${activeJob?.debugSummary ?? 'none'}',
@@ -272,9 +272,9 @@ class DeployAgentServer {
     if (activeJob != null && !activeJob.status.isTerminal) {
       emitJob(activeJob);
     }
-    emitQueue(deployService.waitingQueue);
+    emitQueue(deployPipeline.waitingQueue);
 
-    final jobSubscription = deployService.jobUpdates.listen(
+    final jobSubscription = deployPipeline.jobUpdates.listen(
       emitJob,
       onError: (Object error, StackTrace stackTrace) {
         _log.warn('SSE jobUpdates error', error, stackTrace);
@@ -287,7 +287,7 @@ class DeployAgentServer {
         }
       },
     );
-    final queueSubscription = deployService.queueUpdates.listen(emitQueue);
+    final queueSubscription = deployPipeline.queueUpdates.listen(emitQueue);
 
     controller.onCancel = () {
       _log.log('SSE subscriber cancel emits=$emitCount');
@@ -303,12 +303,12 @@ class DeployAgentServer {
   }
 
   FutureOr<Response> _streamLog(Request request, String jobId) {
-    final job = deployService.activeJob;
+    final job = deployPipeline.activeJob;
     if (job == null || job.jobId != jobId) {
       return jsonError('Job not found', status: 404);
     }
 
-    final logStream = deployService.watchLog(jobId);
+    final logStream = deployPipeline.watchLog(jobId);
     final transformed = logStream.map((chunk) {
       final escaped = chunk
           .replaceAll('\r', '')
@@ -406,7 +406,7 @@ class DeployAgentServer {
       if (device == null) {
         return jsonError('deviceKey must be macos or meSim', status: 400);
       }
-      final project = await deployService.findProject(projectId);
+      final project = await deployPipeline.findProject(projectId);
       if (project == null) {
         return jsonError('Unknown project: $projectId', status: 404);
       }

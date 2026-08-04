@@ -11,32 +11,52 @@ import '../ui/widgets/status_pill.dart';
 import 'deploy_job.dart';
 import 'deploy_trigger.dart';
 
-const _log = ELogger('JobScreen');
+const _log = ELogger('DeployJobDetail');
 
-class JobScreen extends StatefulWidget {
-  const JobScreen({required this.trigger, required this.initialJob});
+/// Live job status + build log. Full-screen ([JobScreen]) or Mac side rail.
+class DeployJobDetail extends StatefulWidget {
+  const DeployJobDetail({
+    super.key,
+    required this.trigger,
+    required this.initialJob,
+    this.onClose,
+    this.onBecameTerminal,
+    this.embedded = false,
+  });
 
   final DeployTrigger trigger;
   final DeployJob initialJob;
 
+  /// Shown in the embedded header; omitted in full-screen (AppBar back).
+  final VoidCallback? onClose;
+
+  /// Fired once when the job first reaches a terminal status.
+  final VoidCallback? onBecameTerminal;
+
+  /// Compact chrome for the side rail (no scaffold).
+  final bool embedded;
+
   @override
-  State<JobScreen> createState() => _JobScreenState();
+  State<DeployJobDetail> createState() => _DeployJobDetailState();
 }
 
-class _JobScreenState extends State<JobScreen> {
+class _DeployJobDetailState extends State<DeployJobDetail> {
   late DeployJob _job;
   Timer? _pollTimer;
   StreamSubscription<DeployJob>? _jobUpdatesSubscription;
   String? _errorMessage;
   final _logScrollController = ScrollController();
   var _streamEventCount = 0;
+  var _reportedTerminal = false;
 
   @override
   void initState() {
     super.initState();
     _job = widget.initialJob;
+    _reportedTerminal = _job.status.isTerminal;
     _log.log(
       'open initial=${_job.debugSummary} '
+      'embedded=${widget.embedded} '
       'jobUpdates=${widget.trigger.jobUpdates != null}',
     );
     if (_job.status.isTerminal) return;
@@ -49,7 +69,6 @@ class _JobScreenState extends State<JobScreen> {
       _log.log('no jobUpdates stream — polling fetchJob every 2s');
     }
 
-    // Always poll: phone SSE can stall even when a stream is wired.
     _pollTimer = Timer.periodic(
       const Duration(seconds: 2),
       (_) => unawaited(_refreshJob()),
@@ -114,7 +133,9 @@ class _JobScreenState extends State<JobScreen> {
         final onUnauthorized = widget.trigger.onUnauthorized;
         if (onUnauthorized != null) {
           await onUnauthorized();
-          if (mounted) Navigator.of(context).pop();
+          if (mounted && !widget.embedded) {
+            Navigator.of(context).pop();
+          }
         }
         return;
       }
@@ -135,6 +156,10 @@ class _JobScreenState extends State<JobScreen> {
       _job = job;
       _errorMessage = null;
     });
+    if (job.status.isTerminal && !_reportedTerminal) {
+      _reportedTerminal = true;
+      widget.onBecameTerminal?.call();
+    }
     if (!shouldStickToBottom) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_logScrollController.hasClients) return;
@@ -146,6 +171,7 @@ class _JobScreenState extends State<JobScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) return _embeddedBody();
     return EScaffoldShell(
       appBar: AppBar(
         title: Text(_job.projectName, style: EText.title),
@@ -159,30 +185,92 @@ class _JobScreenState extends State<JobScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _statusHeader(),
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                _errorMessage!,
-                style: EText.body.copyWith(color: EColors.danger),
-              ),
-            ],
-            const SizedBox(height: 14),
-            Text('BUILD LOG', style: EText.label),
-            const SizedBox(height: 8),
-            Expanded(
-              child: LogConsole(
-                log: _job.log,
-                controller: _logScrollController,
-                emptyMessage: '(waiting for logs…)',
-              ),
-            ),
-          ],
-        ),
+        child: _detailColumn(),
       ),
+    );
+  }
+
+  Widget _embeddedBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _embeddedHeader(),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              ELayout.spaceMd,
+              0,
+              ELayout.spaceMd,
+              ELayout.spaceMd,
+            ),
+            child: _detailColumn(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _embeddedHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        ELayout.spaceMd,
+        ELayout.spaceSm,
+        ELayout.spaceXs,
+        ELayout.spaceSm,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _job.projectName,
+              style: EText.label.copyWith(color: EColors.textPrimary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: () => unawaited(_refreshJob()),
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            color: EColors.textMuted,
+          ),
+          if (widget.onClose != null)
+            IconButton(
+              tooltip: 'Close',
+              onPressed: widget.onClose,
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              color: EColors.textMuted,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _statusHeader(),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            _errorMessage!,
+            style: EText.body.copyWith(color: EColors.danger),
+          ),
+        ],
+        const SizedBox(height: 14),
+        Text('BUILD LOG', style: EText.label),
+        const SizedBox(height: 8),
+        Expanded(
+          child: LogConsole(
+            log: _job.log,
+            controller: _logScrollController,
+            emptyMessage: '(waiting for logs…)',
+          ),
+        ),
+      ],
     );
   }
 
@@ -224,6 +312,22 @@ class _JobScreenState extends State<JobScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Full-screen job route (phone / compact).
+class JobScreen extends StatelessWidget {
+  const JobScreen({required this.trigger, required this.initialJob});
+
+  final DeployTrigger trigger;
+  final DeployJob initialJob;
+
+  @override
+  Widget build(BuildContext context) {
+    return DeployJobDetail(
+      trigger: trigger,
+      initialJob: initialJob,
     );
   }
 }

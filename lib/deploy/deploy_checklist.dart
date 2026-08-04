@@ -4,7 +4,8 @@ enum DeployChecklistItemStatus {
   pending,
   active,
   done,
-  skipped;
+  skipped,
+  failed;
 
   static DeployChecklistItemStatus fromName(String name) {
     return DeployChecklistItemStatus.values.firstWhere(
@@ -84,6 +85,17 @@ class DeployChecklistItem {
     startedAt: startedAt,
     finishedAt: finishedAt,
   );
+
+  DeployChecklistItem asFailed({required DateTime at}) {
+    if (status == DeployChecklistItemStatus.failed) return this;
+    return DeployChecklistItem(
+      id: id,
+      label: label,
+      status: DeployChecklistItemStatus.failed,
+      startedAt: startedAt,
+      finishedAt: finishedAt ?? at,
+    );
+  }
 }
 
 abstract final class DeployChecklist {
@@ -152,6 +164,17 @@ abstract final class DeployChecklist {
           if (item.status == DeployChecklistItemStatus.pending ||
               item.status == DeployChecklistItemStatus.active)
             item.asDone(at: at)
+          else
+            item,
+      ];
+    }
+    if (phaseId == 'failed') {
+      return [
+        for (final item in items)
+          if (item.status == DeployChecklistItemStatus.active)
+            item.asFailed(at: at)
+          else if (item.status == DeployChecklistItemStatus.pending)
+            item.asSkipped()
           else
             item,
       ];

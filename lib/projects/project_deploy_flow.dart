@@ -1,4 +1,5 @@
 import 'package:ethan_ui/ethan_ui.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
 import '../deploy/deploy_errors.dart';
@@ -10,39 +11,56 @@ import '../phone/deploy_http_client.dart';
 import 'active_deploy_watch.dart';
 import 'deployable_project.dart';
 
-/// Confirm → start deploy → open [JobScreen], or enqueue when busy.
+/// Confirm → start deploy → present job UI, or enqueue when busy.
 class ProjectDeployFlow {
-  const ProjectDeployFlow({required this.trigger, required this.activeDeploy});
+  ProjectDeployFlow({
+    required this.trigger,
+    required this.activeDeploy,
+    this.presentJobInline,
+  });
 
   final DeployTrigger trigger;
   final ActiveDeployWatch activeDeploy;
 
-  Future<void> openJob(
+  /// When set (Mac wide workbench), show the job in the side rail instead of
+  /// pushing [JobScreen].
+  final void Function(DeployJob job)? presentJobInline;
+
+  Future<void> showJobScreen(
     BuildContext context,
     DeployJob job, {
-    required Future<void> Function() onReturned,
+    required Future<void> Function() afterJobScreenClosed,
   }) async {
     activeDeploy.remember(job);
+    final presentInline = presentJobInline;
+    if (presentInline != null) {
+      presentInline(job);
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => JobScreen(trigger: trigger, initialJob: job),
       ),
     );
-    await onReturned();
+    await afterJobScreenClosed();
   }
 
   Future<void> confirmAndStart(
     BuildContext context, {
     required DeployableProject project,
     required DeployPlatform platform,
-    required Future<void> Function() onReturned,
+    required Future<void> Function() afterJobScreenClosed,
   }) async {
     final ongoing = activeDeploy.ongoing;
     if (ongoing != null &&
         ongoing.status.isActiveRunner &&
         ongoing.projectId == project.projectId &&
         ongoing.platform == platform) {
-      await openJob(context, ongoing, onReturned: onReturned);
+      await showJobScreen(
+        context,
+        ongoing,
+        afterJobScreenClosed: afterJobScreenClosed,
+      );
       return;
     }
 
@@ -52,12 +70,8 @@ class ProjectDeployFlow {
     );
     if (alreadyWaiting != null) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Already queued: ${project.name} (${platform.label})',
-          ),
-        ),
+      context.textSnackBar(
+        'Already queued: ${project.name} (${platform.label})',
       );
       return;
     }
@@ -79,24 +93,26 @@ class ProjectDeployFlow {
         await activeDeploy.refresh();
         if (!context.mounted) return;
         final behind = activeDeploy.ongoing?.projectName ?? 'current deploy';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Queued ${project.name} behind $behind'),
-          ),
-        );
+        context.textSnackBar('Queued ${project.name} behind $behind');
         return;
       }
-      await openJob(context, job, onReturned: onReturned);
+      await showJobScreen(
+        context,
+        job,
+        afterJobScreenClosed: afterJobScreenClosed,
+      );
     } on DeployAlreadyQueued catch (error) {
       if (!context.mounted) return;
       await activeDeploy.refresh();
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      context.textSnackBar(error.toString());
     } on DeployAlreadyRunning catch (error) {
       if (!context.mounted) return;
-      await _openConflict(context, error, onReturned: onReturned);
+      await _showConflictingJob(
+        context,
+        error,
+        afterJobScreenClosed: afterJobScreenClosed,
+      );
     } on AgentRequestException catch (error) {
       if (!context.mounted) return;
       if (error.isUnauthorized) {
@@ -108,41 +124,53 @@ class ProjectDeployFlow {
         if (!context.mounted) return;
         final refreshed = activeDeploy.ongoing;
         if (refreshed != null) {
-          await openJob(context, refreshed, onReturned: onReturned);
+          await showJobScreen(
+            context,
+            refreshed,
+            afterJobScreenClosed: afterJobScreenClosed,
+          );
           return;
         }
       }
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
+      context.textSnackBar(error.message);
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      context.textSnackBar(error.toString());
     }
   }
 
-  Future<void> _openConflict(
+  Future<void> _showConflictingJob(
     BuildContext context,
     DeployAlreadyRunning error, {
-    required Future<void> Function() onReturned,
+    required Future<void> Function() afterJobScreenClosed,
   }) async {
     final knownJob = error.job;
     if (knownJob != null) {
-      await openJob(context, knownJob, onReturned: onReturned);
+      await showJobScreen(
+        context,
+        knownJob,
+        afterJobScreenClosed: afterJobScreenClosed,
+      );
       return;
     }
     try {
       final job = await trigger.fetchJob(error.jobId);
       if (!context.mounted) return;
-      await openJob(context, job, onReturned: onReturned);
+      await showJobScreen(
+        context,
+        job,
+        afterJobScreenClosed: afterJobScreenClosed,
+      );
     } catch (_) {
       await activeDeploy.refresh();
       final ongoing = activeDeploy.ongoing;
       if (ongoing != null && context.mounted) {
-        await openJob(context, ongoing, onReturned: onReturned);
+        await showJobScreen(
+          context,
+          ongoing,
+          afterJobScreenClosed: afterJobScreenClosed,
+        );
       }
     }
   }

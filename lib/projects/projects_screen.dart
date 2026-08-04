@@ -3,11 +3,15 @@ import 'dart:async';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
 
 import '../app_identity.dart';
+import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_queue_panel.dart';
 import '../deploy/deploy_trigger.dart';
+import '../deploy/job_screen.dart';
+import '../line_age/line_age_analyzer.dart';
 import '../line_age/line_age_screen.dart';
 import '../run/flutter_run_device.dart';
 import '../run/local_run_controls.dart';
@@ -39,6 +43,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   StreamSubscription<LocalRunState>? _localRunSubscription;
   LocalRunState _localRunState = LocalRunState.idle;
 
+  /// Job shown in the Mac side rail under the queue (null = rail closed).
+  DeployJob? _inlineJob;
+
+  static const _queueOnlyWidth = 260.0;
+  static const _queueWithJobWidth = 440.0;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +67,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     _deployFlow = ProjectDeployFlow(
       trigger: widget.trigger,
       activeDeploy: _activeDeploy,
+      presentJobInline: _presentJobInline,
     );
 
     _lastCheckedTicker = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -98,9 +109,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         _catalog.hasProjects) {
       final message = _catalog.lastFailureMessage;
       if (message != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        context.textSnackBar(message);
       }
     }
     setState(() {});
@@ -111,10 +120,41 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     await _reload(evaluateChanges: true);
   }
 
+  void _presentJobInline(DeployJob job) {
+    if (!mounted) return;
+    // Phone / compact still uses the full-screen route.
+    if (MediaQuery.sizeOf(context).shortestSide < 600) {
+      unawaited(_pushJobScreen(job));
+      return;
+    }
+    setState(() => _inlineJob = job);
+  }
+
+  Future<void> _pushJobScreen(DeployJob job) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => JobScreen(
+          trigger: widget.trigger,
+          initialJob: job,
+        ),
+      ),
+    );
+    await _afterJobScreen();
+  }
+
+  void _closeInlineJob() {
+    setState(() => _inlineJob = null);
+    unawaited(_afterJobScreen());
+  }
+
   Future<void> _openOngoingDeploy() async {
     final job = _activeDeploy.ongoing;
     if (job == null) return;
-    await _deployFlow.openJob(context, job, onReturned: _afterJobScreen);
+    await _deployFlow.showJobScreen(
+      context,
+      job,
+      afterJobScreenClosed: _afterJobScreen,
+    );
   }
 
   Future<void> _deploy(
@@ -125,7 +165,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       context,
       project: project,
       platform: platform,
-      onReturned: _afterJobScreen,
+      afterJobScreenClosed: _afterJobScreen,
     );
   }
 
@@ -150,11 +190,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   void _openLineAge(DeployableProject project) {
+    final gitRoot =
+        LineAgeAnalyzer.findGitRoot(project.path) ?? project.path;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => LineAgeScreen(
           repoPath: project.path,
-          repoName: project.name,
+          repoName: path.basename(gitRoot),
         ),
       ),
     );
@@ -167,12 +209,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
-    final showQueuePanel =
-        !compact && _activeDeploy.hasQueuePanelContent;
+    final showSideRail =
+        !compact &&
+        (_activeDeploy.hasQueuePanelContent || _inlineJob != null);
+    final showJobDetail = !compact && _inlineJob != null;
 
     return EScaffoldShell(
       contentMaxWidth:
-          showQueuePanel ? double.infinity : ELayout.contentMaxWidth,
+          showSideRail ? double.infinity : ELayout.contentMaxWidth,
       appBar: EAppHeader(
         eyebrow: AppIdentity.displayName,
         title: widget.trigger.title,
@@ -186,7 +230,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ),
         ],
       ),
-      body: showQueuePanel
+      body: showSideRail
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -195,6 +239,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   ongoing: _activeDeploy.ongoing,
                   waiting: _activeDeploy.waiting,
                   ongoingRemaining: _activeDeploy.ongoingRemainingEstimate,
+                  width: showJobDetail ? _queueWithJobWidth : _queueOnlyWidth,
+                  jobDetail: showJobDetail
+                      ? DeployJobDetail(
+                          key: ValueKey(_inlineJob!.jobId),
+                          trigger: widget.trigger,
+                          initialJob: _inlineJob!,
+                          embedded: true,
+                          onClose: _closeInlineJob,
+                          onBecameTerminal: () =>
+                              unawaited(_afterJobScreen()),
+                        )
+                      : null,
                   onOpenOngoing: () => unawaited(_openOngoingDeploy()),
                   onCancelWaiting: (jobId) =>
                       _activeDeploy.cancelWaiting(jobId),
@@ -346,6 +402,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       localRun: widget.localRun,
       showLineAge: widget.trigger.showLineAgeAnalysis,
       ongoingDeploy: _activeDeploy.forProject(project.projectId),
+      waitingDeploys: _activeDeploy.waiting,
       onLineAge: () => _openLineAge(project),
       onDeploy: (platform) => unawaited(_deploy(project, platform)),
       onRun: (device) => unawaited(_run(project, device)),

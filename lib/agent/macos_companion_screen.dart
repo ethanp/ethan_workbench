@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ethan_sync/ethan_sync.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,6 +66,10 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     // Agent must come up even if PowerSync ledger attach is slow/hangs.
     await _startAgent(announce: false);
     await _attachSyncLedger();
+    await _agent.restoreDeploySession();
+    if (mounted) {
+      setState(() => _activeJob = _agent.activeJob);
+    }
   }
 
   Future<void> _attachSyncLedger() async {
@@ -93,9 +98,8 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
 
   void _showAgentMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    context.textSnackBar(message);
   }
 
   Future<void> _startAgent({bool announce = true}) async {
@@ -313,9 +317,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
                       ClipboardData(text: pairingAuth.pin),
                     );
                     if (!mounted) return;
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('Copied PIN')));
+                    context.textSnackBar('Copied PIN');
                   },
                   icon: const Icon(Icons.copy),
                 ),
@@ -344,9 +346,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
               OutlinedButton(
                 onPressed: () {
                   pairingAuth.revokeAllSessions();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Revoked all phone sessions')),
-                  );
+                  context.textSnackBar('Revoked all phone sessions');
                 },
                 child: const Text('Revoke all'),
               ),
@@ -377,9 +377,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
           TextButton(
             onPressed: () {
               _agent.pairingAuth.revokeSession(sessionId);
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Revoked $label')));
+              context.textSnackBar('Revoked $label');
             },
             child: Text(
               'Revoke',

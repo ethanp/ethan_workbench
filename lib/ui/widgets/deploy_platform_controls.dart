@@ -13,6 +13,7 @@ EActionClusterCell deployActionCell({
   DateTime? lastDeployedAt,
   DeploySourceStatus sourceStatus = DeploySourceStatus.unevaluated,
   DeployJob? ongoingDeploy,
+  DeployJob? waitingDeploy,
   VoidCallback? onOpenOngoing,
 }) {
   final ongoing = ongoingDeploy;
@@ -34,6 +35,9 @@ EActionClusterCell deployActionCell({
     );
   }
 
+  final isQueuedBehind =
+      waitingDeploy != null && waitingDeploy.platform == platform;
+
   return EActionClusterCell(
     icon: Icons.rocket_launch_rounded,
     title: 'Deploy',
@@ -42,8 +46,9 @@ EActionClusterCell deployActionCell({
         : 'Never',
     condensedLabel:
         lastDeployedAt != null ? lastDeployedAt.relativeTimeShort() : '—',
-    statusLabel: sourceStatus.chipLabel,
-    statusTone: sourceStatus.chipTone,
+    statusLabel: isQueuedBehind ? 'queued' : sourceStatus.chipLabel,
+    statusTone:
+        isQueuedBehind ? EStatusTone.accent : sourceStatus.chipTone,
     onTap: onSelected,
   );
 }

@@ -22,6 +22,6 @@ SyncConfig buildEthanWorkbenchSyncConfig(SharedPreferences preferences) {
       strategy: CoalescingBatchUploadStrategy(),
       conflictColumns: const {'deploy_state': 'project_id,platform'},
     ),
-    onSyncError: (message) => _log.warn(message),
+    onSyncError: _log.warn,
   );
 }

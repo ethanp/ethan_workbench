@@ -1,23 +1,22 @@
 import 'dart:async';
 
-import 'package:ethan_utils/ethan_utils.dart';
-
 import '../projects/deployable_project.dart';
 import 'flutter_run_device.dart';
 import 'local_flutter_run.dart';
 import 'local_flutter_run_binding.dart';
+import 'local_run_checkpoint.dart';
+import 'local_run_console.dart';
 import 'local_run_controls.dart';
 import 'local_run_persistence.dart';
 import 'local_run_progress.dart';
+import 'local_run_reclaimer.dart';
 import 'local_run_state.dart';
-import 'os_process_tree.dart';
 
-const _log = ELogger('LocalRun');
-
-/// Session policy for one local `flutter run`: start/stop/reclaim and when to persist.
+/// Session policy for one local `flutter run`: start/stop/reclaim.
 ///
 /// Published run state lives in [LocalRunProgress]; process binding in
-/// [LocalFlutterRunBinding].
+/// [LocalFlutterRunBinding]; console interpretation in [LocalRunConsole];
+/// hot-restart reclaim in [LocalRunReclaimer].
 class LocalRunSession implements LocalRunControls {
   LocalRunSession({
     this._isDeployBlocking,
@@ -25,19 +24,38 @@ class LocalRunSession implements LocalRunControls {
     LocalRunPersistence? persistence,
     LocalRunProgress? runProgress,
   }) : _persistence = persistence ?? LocalRunPersistence(),
-       _runProgress = runProgress ?? LocalRunProgress();
+       _runProgress = runProgress ?? LocalRunProgress() {
+    _flutterRunBinding = LocalFlutterRunBinding();
+    _checkpoint = LocalRunCheckpoint(
+      runProgress: _runProgress,
+      flutterRunBinding: _flutterRunBinding,
+      persistence: _persistence,
+    );
+    _console = LocalRunConsole(
+      runProgress: _runProgress,
+      flutterRunBinding: _flutterRunBinding,
+      checkpoint: _checkpoint,
+    );
+    _reclaimer = LocalRunReclaimer(
+      runProgress: _runProgress,
+      flutterRunBinding: _flutterRunBinding,
+      persistence: _persistence,
+      checkpoint: _checkpoint,
+      console: _console,
+      adoptFlutterRun: _adoptFlutterRun,
+      isDisposed: () => _disposed,
+    );
+  }
 
   final bool Function()? _isDeployBlocking;
   final String? Function()? _deployBlockMessage;
   final LocalRunPersistence _persistence;
   final LocalRunProgress _runProgress;
-  final LocalFlutterRunBinding _flutterRunBinding = LocalFlutterRunBinding();
-  final PidLivenessWatch _liveness = PidLivenessWatch();
+  late final LocalFlutterRunBinding _flutterRunBinding;
+  late final LocalRunCheckpoint _checkpoint;
+  late final LocalRunConsole _console;
+  late final LocalRunReclaimer _reclaimer;
   bool _disposed = false;
-
-  /// Ignore EXCEPTION CAUGHT dumps at or before this log offset (hot reload /
-  /// restart clear). Combined with restart banners inside [FlutterRunOutput].
-  int _exceptionLogFloor = 0;
 
   @override
   LocalRunState get state => _runProgress.current;
@@ -47,87 +65,7 @@ class LocalRunSession implements LocalRunControls {
   bool get isActive => _runProgress.isActive;
 
   /// Restore a run orphaned by a workbench hot restart / relaunch.
-  Future<void> restorePersisted() async {
-    if (_disposed || _runProgress.isActive) return;
-    final record = await _persistence.read();
-    if (record == null) return;
-
-    final persistedRunStillAlive = await record.pid.asOsProcessTree.isAlive;
-    final hasVmServiceUri =
-        record.vmServiceUri != null && record.vmServiceUri!.isNotEmpty;
-    if (!persistedRunStillAlive && !hasVmServiceUri) {
-      await _persistence.clear();
-      return;
-    }
-
-    _flutterRunBinding.trackedPid = persistedRunStillAlive ? record.pid : null;
-    _flutterRunBinding.vmServiceUri = record.vmServiceUri;
-    _runProgress.clearLog();
-    _exceptionLogFloor = 0;
-    _runProgress.appendLog(
-      'Reclaimed session after workbench restart'
-      '${persistedRunStillAlive ? ' (pid ${record.pid})' : ''}.\n'
-      'Attaching for hot reload…\n',
-    );
-    _runProgress.emit(
-      LocalRunState(
-        status: LocalRunStatus.starting,
-        log: _runProgress.logText,
-        readyForKeyCommands: false,
-        projectId: record.projectId,
-        projectName: record.projectName,
-        projectPath: record.projectPath,
-        deviceKey: record.deviceKey,
-        deviceLabel: record.deviceLabel,
-        flutterDeviceId: record.flutterDeviceId,
-        reattached: true,
-      ),
-    );
-
-    try {
-      final flutterRun = await _flutterRunBinding.attachToRunning(
-        projectPath: record.projectPath,
-        deviceId: record.flutterDeviceId,
-        vmServiceUri: record.vmServiceUri,
-      );
-      if (_disposed) {
-        await flutterRun.quit();
-        return;
-      }
-      _liveness.cancel();
-      _adoptFlutterRun(flutterRun);
-      await _checkpoint(readyForKeyCommands: false);
-      _runProgress.appendLog(
-        'flutter attach started (pid ${flutterRun.pid}).\n',
-      );
-    } catch (error) {
-      _runProgress.appendLog('flutter attach failed: $error\n');
-      if (persistedRunStillAlive) {
-        _runProgress.appendLog(
-          'Hot reload unavailable until Full restart; Stop still works.\n',
-        );
-        _runProgress.emit(
-          _runProgress.current.copyWith(
-            status: LocalRunStatus.running,
-            readyForKeyCommands: false,
-            reattached: true,
-          ),
-        );
-        _watchOrphanPid(record.pid);
-        return;
-      }
-      await _persistence.clear();
-      _flutterRunBinding.clearIdentity();
-      _runProgress.emit(
-        _runProgress.current.copyWith(
-          status: LocalRunStatus.exited,
-          readyForKeyCommands: false,
-          reattached: false,
-          errorMessage: 'Could not reattach: $error',
-        ),
-      );
-    }
-  }
+  Future<void> restorePersisted() => _reclaimer.restorePersisted();
 
   @override
   Future<void> start(
@@ -154,9 +92,9 @@ class LocalRunSession implements LocalRunControls {
       );
     }
 
-    _liveness.cancel();
+    _reclaimer.cancelLiveness();
     _runProgress.clearLog();
-    _exceptionLogFloor = 0;
+    _console.resetForNewRun();
     _flutterRunBinding.vmServiceUri = null;
     _runProgress.emit(
       LocalRunState(
@@ -196,10 +134,10 @@ class LocalRunSession implements LocalRunControls {
       }
       _flutterRunBinding.trackedPid = flutterRun.pid;
       _adoptFlutterRun(flutterRun);
-      await _checkpoint(readyForKeyCommands: false);
+      await _checkpoint.write(readyForKeyCommands: false);
     } catch (error) {
       _flutterRunBinding.clearIdentity();
-      await _persistence.clear();
+      await _checkpoint.clear();
       _runProgress.emit(
         _runProgress.current.copyWith(
           status: LocalRunStatus.failed,
@@ -213,19 +151,19 @@ class LocalRunSession implements LocalRunControls {
 
   @override
   Future<void> hotReload() async {
-    _clearFlutterException();
+    _console.clearFlutterException();
     await _sendKeyCommand('r');
   }
 
   @override
   Future<void> hotRestart() async {
-    _clearFlutterException();
+    _console.clearFlutterException();
     await _sendKeyCommand('R');
   }
 
   @override
   Future<void> fullRestart() async {
-    _clearFlutterException();
+    _console.clearFlutterException();
     final projectId = _runProgress.current.projectId;
     final projectName = _runProgress.current.projectName;
     final projectPath = _runProgress.current.projectPath;
@@ -290,7 +228,7 @@ class LocalRunSession implements LocalRunControls {
           ),
         );
       }
-      await _persistence.clear();
+      await _checkpoint.clear();
       return;
     }
 
@@ -313,8 +251,8 @@ class LocalRunSession implements LocalRunControls {
     }
 
     await _flutterRunBinding.quit();
-    _liveness.cancel();
-    await _persistence.clear();
+    _reclaimer.cancelLiveness();
+    await _checkpoint.clear();
     _runProgress.emit(
       _runProgress.current.copyWith(
         status: LocalRunStatus.exited,
@@ -329,7 +267,7 @@ class LocalRunSession implements LocalRunControls {
   Future<void> dispose() async {
     _disposed = true;
     _flutterRunBinding.invalidate();
-    _liveness.cancel();
+    _reclaimer.cancelLiveness();
     await _flutterRunBinding.detachLeavingApp();
     await _runProgress.close();
   }
@@ -337,7 +275,7 @@ class LocalRunSession implements LocalRunControls {
   void _adoptFlutterRun(LocalFlutterRun flutterRun) {
     _flutterRunBinding.adopt(
       flutterRun,
-      onOutput: _onOutputChunk,
+      onOutput: _console.onOutputChunk,
       onExit: (exitCode) {
         unawaited(
           _settleExit(flutterRun, exitCode, stoppedIntentionally: false),
@@ -352,7 +290,7 @@ class LocalRunSession implements LocalRunControls {
     required bool stoppedIntentionally,
   }) async {
     if (!_flutterRunBinding.owns(flutterRun)) return;
-    _liveness.cancel();
+    _reclaimer.cancelLiveness();
     await _flutterRunBinding.releaseAfterExit(flutterRun);
 
     if (!_disposed) {
@@ -371,7 +309,7 @@ class LocalRunSession implements LocalRunControls {
         ),
       );
     }
-    await _persistence.clear();
+    await _checkpoint.clear();
   }
 
   Future<void> _sendKeyCommand(String key) async {
@@ -385,130 +323,5 @@ class LocalRunSession implements LocalRunControls {
     } catch (error) {
       _runProgress.appendLog('Failed to send $key: $error\n');
     }
-  }
-
-  void _onOutputChunk(String chunk) {
-    _runProgress.appendLog(chunk);
-    final parsedUri =
-        FlutterRunOutput.vmServiceUriFrom(chunk) ??
-        FlutterRunOutput.vmServiceUriFrom(_runProgress.logText);
-    if (parsedUri != null && parsedUri != _flutterRunBinding.vmServiceUri) {
-      _flutterRunBinding.vmServiceUri = parsedUri;
-      unawaited(
-        _checkpoint(
-          readyForKeyCommands: _runProgress.current.readyForKeyCommands,
-        ),
-      );
-    }
-
-    final parsedException = FlutterRunOutput.exceptionFrom(
-      _runProgress.logText,
-      floor: _exceptionLogFloor,
-    );
-    final scanStart = FlutterRunOutput.exceptionScanStart(
-      _runProgress.logText,
-      floor: _exceptionLogFloor,
-    );
-    if (scanStart > _exceptionLogFloor) {
-      _exceptionLogFloor = scanStart;
-      if (_runProgress.current.flutterException != null &&
-          parsedException == null) {
-        _runProgress.emit(
-          _runProgress.current.copyWith(clearFlutterException: true),
-        );
-      }
-    }
-    if (parsedException != null &&
-        parsedException.isRicherThan(_runProgress.current.flutterException)) {
-      _log.warn(
-        'Flutter exception '
-        '${parsedException.widget ?? parsedException.library ?? 'unknown'} '
-        '${parsedException.displayLocation ?? ''}'.trim(),
-      );
-      _runProgress.emit(
-        _runProgress.current.copyWith(flutterException: parsedException),
-      );
-    }
-
-    if (_runProgress.current.readyForKeyCommands) return;
-    final status = _runProgress.current.status;
-    if (status == LocalRunStatus.stopping ||
-        status == LocalRunStatus.exited ||
-        status == LocalRunStatus.failed) {
-      return;
-    }
-    if (FlutterRunOutput.looksReady(chunk) ||
-        FlutterRunOutput.looksReady(_runProgress.logText)) {
-      _runProgress.emit(
-        _runProgress.current.copyWith(
-          status: LocalRunStatus.running,
-          readyForKeyCommands: true,
-          clearError: true,
-        ),
-      );
-      unawaited(_checkpoint(readyForKeyCommands: true));
-    }
-  }
-
-  void _clearFlutterException() {
-    _exceptionLogFloor = _runProgress.logText.length;
-    if (_runProgress.current.flutterException == null) return;
-    _runProgress.emit(
-      _runProgress.current.copyWith(clearFlutterException: true),
-    );
-  }
-
-  Future<void> _checkpoint({required bool readyForKeyCommands}) async {
-    final pid = _flutterRunBinding.trackedPid;
-    final projectId = _runProgress.current.projectId;
-    final projectName = _runProgress.current.projectName;
-    final projectPath = _runProgress.current.projectPath;
-    final deviceKey = _runProgress.current.deviceKey;
-    final deviceLabel = _runProgress.current.deviceLabel;
-    final flutterDeviceId = _runProgress.current.flutterDeviceId;
-    if (pid == null ||
-        projectId == null ||
-        projectName == null ||
-        projectPath == null ||
-        deviceKey == null ||
-        deviceLabel == null ||
-        flutterDeviceId == null) {
-      return;
-    }
-    await _persistence.write(
-      LocalRunRecord(
-        pid: pid,
-        projectId: projectId,
-        projectName: projectName,
-        projectPath: projectPath,
-        readyForKeyCommands: readyForKeyCommands,
-        deviceKey: deviceKey,
-        deviceLabel: deviceLabel,
-        flutterDeviceId: flutterDeviceId,
-        vmServiceUri: _flutterRunBinding.vmServiceUri,
-      ),
-    );
-  }
-
-  void _watchOrphanPid(int pid) {
-    _liveness.watch(
-      pid,
-      onDead: () async {
-        if (_flutterRunBinding.hasFlutterRun || _disposed) return;
-        if (_flutterRunBinding.trackedPid != pid) return;
-        _flutterRunBinding.clearIdentity();
-        await _persistence.clear();
-        if (_runProgress.isActive) {
-          _runProgress.appendLog('Reclaimed flutter run exited (pid $pid).\n');
-          _runProgress.emit(
-            _runProgress.current.copyWith(
-              status: LocalRunStatus.exited,
-              readyForKeyCommands: false,
-              reattached: false,
-            ),
-          );
-        }
-      },
-    );
   }
 }
