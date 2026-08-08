@@ -19,10 +19,15 @@ abstract final class _WorkbenchRowLayout {
   static const clusterGap = 10.0;
   static const compactClusterGap = 6.0;
   static const secondaryActionWidth = 140.0;
+  static const secondaryActionIconOnlyWidth = 44.0;
 
   /// Icon-above-title column — sized for typical project names on 1–2 lines.
   static const identityMaxWidth = 140.0;
   static const compactIdentityMaxWidth = 112.0;
+
+  /// Identity keeps at least this much before Line age may claim its width;
+  /// the row must always say which app it is.
+  static const identityMinWidth = 76.0;
 
   /// Clusters may shrink to this before identity is reduced further.
   static const clusterAbsoluteFloor = 72.0;
@@ -103,16 +108,25 @@ class ProjectWorkbenchRow extends StatelessWidget {
                 ),
                 const SizedBox(width: ELayout.spaceMd),
               ],
-              if (showLineAge) ...[
+              if (widths.lineAge > 0) ...[
                 SizedBox(
-                  width: _WorkbenchRowLayout.secondaryActionWidth,
-                  child: ETintedAction.compact(
-                    accent: WorkbenchActionAccents.lineAge,
-                    icon: Icons.bar_chart_rounded,
-                    title: 'Line age',
-                    subtitle: 'Authorship',
-                    onTap: onLineAge,
-                  ),
+                  width: widths.lineAge,
+                  child: widths.lineAge >=
+                          _WorkbenchRowLayout.secondaryActionWidth
+                      ? ETintedAction.compact(
+                          accent: WorkbenchActionAccents.lineAge,
+                          icon: Icons.bar_chart_rounded,
+                          title: 'Line age',
+                          subtitle: 'Authorship',
+                          onTap: onLineAge,
+                        )
+                      : ETintedAction.iconOnly(
+                          accent: WorkbenchActionAccents.lineAge,
+                          icon: Icons.bar_chart_rounded,
+                          title: 'Line age',
+                          subtitle: 'Authorship',
+                          onTap: onLineAge,
+                        ),
                 ),
                 SizedBox(width: clusterGap),
               ],
@@ -130,51 +144,85 @@ class ProjectWorkbenchRow extends StatelessWidget {
     );
   }
 
-  /// Identity first (up to max); clusters share the rest equally.
-  /// Never steals identity to satisfy a large cluster minimum — that zeroed the
-  /// title column on phone when two platforms were present.
-  ({double identity, double cluster}) _rowWidths(
+  /// Identity first (up to max), then Line age, then clusters share the rest.
+  /// Line age steps down full-width → icon-only → hidden rather than squeeze
+  /// the identity column below [_WorkbenchRowLayout.identityMinWidth]; clusters
+  /// never steal identity to satisfy a large minimum.
+  ({double identity, double lineAge, double cluster}) _rowWidths(
     double maxWidth, {
     required bool compact,
     required double clusterGap,
   }) {
     if (!maxWidth.isFinite || maxWidth <= 0) {
-      return (identity: 0, cluster: 0);
+      return (identity: 0, lineAge: 0, cluster: 0);
     }
 
     final identityMax = compact
         ? _WorkbenchRowLayout.compactIdentityMaxWidth
         : _WorkbenchRowLayout.identityMaxWidth;
-    final lineAgeBlock = showLineAge
-        ? _WorkbenchRowLayout.secondaryActionWidth + clusterGap
-        : 0.0;
-    final clusterGaps = math.max(0, platforms.length - 1) * clusterGap;
 
     if (platforms.isEmpty) {
-      final identity =
-          (maxWidth - lineAgeBlock).clamp(0.0, identityMax);
-      return (identity: identity, cluster: 0);
+      final lineAge = _lineAgeWidthLeavingIdentityFloor(
+        budget: maxWidth,
+        clusterGap: clusterGap,
+      );
+      final identity = (maxWidth - (lineAge > 0 ? lineAge + clusterGap : 0))
+          .clamp(0.0, identityMax);
+      return (identity: identity, lineAge: lineAge, cluster: 0);
     }
 
-    final afterIdentityGap = ELayout.spaceMd;
-    final reservedWithoutIdentity =
-        lineAgeBlock + clusterGaps + afterIdentityGap;
-    final available = maxWidth - reservedWithoutIdentity;
-    if (available <= 0) {
-      return (identity: 0, cluster: 0);
-    }
-
+    final clusterGaps = math.max(0, platforms.length - 1) * clusterGap;
     final clusterFloorTotal =
         platforms.length * _WorkbenchRowLayout.clusterAbsoluteFloor;
-    final identity = math.min(
-      identityMax,
-      math.max(0.0, available - clusterFloorTotal),
-    );
-    // Floor cluster width so subpixel rounding cannot overflow the row.
-    final cluster = (((available - identity) / platforms.length).floorToDouble())
-        .clamp(0.0, _WorkbenchRowLayout.clusterWidth);
+    final afterIdentityGap = ELayout.spaceMd;
 
-    return (identity: identity, cluster: cluster);
+    // What identity may spend once clusters hold their floor.
+    var identityBudget =
+        maxWidth - clusterGaps - clusterFloorTotal - afterIdentityGap;
+    final lineAge = _lineAgeWidthLeavingIdentityFloor(
+      budget: identityBudget,
+      clusterGap: clusterGap,
+    );
+    if (lineAge > 0) {
+      identityBudget -= lineAge + clusterGap;
+    }
+    if (identityBudget <= 0) {
+      return (
+        identity: 0,
+        lineAge: 0,
+        cluster: ((maxWidth - clusterGaps) / platforms.length)
+            .floorToDouble()
+            .clamp(0.0, _WorkbenchRowLayout.clusterWidth),
+      );
+    }
+
+    final identity = math.min(identityMax, identityBudget);
+    // Floor cluster width so subpixel rounding cannot overflow the row.
+    final cluster =
+        (((clusterFloorTotal + identityBudget - identity) / platforms.length)
+                .floorToDouble())
+            .clamp(0.0, _WorkbenchRowLayout.clusterWidth);
+
+    return (identity: identity, lineAge: lineAge, cluster: cluster);
+  }
+
+  /// Widest Line age tier (full labeled → icon-only → 0) whose gap-inclusive
+  /// cost still leaves the identity floor inside [budget].
+  double _lineAgeWidthLeavingIdentityFloor({
+    required double budget,
+    required double clusterGap,
+  }) {
+    if (!showLineAge) return 0;
+    for (final tierWidth in const [
+      _WorkbenchRowLayout.secondaryActionWidth,
+      _WorkbenchRowLayout.secondaryActionIconOnlyWidth,
+    ]) {
+      if (budget - tierWidth - clusterGap >=
+          _WorkbenchRowLayout.identityMinWidth) {
+        return tierWidth;
+      }
+    }
+    return 0;
   }
 
   Widget _identity() {
