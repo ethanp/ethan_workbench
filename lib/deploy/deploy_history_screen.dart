@@ -9,6 +9,7 @@ import '../app_identity.dart';
 import 'deploy_job.dart';
 import 'deploy_run_record.dart';
 import 'deploy_trigger.dart';
+import 'job_screen.dart';
 import '../phone/deploy_http_client.dart';
 import '../projects/project_app_icon_tile.dart';
 
@@ -23,12 +24,18 @@ class DeployHistoryScreen extends StatefulWidget {
 }
 
 class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
+  static const _jobDetailRailWidth = 440.0;
+
   List<DeployRunRecord> _runs = const [];
   Map<String, Uint8List> _iconsByProjectId = const {};
   bool _loading = true;
   String? _errorMessage;
   StreamSubscription<DeployJob>? _jobUpdatesSubscription;
   Timer? _historyPoll;
+
+  /// Run opened in the right rail (null = rail closed). Compact pushes
+  /// the full-screen [JobScreen] instead.
+  DeployJob? _selectedRunJob;
 
   @override
   void initState() {
@@ -106,15 +113,62 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
     }
   }
 
+  Future<void> _showRunDeployPanel(DeployRunRecord run) async {
+    try {
+      final job = await widget.trigger.fetchJob(run.runId);
+      if (!mounted) return;
+      if (MediaQuery.sizeOf(context).shortestSide < 600) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) => JobScreen(
+              trigger: widget.trigger,
+              initialJob: job,
+            ),
+          ),
+        );
+        return;
+      }
+      setState(() => _selectedRunJob = job);
+    } on AgentRequestException catch (error) {
+      if (!mounted) return;
+      context.textSnackBar('Could not load deploy: ${error.message}');
+    } catch (error) {
+      if (!mounted) return;
+      context.textSnackBar('Could not load deploy: $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final selectedRunJob = _selectedRunJob;
+    final showJobRail = selectedRunJob != null &&
+        MediaQuery.sizeOf(context).shortestSide >= 600;
     return EScaffoldShell(
-      contentMaxWidth: ELayout.feedContentMaxWidth,
+      contentMaxWidth:
+          showJobRail ? double.infinity : ELayout.feedContentMaxWidth,
       appBar: EAppHeader(
         eyebrow: AppIdentity.displayName,
         title: 'History',
       ),
-      body: _body(),
+      body: showJobRail
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _body()),
+                ESidePanel(
+                  title: 'Deploy',
+                  width: _jobDetailRailWidth,
+                  child: DeployJobDetail(
+                    key: ValueKey(selectedRunJob.jobId),
+                    trigger: widget.trigger,
+                    initialJob: selectedRunJob,
+                    embedded: true,
+                    onClose: () => setState(() => _selectedRunJob = null),
+                  ),
+                ),
+              ],
+            )
+          : _body(),
     );
   }
 
@@ -162,6 +216,8 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
   Widget _runRow(DeployRunRecord run) {
     return ESurface(
       kind: ESurfaceKind.row,
+      attention: run.runId == _selectedRunJob?.jobId,
+      onTap: () => unawaited(_showRunDeployPanel(run)),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
         children: [
