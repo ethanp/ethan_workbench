@@ -18,6 +18,10 @@ class _MemoryPersistence extends DeploySessionPersistence {
       '/tmp/deploy_exit_$jobId.txt';
 
   @override
+  Future<String> logPathFor(String jobId) async =>
+      '/tmp/deploy_log_$jobId.txt';
+
+  @override
   Future<DeploySessionRecord?> read() async => record;
 
   @override
@@ -26,7 +30,7 @@ class _MemoryPersistence extends DeploySessionPersistence {
   }
 
   @override
-  Future<void> clear({String? exitCodePath}) async {
+  Future<void> clear({String? exitCodePath, String? logPath}) async {
     record = null;
     if (exitCodePath != null) deletedExitPaths.add(exitCodePath);
   }
@@ -43,6 +47,7 @@ class _ControllableScriptRunner extends DeployScriptRunner {
     required bool force,
     required void Function(String chunk) onOutput,
     String? exitCodePath,
+    String? logPath,
     void Function(int pid)? onStarted,
   }) {
     final completer = Completer<int>();
@@ -143,6 +148,8 @@ void main() {
     await pipeline.restorePersistedSession();
     expect(pipeline.activeJob?.status, DeployJobStatus.running);
     expect(pipeline.activeJob?.log, contains('Reclaimed deploy'));
+    expect(pipeline.activeJob?.log, contains('Resuming live log'));
+    expect(pipeline.activeJob?.log, isNot(contains('paused')));
 
     await exitFile.writeAsString('0');
     alive = false;

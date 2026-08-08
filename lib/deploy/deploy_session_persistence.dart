@@ -12,6 +12,7 @@ class DeploySessionRecord {
     required this.activeJob,
     required this.projectPath,
     required this.exitCodePath,
+    this.logPath,
     this.pid,
     this.waiting = const [],
   });
@@ -19,6 +20,7 @@ class DeploySessionRecord {
   final DeployJob activeJob;
   final String projectPath;
   final String exitCodePath;
+  final String? logPath;
   final int? pid;
   final List<DeployJob> waiting;
 
@@ -26,6 +28,7 @@ class DeploySessionRecord {
     'activeJob': activeJob.toJson(),
     'projectPath': projectPath,
     'exitCodePath': exitCodePath,
+    if (logPath != null) 'logPath': logPath,
     if (pid != null) 'pid': pid,
     'waiting': [for (final job in waiting) job.toJson()],
   };
@@ -38,6 +41,7 @@ class DeploySessionRecord {
       ),
       projectPath: json['projectPath'] as String,
       exitCodePath: json['exitCodePath'] as String,
+      logPath: json['logPath'] as String?,
       pid: json['pid'] as int?,
       waiting: [
         for (final item in waitingJson)
@@ -63,6 +67,11 @@ class DeploySessionPersistence {
     return path.join(supportDirectory.path, 'deploy_exit_$jobId.txt');
   }
 
+  Future<String> logPathFor(String jobId) async {
+    final supportDirectory = await _supportDirectory();
+    return path.join(supportDirectory.path, 'deploy_log_$jobId.txt');
+  }
+
   Future<DeploySessionRecord?> read() async {
     final file = await _sessionFile();
     if (!await file.exists()) return null;
@@ -81,15 +90,22 @@ class DeploySessionPersistence {
     await file.writeAsString(jsonEncode(record.toJson()));
   }
 
-  Future<void> clear({String? exitCodePath}) async {
+  Future<void> clear({String? exitCodePath, String? logPath}) async {
     final file = await _sessionFile();
     if (await file.exists()) {
       await file.delete();
     }
-    if (exitCodePath == null || exitCodePath.isEmpty) return;
-    final exitFile = File(exitCodePath);
-    if (await exitFile.exists()) {
-      await exitFile.delete();
+    if (exitCodePath != null && exitCodePath.isNotEmpty) {
+      final exitFile = File(exitCodePath);
+      if (await exitFile.exists()) {
+        await exitFile.delete();
+      }
+    }
+    if (logPath != null && logPath.isNotEmpty) {
+      final logFile = File(logPath);
+      if (await logFile.exists()) {
+        await logFile.delete();
+      }
     }
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../tooling/flutter_tool_environment.dart';
 import 'flutter_run_exception.dart';
 import 'os_process_tree.dart';
 
@@ -264,7 +265,7 @@ class LocalFlutterRun {
   }
 
   static Map<String, String> _flutterEnvironment() {
-    final environment = Map<String, String>.from(Platform.environment);
+    final environment = flutterToolEnvironment();
     final path = environment['PATH'] ?? '';
     const brewBin = '/opt/homebrew/bin';
     const localBin = '/usr/local/bin';

@@ -249,28 +249,40 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
   }
 
   Widget _detailColumn() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _statusHeader(),
-        if (_errorMessage != null) ...[
-          const SizedBox(height: 10),
-          Text(
-            _errorMessage!,
-            style: EText.body.copyWith(color: EColors.danger),
-          ),
-        ],
-        const SizedBox(height: 14),
-        Text('BUILD LOG', style: EText.label),
-        const SizedBox(height: 8),
-        Expanded(
-          child: LogConsole(
-            log: _job.log,
-            controller: _logScrollController,
-            emptyMessage: '(waiting for logs…)',
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // The checklist grows a row per deploy step; in short viewports
+            // let the status panel scroll within half the height instead of
+            // overflowing and starving the log console.
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: constraints.maxHeight / 2,
+              ),
+              child: SingleChildScrollView(child: _statusHeader()),
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _errorMessage!,
+                style: EText.body.copyWith(color: EColors.danger),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Text('BUILD LOG', style: EText.label),
+            const SizedBox(height: 8),
+            Expanded(
+              child: LogConsole(
+                log: _job.log,
+                controller: _logScrollController,
+                emptyMessage: '(waiting for logs…)',
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -5,7 +7,10 @@ import 'deploy_checklist.dart';
 import 'deploy_job.dart';
 
 /// Right-rail queue: active deploy + FIFO wait list (+ optional job detail).
-class DeployQueuePanel extends StatelessWidget {
+///
+/// With a job detail open, the queue section is content-sized by default and
+/// the queue/detail split can be resized by dragging the handle between them.
+class DeployQueuePanel extends StatefulWidget {
   const DeployQueuePanel({
     super.key,
     required this.ongoing,
@@ -30,30 +35,118 @@ class DeployQueuePanel extends StatelessWidget {
   final double width;
 
   @override
+  State<DeployQueuePanel> createState() => _DeployQueuePanelState();
+}
+
+class _DeployQueuePanelState extends State<DeployQueuePanel> {
+  static const _contentSizedQueueMaxHeight = 220.0;
+  static const _queueMinHeight = 48.0;
+  static const _jobDetailMinHeight = 160.0;
+
+  /// Null until the split handle is first dragged; queue stays content-sized.
+  double? _draggedQueueHeight;
+  double _maxQueueHeight = _contentSizedQueueMaxHeight;
+  final _queueSectionKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
     return ESidePanel(
-      title: jobDetail == null ? 'Queue' : 'Deploy',
-      width: width,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (jobDetail == null)
-            Expanded(child: _queueList())
-          else ...[
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
-              child: _queueList(),
-            ),
-            const Divider(height: 1),
-            Expanded(child: jobDetail!),
+      title: widget.jobDetail == null ? 'Queue' : 'Deploy',
+      width: widget.width,
+      child: widget.jobDetail == null
+          ? _queueList(shrinkWrap: false)
+          : _queueAndJobDetailSplit(),
+    );
+  }
+
+  Widget _queueAndJobDetailSplit() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _maxQueueHeight = math.max(
+          _queueMinHeight,
+          constraints.maxHeight - _jobDetailMinHeight,
+        );
+        final draggedQueueHeight = _draggedQueueHeight?.clamp(
+          _queueMinHeight,
+          _maxQueueHeight,
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (draggedQueueHeight != null)
+              SizedBox(
+                key: _queueSectionKey,
+                height: draggedQueueHeight,
+                child: _queueList(shrinkWrap: false),
+              )
+            else
+              ConstrainedBox(
+                key: _queueSectionKey,
+                constraints: BoxConstraints(
+                  maxHeight: math.min(
+                    _contentSizedQueueMaxHeight,
+                    _maxQueueHeight,
+                  ),
+                ),
+                child: _queueList(shrinkWrap: true),
+              ),
+            _splitDragHandle(),
+            Expanded(child: widget.jobDetail!),
           ],
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _splitDragHandle() {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeUpDown,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onVerticalDragStart: _startSplitDrag,
+        onVerticalDragUpdate: _updateSplitDrag,
+        child: SizedBox(
+          height: 11,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Divider(height: 1),
+              Container(
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: EColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _queueList() {
+  void _startSplitDrag(DragStartDetails details) {
+    final queueSectionBox =
+        _queueSectionKey.currentContext?.findRenderObject() as RenderBox?;
+    if (queueSectionBox == null) return;
+    setState(() => _draggedQueueHeight = queueSectionBox.size.height);
+  }
+
+  void _updateSplitDrag(DragUpdateDetails details) {
+    final queueHeight = _draggedQueueHeight;
+    if (queueHeight == null) return;
+    setState(() {
+      _draggedQueueHeight = (queueHeight + details.delta.dy).clamp(
+        _queueMinHeight,
+        _maxQueueHeight,
+      );
+    });
+  }
+
+  Widget _queueList({required bool shrinkWrap}) {
     return ListView(
+      shrinkWrap: shrinkWrap,
       padding: const EdgeInsets.fromLTRB(
         ELayout.spaceMd,
         0,
@@ -61,31 +154,32 @@ class DeployQueuePanel extends StatelessWidget {
         ELayout.spaceLg,
       ),
       children: [
-        if (ongoing != null) ...[
+        if (widget.ongoing != null) ...[
           Text('Now', style: EText.label),
           const SizedBox(height: ELayout.spaceSm),
           _QueueJobTile(
-            job: ongoing!,
-            onTap: onOpenOngoing,
-            stageLabel: ongoing!.activeStageLabel,
-            remaining: ongoingRemaining,
+            job: widget.ongoing!,
+            onTap: widget.onOpenOngoing,
+            stageLabel: widget.ongoing!.activeStageLabel,
+            remaining: widget.ongoingRemaining,
           ),
           const SizedBox(height: ELayout.spaceLg),
         ],
         Text('Up next', style: EText.label),
         const SizedBox(height: ELayout.spaceSm),
-        if (waiting.isEmpty)
+        if (widget.waiting.isEmpty)
           Text(
             'Nothing queued',
             style: EText.caption,
           )
         else
-          for (var index = 0; index < waiting.length; index++) ...[
+          for (var index = 0; index < widget.waiting.length; index++) ...[
             if (index > 0) const SizedBox(height: ELayout.spaceSm),
             _QueueJobTile(
-              job: waiting[index],
+              job: widget.waiting[index],
               position: index + 1,
-              onCancel: () => onCancelWaiting(waiting[index].jobId),
+              onCancel: () =>
+                  widget.onCancelWaiting(widget.waiting[index].jobId),
             ),
           ],
       ],

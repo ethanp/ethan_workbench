@@ -281,18 +281,21 @@ class ProjectWorkbenchRow extends StatelessWidget {
         runStatus != LocalRunStatus.running) {
       return null;
     }
-    return IconButton(
-      tooltip: 'Stop run',
-      onPressed: onStopRun,
-      iconSize: 20,
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-      style: IconButton.styleFrom(
-        foregroundColor: EColors.danger,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    return Tooltip(
+      message: 'Stop run',
+      child: InkWell(
+        onTap: onStopRun,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: Icon(
+            Icons.stop_circle_rounded,
+            size: 18,
+            color: EColors.danger,
+          ),
+        ),
       ),
-      icon: const Icon(Icons.stop_circle_rounded),
     );
   }
 

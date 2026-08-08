@@ -25,6 +25,7 @@ class _ControllableScriptRunner extends DeployScriptRunner {
     required bool force,
     required void Function(String chunk) onOutput,
     String? exitCodePath,
+    String? logPath,
     void Function(int pid)? onStarted,
   }) {
     final completer = Completer<int>();

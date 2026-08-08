@@ -85,7 +85,10 @@ class DeployPipeline {
 
     final persistedJob = record.activeJob;
     if (persistedJob.status.isTerminal) {
-      await persistence.clear(exitCodePath: record.exitCodePath);
+      await persistence.clear(
+        exitCodePath: record.exitCodePath,
+        logPath: record.logPath,
+      );
       return;
     }
 
@@ -110,6 +113,7 @@ class DeployPipeline {
         job: persistedJob,
         projectPath: record.projectPath,
         exitCode: exitCode,
+        logPath: record.logPath,
       );
       return;
     }
@@ -119,6 +123,7 @@ class DeployPipeline {
       projectPath: record.projectPath,
       exitCodePath: record.exitCodePath,
       pid: pid,
+      logPath: record.logPath,
     );
   }
 
@@ -222,7 +227,7 @@ class DeployPipeline {
   Stream<String> watchLog(String jobId) => _console.watch(jobId);
 
   Future<void> dispose() async {
-    _slot.dispose();
+    await _slot.dispose();
     await _jobUpdatedController.close();
     await _waitQueue.dispose();
     await _console.dispose();

@@ -6,6 +6,7 @@ import '../run/os_process_tree.dart';
 import 'deploy_checklist.dart';
 import 'deploy_console.dart';
 import 'deploy_job.dart';
+import 'deploy_log_file_follow.dart';
 import 'deploy_session_persistence.dart';
 import 'deploy_wait_queue.dart';
 import 'ruby_deploy_executor.dart';
@@ -36,11 +37,14 @@ class ActiveDeploySlot {
   int? _pid;
   String? _projectPath;
   String? _exitCodePath;
+  String? _logPath;
+  DeployLogFileFollow? _logFollow;
 
   DeployJob? get job => _console.job;
   String? get projectPath => _projectPath ?? _console.projectPath;
   int? get pid => _pid;
   String? get exitCodePath => _exitCodePath;
+  String? get logPath => _logPath;
 
   bool get hasActiveRunner {
     final active = job;
@@ -70,7 +74,11 @@ class ActiveDeploySlot {
     final exitCodePath = persistence == null
         ? null
         : await persistence.exitCodePathFor(job.jobId);
+    final logPath = persistence == null
+        ? null
+        : await persistence.logPathFor(job.jobId);
     _exitCodePath = exitCodePath;
+    _logPath = logPath;
 
     try {
       final exitCode = await _scriptRunner.runDeploy(
@@ -80,6 +88,7 @@ class ActiveDeploySlot {
         force: job.force,
         onOutput: _console.append,
         exitCodePath: exitCodePath,
+        logPath: logPath,
         onStarted: (pid) {
           _pid = pid;
           unawaited(checkpoint());
@@ -97,25 +106,40 @@ class ActiveDeploySlot {
     }
   }
 
-  /// Adopt a process still running after workbench restart.
+  /// Adopt a process still running after workbench restart; resume log follow.
   Future<void> adoptReclaimed({
     required DeployJob job,
     required String projectPath,
     required String exitCodePath,
     required int pid,
+    String? logPath,
   }) async {
     _projectPath = projectPath;
     _exitCodePath = exitCodePath;
+    _logPath = logPath;
     _pid = pid;
+
+    var mergedLog = job.log;
+    if (logPath != null) {
+      final logFile = File(logPath);
+      if (await logFile.exists()) {
+        mergedLog = mergeDeployLogWithFile(
+          mergedLog,
+          await logFile.readAsString(),
+        );
+      }
+    }
+
     final reclaimed = job.copyWith(
       status: DeployJobStatus.running,
       log:
-          '${job.log}\n'
-          'Reclaimed deploy after workbench restart (pid $pid).\n'
-          'Live log streaming paused until this deploy finishes.\n',
+          '$mergedLog\n'
+          'Reclaimed deploy after workbench restart (pid $pid). '
+          'Resuming live log…\n',
     );
     _console.seed(reclaimed, projectPath: projectPath);
     unawaited(checkpoint());
+    await _startLogFollow(logPath);
     _pidWatch.watch(pid, onDead: () => _onReclaimedPidDead(pid));
   }
 
@@ -124,12 +148,24 @@ class ActiveDeploySlot {
     required DeployJob job,
     required String projectPath,
     required int exitCode,
+    String? logPath,
   }) async {
     _projectPath = projectPath;
+    _logPath = logPath;
+    var mergedLog = job.log;
+    if (logPath != null) {
+      final logFile = File(logPath);
+      if (await logFile.exists()) {
+        mergedLog = mergeDeployLogWithFile(
+          mergedLog,
+          await logFile.readAsString(),
+        );
+      }
+    }
     final resumed = job.copyWith(
       status: DeployJobStatus.running,
       log:
-          '${job.log}\n'
+          '$mergedLog\n'
           'Workbench restarted after deploy process exited.\n',
     );
     _console.applyJob(resumed);
@@ -189,6 +225,7 @@ class ActiveDeploySlot {
         activeJob: _jobForPersistence(activeJob),
         projectPath: projectPath,
         exitCodePath: exitCodePath,
+        logPath: _logPath,
         pid: _pid,
         waiting: _waitQueue.jobs,
       ),
@@ -197,17 +234,21 @@ class ActiveDeploySlot {
 
   Future<void> clearSession() async {
     _pidWatch.cancel();
+    await _stopLogFollow();
     final exitCodePath = _exitCodePath;
+    final logPath = _logPath;
     _pid = null;
     _exitCodePath = null;
+    _logPath = null;
     final persistence = _persistence;
     if (persistence == null) return;
-    await persistence.clear(exitCodePath: exitCodePath);
+    await persistence.clear(exitCodePath: exitCodePath, logPath: logPath);
   }
 
   void clearProcessHandles() {
     _pid = null;
     _exitCodePath = null;
+    _logPath = null;
     _projectPath = null;
   }
 
@@ -223,8 +264,29 @@ class ActiveDeploySlot {
     return int.tryParse((await exitFile.readAsString()).trim());
   }
 
-  void dispose() {
+  Future<void> dispose() async {
     _pidWatch.cancel();
+    await _stopLogFollow();
+  }
+
+  Future<void> _startLogFollow(String? logPath) async {
+    await _stopLogFollow();
+    if (logPath == null) return;
+    final logFile = File(logPath);
+    final startOffset = await logFile.exists() ? await logFile.length() : 0;
+    final follow = DeployLogFileFollow(
+      logPath: logPath,
+      onChunk: _console.append,
+      startOffset: startOffset,
+    );
+    _logFollow = follow;
+    await follow.start();
+  }
+
+  Future<void> _stopLogFollow() async {
+    final follow = _logFollow;
+    _logFollow = null;
+    await follow?.stop();
   }
 
   Future<void> _onReclaimedPidDead(int pid) async {
@@ -232,6 +294,7 @@ class ActiveDeploySlot {
     final projectPath = _projectPath;
     final exitCodePath = _exitCodePath;
     if (projectPath == null) return;
+    await _stopLogFollow();
     final exitCode = exitCodePath == null
         ? -1
         : await readExitCode(exitCodePath) ?? -1;
@@ -243,6 +306,7 @@ class ActiveDeploySlot {
     required int exitCode,
     required String projectPath,
   }) async {
+    await _stopLogFollow();
     _console.flush();
     _console.append(
       succeeded
