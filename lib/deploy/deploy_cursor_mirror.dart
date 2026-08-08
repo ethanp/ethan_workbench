@@ -95,8 +95,9 @@ abstract final class DeployCursorMirror {
     await writeStatus(job, projectPath: projectPath);
   }
 
-  /// Flush status and, on failure, copy the live log to the stable last-failed
-  /// paths Cursor should open first.
+  /// Flush status and, on failure, write the job's full in-memory log to the
+  /// stable last-failed paths Cursor should open first. The in-memory log is
+  /// authoritative; the live log file is not reused for this.
   static Future<void> finalize(
     DeployJob job, {
     String? projectPath,
@@ -114,17 +115,10 @@ abstract final class DeployCursorMirror {
       ),
     );
     for (final directory in WorkbenchCursorDirs.directories) {
-      final liveLog = File(path.join(directory.path, logFileName));
-      final failedLog = File(path.join(directory.path, lastFailedLogFileName));
-      try {
-        if (await liveLog.exists()) {
-          await liveLog.copy(failedLog.path);
-        } else {
-          await WorkbenchCursorDirs.writeSafely(failedLog, job.log);
-        }
-      } catch (_) {
-        await WorkbenchCursorDirs.writeSafely(failedLog, job.log);
-      }
+      await WorkbenchCursorDirs.writeSafely(
+        File(path.join(directory.path, lastFailedLogFileName)),
+        job.log,
+      );
       await WorkbenchCursorDirs.writeSafely(
         File(path.join(directory.path, lastFailedStatusFileName)),
         failedStatus,

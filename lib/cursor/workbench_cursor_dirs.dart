@@ -59,10 +59,26 @@ abstract final class WorkbenchCursorDirs {
     return null;
   }
 
+  static Future<void> _lastQueuedWrite = Future.value();
+
+  /// Serialized: concurrent appends each open the file at the same end offset
+  /// and overwrite each other, losing and splicing log chunks.
   static Future<void> writeSafely(
     File file,
     String contents, {
     bool append = false,
+  }) {
+    final queuedWrite = _lastQueuedWrite.then(
+      (_) => _writeBestEffort(file, contents, append: append),
+    );
+    _lastQueuedWrite = queuedWrite;
+    return queuedWrite;
+  }
+
+  static Future<void> _writeBestEffort(
+    File file,
+    String contents, {
+    required bool append,
   }) async {
     try {
       await file.parent.create(recursive: true);
