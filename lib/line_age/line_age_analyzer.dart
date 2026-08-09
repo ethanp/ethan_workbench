@@ -46,16 +46,20 @@ class LineAgeReport {
   const LineAgeReport({
     required this.repoName,
     required this.months,
-    required this.filesByTotalLines,
+    required this.totalLinesByFile,
     required this.totalLines,
     required this.fileCount,
   });
 
   final String repoName;
   final List<LineAgeMonth> months;
-  final List<String> filesByTotalLines;
+
+  /// Relative path → current line count, ordered largest-first.
+  final Map<String, int> totalLinesByFile;
   final int totalLines;
   final int fileCount;
+
+  List<String> get filesByTotalLines => totalLinesByFile.keys.toList();
 }
 
 /// Analyzes Dart line age via `git blame --line-porcelain`.
@@ -198,7 +202,9 @@ class LineAgeAnalyzer {
     return LineAgeReport(
       repoName: path.basename(gitRoot),
       months: months,
-      filesByTotalLines: [for (final entry in filesByTotal) entry.key],
+      totalLinesByFile: {
+        for (final entry in filesByTotal) entry.key: entry.value,
+      },
       totalLines: totalByMonth.values.fold(0, (sum, count) => sum + count),
       fileCount: dartFiles.length,
     );

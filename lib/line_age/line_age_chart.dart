@@ -1,43 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:ethan_ui/ethan_ui.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
+import '../ui/workbench_action_accents.dart';
 import 'line_age_analyzer.dart';
+import 'line_age_directory_groups.dart';
 
-const _palette = <Color>[
-  Color(0xFF4e79a7),
-  Color(0xFFf28e2b),
-  Color(0xFFe15759),
-  Color(0xFF76b7b2),
-  Color(0xFF59a14f),
-  Color(0xFFedc948),
-  Color(0xFFb07aa1),
-  Color(0xFFff9da7),
-  Color(0xFF9c755f),
-  Color(0xFFbab0ac),
-  Color(0xFF17becf),
-  Color(0xFFaec7e8),
-  Color(0xFFffbb78),
-  Color(0xFF98df8a),
-  Color(0xFFff9896),
-  Color(0xFFc5b0d5),
-  Color(0xFFc49c94),
-  Color(0xFFf7b6d2),
-  Color(0xFFdbdb8d),
-  Color(0xFF9edae5),
-  Color(0xFF393b79),
-  Color(0xFF637939),
-  Color(0xFF8c6d31),
-  Color(0xFF843c39),
-  Color(0xFF7b4173),
-  Color(0xFF5254a3),
-  Color(0xFF8ca252),
-  Color(0xFFbd9e39),
-  Color(0xFFad494a),
-  Color(0xFFa55194),
-];
-
+/// Month totals as bar height; directory identity as stable stack color.
 class LineAgeChart extends StatefulWidget {
   const LineAgeChart({required this.report});
 
@@ -48,226 +19,629 @@ class LineAgeChart extends StatefulWidget {
 }
 
 class _LineAgeChartState extends State<LineAgeChart> {
-  _HoverTip? _tip;
+  LineAgeMonth? _hoveredMonth;
+  LineAgeMonth? _selectedMonth;
+  String? _focusedFile;
+  String? _hoveredDirectory;
 
-  Map<String, Color> get _fileColors {
-    final colors = <String, Color>{};
-    for (var index = 0;
-        index < widget.report.filesByTotalLines.length;
-        index++) {
-      colors[widget.report.filesByTotalLines[index]] =
-          _palette[index % _palette.length];
-    }
-    return colors;
+  late final LineAgeDirectoryLegend _legend =
+      LineAgeDirectoryGroups.legendFor(widget.report);
+
+  String? get _emphasizedDirectory {
+    if (_hoveredDirectory != null) return _hoveredDirectory;
+    if (_focusedFile != null) return _legend.resolveKey(_focusedFile!);
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _histogram()),
+              const SizedBox(height: ELayout.spaceSm),
+              _DirectoryLegend(
+                legend: _legend,
+                emphasizedDirectory: _emphasizedDirectory,
+                onHoverDirectory: (directory) =>
+                    setState(() => _hoveredDirectory = directory),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: ELayout.spaceMd),
+        SizedBox(
+          width: 380,
+          child: _MonthDetailPanel(
+            report: widget.report,
+            legend: _legend,
+            month: _selectedMonth,
+            focusedFile: _focusedFile,
+            emphasizedDirectory: _emphasizedDirectory,
+            onFocusFile: (file) => setState(() {
+              _focusedFile = file;
+              if (file != null) _hoveredDirectory = null;
+            }),
+            onHoverDirectory: (directory) => setState(() {
+              _hoveredDirectory = directory;
+              if (directory != null) _focusedFile = null;
+            }),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _histogram() {
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = constraints.biggest;
         return MouseRegion(
-          onExit: (_) => setState(() => _tip = null),
-          onHover: (event) => _updateTip(event.localPosition, size),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _LineAgeChartPainter(
-                    report: widget.report,
-                    fileColors: _fileColors,
-                  ),
-                ),
+          onExit: (_) => setState(() => _hoveredMonth = null),
+          onHover: (event) {
+            final month = _ChartGeometry(size).hitTestMonth(
+              widget.report,
+              event.localPosition,
+            );
+            if (month == _hoveredMonth) return;
+            setState(() => _hoveredMonth = month);
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp: (details) {
+              final month = _ChartGeometry(size).hitTestMonth(
+                widget.report,
+                details.localPosition,
+              );
+              setState(() {
+                _selectedMonth = month;
+                _focusedFile = null;
+              });
+            },
+            child: CustomPaint(
+              painter: _LineAgeChartPainter(
+                report: widget.report,
+                legend: _legend,
+                hoveredMonth: _hoveredMonth?.month,
+                selectedMonth: _selectedMonth?.month,
+                emphasizedDirectory: _emphasizedDirectory,
               ),
-              if (_tip != null) _tooltip(size),
-            ],
+              child: const SizedBox.expand(),
+            ),
           ),
         );
       },
     );
   }
+}
 
-  void _updateTip(Offset localPosition, Size size) {
-    final tip = _ChartGeometry(size).hitTest(widget.report, localPosition);
-    setState(() => _tip = tip);
+class _DirectoryLegend extends StatelessWidget {
+  const _DirectoryLegend({
+    required this.legend,
+    required this.emphasizedDirectory,
+    required this.onHoverDirectory,
+  });
+
+  final LineAgeDirectoryLegend legend;
+  final String? emphasizedDirectory;
+  final ValueChanged<String?> onHoverDirectory;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 56, right: 8),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 6,
+        children: [
+          for (final key in legend.orderedKeys)
+            MouseRegion(
+              onEnter: (_) => onHoverDirectory(key),
+              onExit: (_) => onHoverDirectory(null),
+              child: _legendChip(
+                key: key,
+                color: legend.colorForKey(key),
+                emphasized: emphasizedDirectory == null ||
+                    emphasizedDirectory == key,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
-  Widget _tooltip(Size size) {
-    final tip = _tip!;
-    const tipWidth = 320.0;
-    final left = tip.anchor.dx + 14 + tipWidth > size.width
-        ? tip.anchor.dx - tipWidth - 14
-        : tip.anchor.dx + 14;
-    final top = (tip.anchor.dy - 36).clamp(8.0, size.height - 72);
-    final pct = tip.month.totalLines == 0
-        ? '0.0'
-        : (tip.segment.lineCount / tip.month.totalLines * 100)
-            .toStringAsFixed(1);
-    return Positioned(
-      left: left.clamp(8.0, size.width - tipWidth - 8),
-      top: top,
-      width: tipWidth,
-      child: IgnorePointer(
-        child: Material(
-          color: EColors.surfaceRaised.withValues(alpha: 0.94),
-          borderRadius: ELayout.borderRadiusMd,
-          elevation: 8,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Text(
-              '${tip.segment.file}\n'
-              '${tip.month.month}: ${tip.segment.lineCount} lines '
-              '($pct% of month)',
-              style: EText.caption.copyWith(color: EColors.textPrimary),
+  Widget _legendChip({
+    required String key,
+    required Color color,
+    required bool emphasized,
+  }) {
+    return Opacity(
+      opacity: emphasized ? 1 : 0.35,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-        ),
+          const SizedBox(width: 6),
+          Text(
+            key,
+            style: EText.caption.copyWith(
+              color: EColors.textSecondary,
+              fontSize: 11,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _HoverTip {
-  const _HoverTip({
+class _MonthDetailPanel extends StatelessWidget {
+  const _MonthDetailPanel({
+    required this.report,
+    required this.legend,
     required this.month,
-    required this.segment,
-    required this.anchor,
+    required this.focusedFile,
+    required this.emphasizedDirectory,
+    required this.onFocusFile,
+    required this.onHoverDirectory,
   });
 
-  final LineAgeMonth month;
-  final LineAgeSegment segment;
-  final Offset anchor;
+  final LineAgeReport report;
+  final LineAgeDirectoryLegend legend;
+  final LineAgeMonth? month;
+  final String? focusedFile;
+  final String? emphasizedDirectory;
+  final ValueChanged<String?> onFocusFile;
+  final ValueChanged<String?> onHoverDirectory;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: EColors.surface.withValues(alpha: 0.55),
+        borderRadius: ELayout.borderRadiusMd,
+        border: Border.all(color: EColors.border.withValues(alpha: 0.8)),
+      ),
+      child: month == null ? _emptyHint() : _monthBody(month!),
+    );
+  }
+
+  Widget _emptyHint() {
+    return Padding(
+      padding: const EdgeInsets.all(ELayout.spaceLg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Month detail', style: EText.section),
+          const SizedBox(height: ELayout.spaceSm),
+          Text(
+            'Click a bar to inspect that month. '
+            'Hover a directory (legend or list) to emphasize it '
+            'across months.',
+            style: EText.caption.copyWith(
+              color: EColors.textMuted,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _monthBody(LineAgeMonth month) {
+    final groups = _groupedSegments(month);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(month.month, style: EText.section),
+              const SizedBox(height: 4),
+              Text(
+                '${_formatCount(month.totalLines)} lines · '
+                '${month.segments.length} files',
+                style: EText.caption.copyWith(color: EColors.textMuted),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Share of each file\'s current lines',
+                style: EText.caption.copyWith(
+                  color: EColors.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: EColors.border),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            itemCount: groups.length,
+            itemBuilder: (context, index) => _directorySection(groups[index]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<({String directory, Color color, List<LineAgeSegment> files})>
+      _groupedSegments(LineAgeMonth month) {
+    final buckets = <String, List<LineAgeSegment>>{};
+    for (final segment in month.segments) {
+      final key = legend.resolveKey(segment.file);
+      buckets.putIfAbsent(key, () => []).add(segment);
+    }
+    return [
+      for (final key in legend.orderedKeys)
+        if (buckets.containsKey(key))
+          (
+            directory: key,
+            color: legend.colorForKey(key),
+            files: buckets[key]!,
+          ),
+    ];
+  }
+
+  Widget _directorySection(
+    ({String directory, Color color, List<LineAgeSegment> files}) group,
+  ) {
+    final isEmphasized = emphasizedDirectory == group.directory;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        MouseRegion(
+          onEnter: (_) => onHoverDirectory(group.directory),
+          onExit: (_) => onHoverDirectory(null),
+          child: ColoredBox(
+            color: isEmphasized
+                ? group.color.withValues(alpha: 0.14)
+                : Colors.transparent,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: group.color,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      group.directory,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: EText.caption.copyWith(
+                        color: isEmphasized
+                            ? EColors.textPrimary
+                            : EColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        for (final segment in group.files.take(8)) _fileRow(segment),
+        if (group.files.length > 8)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 2, 12, 4),
+            child: Text(
+              '+ ${group.files.length - 8} more',
+              style: EText.caption.copyWith(color: EColors.textMuted),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _fileRow(LineAgeSegment segment) {
+    final fileTotal = report.totalLinesByFile[segment.file] ?? 0;
+    final pctOfFile = fileTotal == 0
+        ? 0.0
+        : segment.lineCount / fileTotal * 100;
+    final isFocused = focusedFile == segment.file;
+    final metricsStyle = EText.mono.copyWith(
+      fontSize: 12,
+      height: 1.2,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    return MouseRegion(
+      onEnter: (_) => onFocusFile(segment.file),
+      onExit: (_) {
+        if (focusedFile == segment.file) onFocusFile(null);
+      },
+      child: ColoredBox(
+        color: isFocused
+            ? WorkbenchActionAccents.lineAge.withValues(alpha: 0.12)
+            : Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(28, 5, 12, 5),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _basename(segment.file),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: EText.caption.copyWith(
+                    color: isFocused
+                        ? EColors.textPrimary
+                        : EColors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _formatCount(segment.lineCount),
+                softWrap: false,
+                style: metricsStyle.copyWith(color: EColors.textMuted),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 40,
+                child: Text(
+                  '${pctOfFile.toStringAsFixed(0)}%',
+                  maxLines: 1,
+                  softWrap: false,
+                  textAlign: TextAlign.right,
+                  style: metricsStyle.copyWith(
+                    color: isFocused
+                        ? legend.colorForFile(segment.file)
+                        : EColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _formatCount(int value) {
+    if (value >= 1000) {
+      final thousands = value / 1000;
+      return value % 1000 == 0
+          ? '${thousands.toInt()}k'
+          : '${thousands.toStringAsFixed(1)}k';
+    }
+    return '$value';
+  }
+
+  static String _basename(String relativePath) {
+    final normalized = relativePath.replaceAll('\\', '/');
+    final slash = normalized.lastIndexOf('/');
+    return slash < 0 ? normalized : normalized.substring(slash + 1);
+  }
 }
 
 class _ChartGeometry {
   _ChartGeometry(this.size)
-    : margin = const EdgeInsets.fromLTRB(64, 28, 24, 72),
-      innerWidth = math.max(0.0, size.width - 88),
-      innerHeight = math.max(0.0, size.height - 100);
+    : margin = const EdgeInsets.fromLTRB(56, 36, 16, 56),
+      innerWidth = math.max(0.0, size.width - 72),
+      innerHeight = math.max(0.0, size.height - 92);
 
   final Size size;
   final EdgeInsets margin;
   final double innerWidth;
   final double innerHeight;
 
+  static const maxBandWidth = 56.0;
+
   double bandWidth(int monthCount) {
     if (monthCount <= 0) return 0;
-    return (innerWidth / monthCount) * 0.82;
+    return math.min(innerWidth / monthCount * 0.62, maxBandWidth);
   }
 
-  double bandGap(int monthCount) {
-    if (monthCount <= 0) return 0;
-    return (innerWidth / monthCount) * 0.18;
+  double bandGap(int monthCount, double width) {
+    if (monthCount <= 1) return 0;
+    final leftover = innerWidth - width * monthCount;
+    return math.max(leftover / monthCount, width * 0.35);
   }
 
-  double segmentHeight(int lineCount, int maxTotal) {
-    if (maxTotal <= 0) return 0;
-    return innerHeight * (lineCount / (maxTotal * 1.04));
+  double groupOriginX(int monthCount, double width, double gap) {
+    final groupWidth = monthCount * width + (monthCount - 1) * gap;
+    return margin.left + math.max(0.0, (innerWidth - groupWidth) / 2);
   }
 
-  double yForTotal(int totalLines, int maxTotal) =>
-      margin.top + innerHeight - segmentHeight(totalLines, maxTotal);
+  double segmentHeight(num lineCount, double scaleMax) {
+    if (scaleMax <= 0) return 0;
+    return innerHeight * (lineCount / scaleMax);
+  }
 
-  _HoverTip? hitTest(LineAgeReport report, Offset position) {
+  double yForTotal(num totalLines, double scaleMax) =>
+      margin.top + innerHeight - segmentHeight(totalLines, scaleMax);
+
+  LineAgeMonth? hitTestMonth(LineAgeReport report, Offset position) {
     if (report.months.isEmpty) return null;
-    final maxTotal = report.months
-        .map((month) => month.totalLines)
-        .reduce(math.max);
     final monthCount = report.months.length;
     final width = bandWidth(monthCount);
-    final gap = bandGap(monthCount);
+    final gap = bandGap(monthCount, width);
+    final originX = groupOriginX(monthCount, width, gap);
+    final plotBottom = margin.top + innerHeight;
 
     for (var monthIndex = 0; monthIndex < monthCount; monthIndex++) {
-      final month = report.months[monthIndex];
-      final x = margin.left + monthIndex * (width + gap) + gap / 2;
+      final x = originX + monthIndex * (width + gap);
       if (position.dx < x || position.dx > x + width) continue;
-
-      // Segments are largest-first; paint/hit stack with largest at bottom.
-      var yBottom = margin.top + innerHeight;
-      for (final segment in month.segments.reversed) {
-        final height = segmentHeight(segment.lineCount, maxTotal);
-        final yTop = yBottom - height;
-        if (height >= 0.5 &&
-            position.dy >= yTop &&
-            position.dy <= yBottom) {
-          return _HoverTip(
-            month: month,
-            segment: segment,
-            anchor: position,
-          );
-        }
-        yBottom = yTop;
-      }
+      if (position.dy < margin.top || position.dy > plotBottom) continue;
+      return report.months[monthIndex];
     }
     return null;
   }
 }
 
 class _LineAgeChartPainter extends CustomPainter {
-  _LineAgeChartPainter({required this.report, required this.fileColors});
+  _LineAgeChartPainter({
+    required this.report,
+    required this.legend,
+    required this.hoveredMonth,
+    required this.selectedMonth,
+    required this.emphasizedDirectory,
+  });
 
   final LineAgeReport report;
-  final Map<String, Color> fileColors;
+  final LineAgeDirectoryLegend legend;
+  final String? hoveredMonth;
+  final String? selectedMonth;
+  final String? emphasizedDirectory;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (report.months.isEmpty) return;
     final geometry = _ChartGeometry(size);
-    final maxTotal = report.months
+    final dataMax = report.months
         .map((month) => month.totalLines)
-        .reduce(math.max);
+        .reduce(math.max)
+        .toDouble();
+    final scale = NiceValueScale.forMax(dataMax);
     final monthCount = report.months.length;
     final width = geometry.bandWidth(monthCount);
-    final gap = geometry.bandGap(monthCount);
+    final gap = geometry.bandGap(monthCount, width);
+    final originX = geometry.groupOriginX(monthCount, width, gap);
 
-    _paintGrid(canvas, geometry, maxTotal);
-    _paintAxes(canvas, geometry, maxTotal, width, gap);
-    _paintTitle(canvas, geometry);
+    _paintGrid(canvas, geometry, scale);
+    _paintAxes(canvas, geometry, scale, width, gap, originX);
+    _paintCaption(canvas, geometry);
 
     for (var monthIndex = 0; monthIndex < monthCount; monthIndex++) {
       final month = report.months[monthIndex];
-      final x = geometry.margin.left + monthIndex * (width + gap) + gap / 2;
-      var yBottom = geometry.margin.top + geometry.innerHeight;
-      for (final segment in month.segments.reversed) {
-        final height = geometry.segmentHeight(segment.lineCount, maxTotal);
-        if (height < 0.5) {
-          yBottom -= height;
-          continue;
-        }
-        final yTop = yBottom - height;
-        canvas.drawRect(
-          Rect.fromLTWH(x, yTop, width, height),
-          Paint()..color = fileColors[segment.file] ?? const Color(0xFFaaaaaa),
-        );
-        yBottom = yTop;
-      }
-
-      final barTop = geometry.yForTotal(month.totalLines, maxTotal);
-      final label = TextPainter(
-        text: TextSpan(
-          text: 'files: ${month.segments.length}',
-          style: const TextStyle(
-            color: Color(0xFF444444),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      label.paint(
+      final x = originX + monthIndex * (width + gap);
+      _paintMonthBar(
         canvas,
-        Offset(x + width / 2 - label.width / 2, barTop - 16),
+        geometry: geometry,
+        month: month,
+        x: x,
+        width: width,
+        scale: scale,
+        isSelected: selectedMonth == month.month,
+        isHovered: hoveredMonth == month.month,
       );
     }
   }
 
-  void _paintGrid(Canvas canvas, _ChartGeometry geometry, int maxTotal) {
+  void _paintMonthBar(
+    Canvas canvas, {
+    required _ChartGeometry geometry,
+    required LineAgeMonth month,
+    required double x,
+    required double width,
+    required NiceValueScale scale,
+    required bool isSelected,
+    required bool isHovered,
+  }) {
+    final stacks = legend.stacksForMonth(month);
+    if (stacks.isEmpty) return;
+
+    final barTop = geometry.yForTotal(month.totalLines, scale.max);
+    final barHeight =
+        geometry.margin.top + geometry.innerHeight - barTop;
+    if (barHeight < 0.5) return;
+
+    final barRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(x, barTop, width, barHeight),
+      const Radius.circular(4),
+    );
+
+    canvas.save();
+    canvas.clipRRect(barRect);
+
+    // Largest directories at the baseline.
+    var yBottom = geometry.margin.top + geometry.innerHeight;
+    for (final stack in stacks) {
+      final height = geometry.segmentHeight(stack.lineCount, scale.max);
+      if (height < 0.5) {
+        yBottom -= height;
+        continue;
+      }
+      final yTop = yBottom - height;
+      final isEmphasized = emphasizedDirectory == null ||
+          emphasizedDirectory == stack.key;
+      final monthDim = !isSelected && !isHovered && selectedMonth != null;
+      var alpha = isEmphasized ? 0.92 : 0.18;
+      if (monthDim) alpha *= 0.55;
+      if (isHovered && isEmphasized) alpha = math.min(1.0, alpha + 0.06);
+      canvas.drawRect(
+        Rect.fromLTWH(x, yTop, width, height),
+        Paint()..color = legend.colorForKey(stack.key).withValues(alpha: alpha),
+      );
+      if (height > 2.5 && isEmphasized) {
+        canvas.drawLine(
+          Offset(x, yTop),
+          Offset(x + width, yTop),
+          Paint()
+            ..color = EColors.surface.withValues(alpha: 0.45)
+            ..strokeWidth = 1,
+        );
+      }
+      yBottom = yTop;
+    }
+
+    canvas.restore();
+
+    if (isSelected) {
+      canvas.drawRRect(
+        barRect,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = WorkbenchActionAccents.lineAge.withValues(alpha: 0.95),
+      );
+    }
+
+    final emphasized = isSelected || isHovered;
+    final valueLabel = TextPainter(
+      text: TextSpan(
+        text: _formatCount(month.totalLines),
+        style: TextStyle(
+          color: emphasized ? EColors.textPrimary : EColors.textMuted,
+          fontSize: 11,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    valueLabel.paint(
+      canvas,
+      Offset(x + width / 2 - valueLabel.width / 2, barTop - 16),
+    );
+  }
+
+  void _paintGrid(
+    Canvas canvas,
+    _ChartGeometry geometry,
+    NiceValueScale scale,
+  ) {
     final paint = Paint()
-      ..color = const Color(0xFFF2F2F2)
+      ..color = EColors.border.withValues(alpha: 0.35)
       ..strokeWidth = 1;
-    for (var tick = 0; tick <= 8; tick++) {
-      final value = (maxTotal * 1.04 * tick / 8).round();
-      final y = geometry.yForTotal(value, maxTotal);
+    for (final tick in scale.ticks) {
+      if (tick == 0) continue;
+      final y = geometry.yForTotal(tick, scale.max);
       canvas.drawLine(
         Offset(geometry.margin.left, y),
         Offset(geometry.margin.left + geometry.innerWidth, y),
@@ -279,40 +653,27 @@ class _LineAgeChartPainter extends CustomPainter {
   void _paintAxes(
     Canvas canvas,
     _ChartGeometry geometry,
-    int maxTotal,
+    NiceValueScale scale,
     double width,
     double gap,
+    double originX,
   ) {
+    final baselineY = geometry.margin.top + geometry.innerHeight;
     final axisPaint = Paint()
-      ..color = const Color(0xFFDDDDDD)
+      ..color = EColors.borderStrong.withValues(alpha: 0.7)
       ..strokeWidth = 1;
     canvas.drawLine(
-      Offset(geometry.margin.left, geometry.margin.top),
-      Offset(
-        geometry.margin.left,
-        geometry.margin.top + geometry.innerHeight,
-      ),
-      axisPaint,
-    );
-    canvas.drawLine(
-      Offset(
-        geometry.margin.left,
-        geometry.margin.top + geometry.innerHeight,
-      ),
-      Offset(
-        geometry.margin.left + geometry.innerWidth,
-        geometry.margin.top + geometry.innerHeight,
-      ),
+      Offset(geometry.margin.left, baselineY),
+      Offset(geometry.margin.left + geometry.innerWidth, baselineY),
       axisPaint,
     );
 
-    for (var tick = 0; tick <= 8; tick++) {
-      final value = (maxTotal * 1.04 * tick / 8).round();
-      final y = geometry.yForTotal(value, maxTotal);
+    for (final tick in scale.ticks) {
+      final y = geometry.yForTotal(tick, scale.max);
       final label = TextPainter(
         text: TextSpan(
-          text: _formatCount(value),
-          style: const TextStyle(color: Color(0xFF666666), fontSize: 11),
+          text: _formatCount(tick.round()),
+          style: const TextStyle(color: EColors.textMuted, fontSize: 11),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -324,57 +685,44 @@ class _LineAgeChartPainter extends CustomPainter {
 
     for (var monthIndex = 0; monthIndex < report.months.length; monthIndex++) {
       final month = report.months[monthIndex].month;
-      final x = geometry.margin.left + monthIndex * (width + gap) + gap / 2;
+      final x = originX + monthIndex * (width + gap);
+      final isSelected = selectedMonth == month;
+      final isHovered = hoveredMonth == month;
       final label = TextPainter(
         text: TextSpan(
           text: month,
-          style: const TextStyle(color: Color(0xFF666666), fontSize: 11),
+          style: TextStyle(
+            color: isSelected || isHovered
+                ? EColors.textPrimary
+                : EColors.textMuted,
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
       canvas.save();
-      canvas.translate(
-        x + width / 2,
-        geometry.margin.top + geometry.innerHeight + 10,
-      );
-      canvas.rotate(-0.7);
+      canvas.translate(x + width / 2, baselineY + 10);
+      canvas.rotate(-0.65);
       label.paint(canvas, Offset(-label.width / 2, 0));
       canvas.restore();
     }
-
-    final yTitle = TextPainter(
-      text: const TextSpan(
-        text: 'Lines',
-        style: TextStyle(color: Color(0xFF666666), fontSize: 12),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    canvas.save();
-    canvas.translate(18, geometry.margin.top + geometry.innerHeight / 2);
-    canvas.rotate(-math.pi / 2);
-    yTitle.paint(canvas, Offset(-yTitle.width / 2, 0));
-    canvas.restore();
   }
 
-  void _paintTitle(Canvas canvas, _ChartGeometry geometry) {
+  void _paintCaption(Canvas canvas, _ChartGeometry geometry) {
     final title = TextPainter(
-      text: TextSpan(
-        text: 'Lines by Last Modified Month — ${report.repoName}',
-        style: const TextStyle(
-          color: Color(0xFF333333),
-          fontSize: 14,
+      text: const TextSpan(
+        text: 'Current lines by month · stacked by directory',
+        style: TextStyle(
+          color: EColors.textSecondary,
+          fontSize: 13,
           fontWeight: FontWeight.w500,
+          letterSpacing: 0.1,
         ),
       ),
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: geometry.innerWidth);
-    title.paint(
-      canvas,
-      Offset(
-        geometry.margin.left + geometry.innerWidth / 2 - title.width / 2,
-        6,
-      ),
-    );
+    title.paint(canvas, Offset(geometry.margin.left, 8));
   }
 
   String _formatCount(int value) {
@@ -389,5 +737,9 @@ class _LineAgeChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _LineAgeChartPainter oldDelegate) =>
-      oldDelegate.report != report || oldDelegate.fileColors != fileColors;
+      oldDelegate.report != report ||
+      oldDelegate.legend != legend ||
+      oldDelegate.hoveredMonth != hoveredMonth ||
+      oldDelegate.selectedMonth != selectedMonth ||
+      oldDelegate.emphasizedDirectory != emphasizedDirectory;
 }

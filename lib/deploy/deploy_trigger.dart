@@ -18,8 +18,8 @@ class DeployTrigger {
     this.jobUpdates,
     this.queueUpdates,
     this.onUnauthorized,
-    this.onUnpair,
-    this.showUnpair = false,
+    this.onSignOut,
+    this.showSignOut = false,
     this.showLineAgeAnalysis = false,
     this.title = 'Deploy',
     this.unreachableHint,
@@ -51,8 +51,8 @@ class DeployTrigger {
   /// Otherwise the UI polls [fetchDeployQueue].
   final Stream<List<DeployJob>>? queueUpdates;
   final Future<void> Function()? onUnauthorized;
-  final Future<void> Function()? onUnpair;
-  final bool showUnpair;
+  final Future<void> Function()? onSignOut;
+  final bool showSignOut;
   final bool showLineAgeAnalysis;
   final String title;
   final String? unreachableHint;

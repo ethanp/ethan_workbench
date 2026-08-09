@@ -13,7 +13,7 @@ import 'job_screen.dart';
 import '../phone/deploy_http_client.dart';
 import '../projects/project_app_icon_tile.dart';
 
-/// Activity list of past (and in-progress) deploys from the ledger / agent.
+/// Activity list of past (and in-progress) deploys from the ledger / server.
 class DeployHistoryScreen extends StatefulWidget {
   const DeployHistoryScreen({super.key, required this.trigger});
 
@@ -80,7 +80,7 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
         _loading = false;
         _errorMessage = null;
       });
-    } on AgentRequestException catch (error) {
+    } on ServerRequestException catch (error) {
       if (!mounted) return;
       if (error.isUnauthorized) {
         _historyPoll?.cancel();
@@ -129,7 +129,7 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
         return;
       }
       setState(() => _selectedRunJob = job);
-    } on AgentRequestException catch (error) {
+    } on ServerRequestException catch (error) {
       if (!mounted) return;
       context.textSnackBar('Could not load deploy: ${error.message}');
     } catch (error) {

@@ -5,11 +5,11 @@ import 'package:flutter/material.dart';
 
 import '../deploy/deploy_history_screen.dart';
 import '../deploy/deploy_trigger.dart';
-import '../pairing/pairing_screen.dart';
 import '../projects/projects_screen.dart';
-import 'paired_phone_session.dart';
+import 'phone_session.dart';
+import 'server_sign_in_screen.dart';
 
-/// Loads saved session token and routes to pairing or projects.
+/// Loads saved server password and routes to sign-in or projects.
 class PhoneHome extends StatefulWidget {
   const PhoneHome();
 
@@ -18,7 +18,7 @@ class PhoneHome extends StatefulWidget {
 }
 
 class _PhoneHomeState extends State<PhoneHome> {
-  final _session = PairedPhoneSession();
+  final _session = PhoneSession();
   bool _loading = true;
   int _tabIndex = 0;
 
@@ -40,7 +40,7 @@ class _PhoneHomeState extends State<PhoneHome> {
     setState(() => _loading = false);
   }
 
-  void _onPaired() {
+  void _onSignedIn() {
     setState(() => _tabIndex = 0);
   }
 
@@ -58,8 +58,8 @@ class _PhoneHomeState extends State<PhoneHome> {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (!_session.isPaired) {
-      return PairingScreen(session: _session, onPaired: _onPaired);
+    if (!_session.isSignedIn) {
+      return ServerSignInScreen(session: _session, onSignedIn: _onSignedIn);
     }
     final trigger = _deployTrigger;
     return Scaffold(

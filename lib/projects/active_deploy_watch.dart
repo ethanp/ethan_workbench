@@ -137,7 +137,7 @@ class ActiveDeployWatch {
         _log.log('refresh $was → $now waiting=${waiting.length}');
       }
       onChanged();
-    } on AgentRequestException catch (error) {
+    } on ServerRequestException catch (error) {
       _log.warn('refresh failed: ${error.message}', error);
       if (error.isUnauthorized) {
         _poll?.cancel();

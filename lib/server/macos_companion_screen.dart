@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:ethan_sync/ethan_sync.dart';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app_identity.dart';
@@ -17,9 +16,9 @@ import 'package:ethan_ui/ethan_ui.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
 import '../ui/widgets/deploy_progress_checklist.dart';
 import '../ui/widgets/status_pill.dart';
-import 'agent_config.dart';
-import 'agent_endpoint.dart';
-import 'deploy_agent.dart';
+import 'deploy_server.dart';
+import 'server_config.dart';
+import 'server_endpoint.dart';
 
 class MacosCompanionScreen extends StatefulWidget {
   const MacosCompanionScreen({this.syncContainer});
@@ -31,13 +30,11 @@ class MacosCompanionScreen extends StatefulWidget {
 }
 
 class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
-  final _agent = DeployAgent();
+  final _server = DeployServer();
   String? _lanAddress;
   String? _statusMessage;
   DeployJob? _activeJob;
   StreamSubscription<DeployJob>? _jobSubscription;
-  StreamSubscription<void>? _pairingSubscription;
-  Timer? _pinTicker;
   bool _busy = false;
   int _tabIndex = 0;
   int _ledgerGeneration = 0;
@@ -50,25 +47,22 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
 
   @override
   void dispose() {
-    _pinTicker?.cancel();
     unawaited(_jobSubscription?.cancel());
-    unawaited(_pairingSubscription?.cancel());
-    unawaited(_agent.dispose());
+    unawaited(_server.dispose());
     super.dispose();
   }
 
   Future<void> _bootstrap() async {
     final lanAddress = await firstLanIpv4Address();
     setState(() => _lanAddress = lanAddress);
-    await _agent.restorePairedSessions();
-    await _agent.restoreLocalRun();
+    await _server.restoreLocalRun();
     if (mounted) setState(() {});
-    // Agent must come up even if PowerSync ledger attach is slow/hangs.
-    await _startAgent(announce: false);
+    // Server must come up even if PowerSync ledger attach is slow/hangs.
+    await _startServer(announce: false);
     await _attachSyncLedger();
-    await _agent.restoreDeploySession();
+    await _server.restoreDeploySession();
     if (mounted) {
-      setState(() => _activeJob = _agent.activeJob);
+      setState(() => _activeJob = _server.activeJob);
     }
   }
 
@@ -79,88 +73,66 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     final databaseManager = await container.read(
       powerSyncDatabaseManagerProvider.future,
     );
-    _agent.attachLedger(DeployLedger(databaseManager.database));
+    _server.attachLedger(DeployLedger(databaseManager.database));
     if (mounted) setState(() => _ledgerGeneration++);
   }
 
-  void _listenPairingUpdates() {
-    unawaited(_pairingSubscription?.cancel());
-    _pairingSubscription = _agent.pairingAuth.updates.listen((_) {
-      if (mounted) setState(() {});
-    });
-    _pinTicker?.cancel();
-    _pinTicker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      _agent.pairingAuth.ensureFreshPin();
-      setState(() {});
-    });
-  }
-
-  void _showAgentMessage(String message) {
+  void _showServerMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     context.textSnackBar(message);
   }
 
-  Future<void> _startAgent({bool announce = true}) async {
-    if (_busy || _agent.isRunning) return;
+  Future<void> _startServer({bool announce = true}) async {
+    if (_busy || _server.isRunning) return;
     setState(() {
       _busy = true;
       _statusMessage = null;
     });
     try {
-      await _agent.start();
+      await _server.start();
       await _jobSubscription?.cancel();
-      _jobSubscription = _agent.jobUpdates.listen((job) {
+      _jobSubscription = _server.jobUpdates.listen((job) {
         if (!mounted) return;
         setState(() => _activeJob = job);
       });
-      _listenPairingUpdates();
       if (!mounted) return;
       setState(() {
-        _activeJob = _agent.activeJob;
+        _activeJob = _server.activeJob;
         _statusMessage = null;
       });
       if (announce) {
-        _showAgentMessage(
-          'Agent listening on port ${_agent.boundPort ?? AgentConfig.defaultPort}',
+        _showServerMessage(
+          'Server listening on port '
+          '${_server.boundPort ?? ServerConfig.defaultPort}',
         );
       }
     } catch (error) {
       final message = 'Failed to start: $error';
       if (mounted) setState(() => _statusMessage = message);
-      _showAgentMessage(message);
+      _showServerMessage(message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _stopAgent() async {
+  Future<void> _stopServer() async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      _pinTicker?.cancel();
-      _pinTicker = null;
-      await _pairingSubscription?.cancel();
-      _pairingSubscription = null;
       await _jobSubscription?.cancel();
       _jobSubscription = null;
-      await _agent.stop();
+      await _server.stop();
       if (!mounted) return;
       setState(() => _statusMessage = 'Server stopped');
-      _showAgentMessage('Agent stopped');
+      _showServerMessage('Server stopped');
     } catch (error) {
       final message = 'Failed to stop: $error';
       if (mounted) setState(() => _statusMessage = message);
-      _showAgentMessage(message);
+      _showServerMessage(message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  String get _formattedPin {
-    final pin = _agent.pairingAuth.pin;
-    return '${pin.substring(0, 3)} ${pin.substring(3)}';
   }
 
   @override
@@ -171,14 +143,14 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
         index: _tabIndex,
         children: [
           ProjectsScreen(
-            trigger: _agent.localDeployTrigger,
-            localRun: _agent.localRun,
+            trigger: _server.localDeployTrigger,
+            localRun: _server.localRun,
           ),
           DeployHistoryScreen(
             key: ValueKey(_ledgerGeneration),
-            trigger: _agent.localDeployTrigger,
+            trigger: _server.localDeployTrigger,
           ),
-          _agentTab(),
+          _serverTab(),
         ],
       ),
       bottomNavigationBar: EFrostedBottomBar(
@@ -196,7 +168,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
             ),
             ESegment(
               icon: Icons.dns_rounded,
-              label: 'Agent',
+              label: 'Server',
             ),
           ],
         ),
@@ -204,19 +176,17 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     );
   }
 
-  Widget _agentTab() {
+  Widget _serverTab() {
     return EScaffoldShell(
       appBar: EAppHeader(
         eyebrow: AppIdentity.displayName,
-        title: 'Agent',
-        subtitle: 'Mac companion',
+        title: 'Server',
+        subtitle: 'iOS client endpoint',
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
           _serverPanel(),
-          const SizedBox(height: 14),
-          _pairingPanel(),
           const SizedBox(height: 14),
           _endpointPanel(),
           const SizedBox(height: 14),
@@ -232,33 +202,33 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
 
   Widget _serverPanel() {
     return EPanel(
-      title: 'Agent',
-      subtitle: _agent.isRunning ? 'Ready for deploys' : 'Agent offline',
-      trailing: StatusPill.server(running: _agent.isRunning),
+      title: 'Server',
+      subtitle: _server.isRunning ? 'Ready for the iOS client' : 'Server offline',
+      trailing: StatusPill.server(running: _server.isRunning),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Port ${_agent.boundPort ?? AgentConfig.defaultPort}',
+            'Port ${_server.boundPort ?? ServerConfig.defaultPort}',
             style: EText.mono,
           ),
           const SizedBox(height: 14),
           Row(
             children: [
-              if (_agent.isRunning)
+              if (_server.isRunning)
                 const OutlinedButton(
                   onPressed: null,
                   child: Text('Start'),
                 )
               else
                 FilledButton(
-                  onPressed: _busy ? null : () => unawaited(_startAgent()),
+                  onPressed: _busy ? null : () => unawaited(_startServer()),
                   child: Text(_busy ? 'Starting…' : 'Start'),
                 ),
               const SizedBox(width: 10),
-              if (_agent.isRunning)
+              if (_server.isRunning)
                 FilledButton(
-                  onPressed: _busy ? null : () => unawaited(_stopAgent()),
+                  onPressed: _busy ? null : () => unawaited(_stopServer()),
                   child: const Text('Stop'),
                 )
               else
@@ -277,122 +247,11 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
     );
   }
 
-  Widget _pairingPanel() {
-    final pairingAuth = _agent.pairingAuth;
-    final secondsLeft = pairingAuth.pinTimeRemaining.inSeconds;
-    final sessions = pairingAuth.sessions;
-    return EPanel(
-      title: 'Pairing',
-      subtitle: _agent.isRunning
-          ? '${sessions.length} connected device'
-                '${sessions.length == 1 ? '' : 's'}'
-          : 'Start the agent to show a PIN',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!_agent.isRunning)
-            Text(
-              'PIN appears when the agent is listening.',
-              style: EText.body,
-            )
-          else ...[
-            Text('PIN', style: EText.label),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: SelectableText(
-                    _formattedPin,
-                    style: EText.mono.copyWith(
-                      fontSize: 36,
-                      letterSpacing: 4,
-                      color: EColors.accentGlow,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Copy PIN',
-                  onPressed: () async {
-                    await Clipboard.setData(
-                      ClipboardData(text: pairingAuth.pin),
-                    );
-                    if (!mounted) return;
-                    context.textSnackBar('Copied PIN');
-                  },
-                  icon: const Icon(Icons.copy),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Enter this on the phone. Refreshes in ${secondsLeft}s.',
-              style: EText.caption,
-            ),
-            const SizedBox(height: 14),
-            OutlinedButton(
-              onPressed: pairingAuth.rotatePin,
-              child: const Text('New PIN'),
-            ),
-            const SizedBox(height: 18),
-            Text('CONNECTED', style: EText.label),
-            const SizedBox(height: 8),
-            if (sessions.isEmpty)
-              Text('No phones paired yet.', style: EText.body)
-            else ...[
-              for (final session in sessions) ...[
-                _sessionRow(session.sessionId, session.label, session.pairedAt),
-                const SizedBox(height: 8),
-              ],
-              OutlinedButton(
-                onPressed: () {
-                  pairingAuth.revokeAllSessions();
-                  context.textSnackBar('Revoked all phone sessions');
-                },
-                child: const Text('Revoke all'),
-              ),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _sessionRow(String sessionId, String label, DateTime pairedAt) {
-    final time = TimeOfDay.fromDateTime(pairedAt).format(context);
-    return ESurface(
-      kind: ESurfaceKind.inset,
-      borderRadius: ELayout.borderRadiusSm,
-      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: EText.section),
-                Text('Paired $time', style: EText.caption),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              _agent.pairingAuth.revokeSession(sessionId);
-              context.textSnackBar('Revoked $label');
-            },
-            child: Text(
-              'Revoke',
-              style: EText.body.copyWith(color: EColors.danger),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _endpointPanel() {
+    final passwordConfigured = serverPassword.isNotEmpty;
     return EPanel(
       title: 'Endpoint',
-      subtitle: 'Phone target from .env',
+      subtitle: 'iOS client target from .env',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -401,7 +260,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
             borderRadius: ELayout.borderRadiusSm,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: SelectableText(
-              agentBaseUrl,
+              serverBaseUrl,
               style: EText.monoEmphasis,
             ),
           ),
@@ -412,6 +271,16 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
               style: EText.caption,
             ),
           ],
+          const SizedBox(height: 10),
+          Text(
+            passwordConfigured
+                ? 'Auth: SERVER_PASSWORD from .env (shared with the iOS client).'
+                : 'SERVER_PASSWORD is empty — set it in .env or the iOS client '
+                    'cannot sign in.',
+            style: EText.body.copyWith(
+              color: passwordConfigured ? null : EColors.warning,
+            ),
+          ),
           const SizedBox(height: 10),
           Text(
             'Keep this window open while deploying from the phone.',
@@ -430,7 +299,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
       trailing: job == null ? null : StatusPill.job(job.status),
       child: job == null
           ? Text(
-              'Deploys from this Mac or a paired iPhone show live logs here.',
+              'Deploys from this Mac or the iOS client show live logs here.',
               style: EText.body,
             )
           : Column(

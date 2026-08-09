@@ -3,8 +3,9 @@
 Product identity lives in one place for Dart: [`lib/app_identity.dart`](lib/app_identity.dart)
 (`syncAppName`, `displayName`, `localDatabaseStem`).
 
-Agent / phone `.env` keys are **unbranded** (`AGENT_*`, `FLUTTER_ROOT`, `DEPLOY_RB`)
-so a product rename does not churn those. Deploy phase lines use `DEPLOY_PHASE:`.
+Server / iOS client `.env` keys are **unbranded** (`SERVER_*`, `FLUTTER_ROOT`,
+`DEPLOY_RB`) so a product rename does not churn those. Deploy phase lines use
+`DEPLOY_PHASE:`.
 
 Shared convention for all sync apps: workspace cursor rule `sync-app-identity`.
 

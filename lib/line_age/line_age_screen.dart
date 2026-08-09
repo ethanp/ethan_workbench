@@ -104,8 +104,9 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: Text(
-              '${report.totalLines} lines across ${report.fileCount} files',
-              style: EText.caption,
+              '${report.totalLines} current Dart lines across '
+              '${report.fileCount} files — when they were last touched',
+              style: EText.caption.copyWith(color: EColors.textMuted),
             ),
           ),
           Expanded(

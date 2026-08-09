@@ -53,7 +53,7 @@ class ProjectsCatalog {
       }
       onChanged?.call();
       return ProjectsCatalogLoadOutcome.succeeded;
-    } on AgentRequestException catch (error) {
+    } on ServerRequestException catch (error) {
       loading = false;
       evaluatingChanges = false;
       changesProgress = null;

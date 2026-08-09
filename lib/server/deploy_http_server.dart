@@ -11,28 +11,25 @@ import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_pipeline.dart';
-import '../pairing/auth_middleware.dart';
-import '../pairing/pairing_auth.dart';
 import '../run/flutter_run_device.dart';
 import '../run/local_run_session.dart';
 import '../run/local_run_state.dart';
-import 'agent_config.dart';
 import 'json_http.dart';
+import 'password_auth_middleware.dart';
 import 'request_logging.dart';
+import 'server_config.dart';
 
-const _log = ELogger('AgentJobEvents');
+const _log = ELogger('ServerJobEvents');
 
-/// Shelf HTTP surface for pairing, project list, deploys, and local runs.
-class DeployAgentServer {
-  DeployAgentServer({
+/// Shelf HTTP surface for the iOS client: projects, deploys, and local runs.
+class DeployHttpServer {
+  DeployHttpServer({
     required this.config,
-    required this.pairingAuth,
     required this.deployPipeline,
     required this.localRun,
   });
 
-  final AgentConfig config;
-  final PairingAuth pairingAuth;
+  final ServerConfig config;
   final DeployPipeline deployPipeline;
   final LocalRunSession localRun;
   HttpServer? _httpServer;
@@ -52,7 +49,6 @@ class DeployAgentServer {
   Handler buildHandler() {
     final router = Router()
       ..get('/health', _health)
-      ..post('/pair', _pair)
       ..get('/projects', _listProjects)
       ..post('/projects/evaluate-changes', _evaluateSourceChanges)
       ..post('/deploy', _startDeploy)
@@ -74,13 +70,12 @@ class DeployAgentServer {
 
     return Pipeline()
         .addMiddleware(quietRequestLog())
-        .addMiddleware(pairingAuthMiddleware(pairingAuth))
+        .addMiddleware(passwordAuthMiddleware())
         .addHandler(router.call);
   }
 
   Future<void> start() async {
     if (_httpServer != null) return;
-    pairingAuth.ensureFreshPin();
     try {
       _httpServer = await shelf_io
           .serve(
@@ -91,7 +86,7 @@ class DeployAgentServer {
           )
           .timeout(const Duration(seconds: 5));
     } on TimeoutException {
-      throw TimeoutException('Timed out binding agent port ${config.port}');
+      throw TimeoutException('Timed out binding server port ${config.port}');
     }
   }
 
@@ -106,27 +101,7 @@ class DeployAgentServer {
       'ok': true,
       'activeJobId': deployPipeline.activeJob?.jobId,
       'localRunActive': localRun.isActive,
-      'pairedSessions': pairingAuth.sessionCount,
     });
-  }
-
-  Future<Response> _pair(Request request) async {
-    try {
-      final body =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final pin = body['pin'] as String?;
-      if (pin == null || pin.trim().isEmpty) {
-        return jsonError('pin is required', status: 400);
-      }
-      final label = body['label'] as String? ?? 'iPhone';
-      final token = pairingAuth.pair(pin, label: label);
-      if (token == null) {
-        return jsonError('Invalid or expired PIN', status: 403);
-      }
-      return jsonOk({'token': token});
-    } catch (error) {
-      return jsonError(error.toString(), status: 400);
-    }
   }
 
   Future<Response> _listProjects(Request request) async {

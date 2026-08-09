@@ -6,7 +6,7 @@ abstract final class DeployLogErrorSummary {
     caseSensitive: false,
   );
 
-  /// Short one-line hint for status JSON / agent prompts.
+  /// Short one-line hint for status JSON / Cursor prompts.
   static String? failureHint(String log) {
     final lines = _meaningfulLines(log);
     if (lines.isEmpty) return null;

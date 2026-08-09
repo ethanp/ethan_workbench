@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'agent/macos_companion_screen.dart';
+import 'server/macos_companion_screen.dart';
 import 'app_identity.dart';
 import 'phone/phone_home.dart';
 import 'sync/sync_config.dart';

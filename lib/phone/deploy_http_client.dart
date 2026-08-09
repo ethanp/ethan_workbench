@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:http/http.dart' as http;
 
-import '../agent/agent_endpoint.dart';
+import '../server/server_endpoint.dart';
 import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
@@ -12,13 +12,13 @@ import '../deploy/deploy_run_record.dart';
 import '../projects/deployable_project.dart';
 import '../run/local_run_state.dart';
 
-const _log = ELogger('MacAgentClient');
+const _log = ELogger('DeployServerClient');
 
-class AgentRequestException implements Exception {
+class ServerRequestException implements Exception {
   final String message;
   final int? statusCode;
 
-  const AgentRequestException(this.message, {this.statusCode});
+  const ServerRequestException(this.message, {this.statusCode});
 
   @override
   String toString() => message;
@@ -26,10 +26,10 @@ class AgentRequestException implements Exception {
   bool get isUnauthorized => statusCode == 401;
 }
 
-/// HTTP client for the Mac LAN agent (pair, list projects, start deploys).
-class MacAgentClient {
-  MacAgentClient({String? baseUrl, this._bearerToken, http.Client? httpClient})
-    : _baseUrl = (baseUrl ?? agentBaseUrl).replaceAll(RegExp(r'/+$'), ''),
+/// HTTP client for the Mac LAN deploy server (projects, deploys, local runs).
+class DeployServerClient {
+  DeployServerClient({String? baseUrl, this._bearerToken, http.Client? httpClient})
+    : _baseUrl = (baseUrl ?? serverBaseUrl).replaceAll(RegExp(r'/+$'), ''),
       _httpClient = httpClient ?? http.Client();
 
   final String _baseUrl;
@@ -82,21 +82,6 @@ class MacAgentClient {
     _throwIfFailed(response, 'Health check failed');
   }
 
-  Future<String> pair(String pin, {String label = 'iPhone'}) async {
-    final response = await _httpClient.post(
-      Uri.parse('$_baseUrl/pair'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({'pin': pin, 'label': label}),
-    );
-    _throwIfFailed(response, 'Pairing failed');
-    final payload = jsonDecode(response.body) as Map<String, dynamic>;
-    final token = payload['token'] as String?;
-    if (token == null || token.isEmpty) {
-      throw const AgentRequestException('Pairing response missing token');
-    }
-    _bearerToken = token;
-    return token;
-  }
 
   Future<List<DeployableProject>> listProjects() async {
     final response = await _httpClient.get(
@@ -246,7 +231,7 @@ class MacAgentClient {
   }
 
   /// Live job snapshots from `GET /jobs/events` (SSE). Completes when the
-  /// connection drops; callers should reconnect while still paired.
+  /// connection drops; callers should reconnect while still signed in.
   /// Queue envelope events (`type: queue`) are skipped here — use
   /// [fetchDeployQueue] / poll.
   Stream<DeployJob> watchJobEvents() async* {
@@ -387,11 +372,11 @@ class MacAgentClient {
     request.headers.addAll(_sseHeaders);
     final streamedResponse = await client.send(request);
     if (streamedResponse.statusCode == 401) {
-      throw const AgentRequestException('Unauthorized', statusCode: 401);
+      throw const ServerRequestException('Unauthorized', statusCode: 401);
     }
     if (streamedResponse.statusCode < 200 ||
         streamedResponse.statusCode >= 300) {
-      throw AgentRequestException(
+      throw ServerRequestException(
         failureMessage,
         statusCode: streamedResponse.statusCode,
       );
@@ -427,7 +412,7 @@ class MacAgentClient {
         message = errorMessage;
       }
     } catch (_) {}
-    throw AgentRequestException(message, statusCode: response.statusCode);
+    throw ServerRequestException(message, statusCode: response.statusCode);
   }
 
   void close() {

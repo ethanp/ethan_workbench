@@ -124,7 +124,7 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
       if (job.status.isTerminal) {
         _pollTimer?.cancel();
       }
-    } on AgentRequestException catch (error) {
+    } on ServerRequestException catch (error) {
       if (!mounted) return;
       _log.warn('poll refresh failed: ${error.message}', error);
       if (error.isUnauthorized) {

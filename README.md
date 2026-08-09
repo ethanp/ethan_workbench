@@ -1,20 +1,18 @@
 # Ethan Workbench
 
-Personal Flutter workbench for your app fleet: a macOS companion runs a LAN agent that wraps `deploy.rb`, an iPhone app triggers deploys, and Mac-side tools (line age, more later) operate on local repos.
+Personal Flutter workbench for your app fleet: a macOS companion runs a LAN **server** that wraps `deploy.rb`, an **iOS client** triggers deploys, and Mac-side tools (line age, more later) operate on local repos.
 
 ## Security
 
-Auth is **pairing PIN → session token**, not open LAN access:
+Auth is a **shared password** from `.env`, not open LAN access:
 
-1. The Mac companion shows a 6-digit PIN (rotates every minute, or sooner via **New PIN**).
-2. The phone enters that PIN once and receives a long-lived bearer token (stored locally).
-3. Project list / deploy / job APIs require `Authorization: Bearer <token>`.
-4. The Mac lists each connected phone and can **Revoke** one session or **Revoke all**. Revocation is immediate on the next phone request (including mid-deploy polls); the phone returns to the pairing screen. **Unpair** on the phone only clears its own stored token.
-5. Paired sessions survive Mac companion restarts: the Mac stores **SHA-256 hashes** of tokens under Application Support (`paired_phone_sessions.json`, mode `600`). Raw tokens are never written on the Mac. Sessions older than 180 days require a fresh PIN.
+1. Set `SERVER_PASSWORD` in the Mac companion `.env` (gitignored) and restart the server.
+2. On the iPhone, enter that same password once. It is stored locally and sent as `Authorization: Bearer <password>` on every request.
+3. Project list / deploy / job APIs require a matching bearer password. `/health` stays open for reachability checks.
+4. If `SERVER_PASSWORD` is empty/unset, the server **fails closed** (everything except `/health` returns 401).
+5. To revoke phones: change `SERVER_PASSWORD` and restart the Mac server. Use **Sign out** on the phone to clear its stored password only.
 
-Open without a token: `/health`, `/pair`. Everything else needs a valid session.
-
-Keep the agent on a network you trust (home LAN / Tailscale). A stranger who can reach it **and** catch a live PIN could pair and then **deploy or run your Flutter apps** on your Mac/sim/phone — annoying and disruptive, but of course NOT a dangerous path to your bank credentials . Revoke sessions on the Mac if that happens. Don’t port-forward the agent to the public internet.
+Keep the server on a network you trust (home LAN / Tailscale). A stranger who can reach it **and** know the password could **deploy or run your Flutter apps** on your Mac/sim/phone — annoying and disruptive, but of course not a path to bank credentials. Don’t port-forward the server to the public internet.
 
 ## Setup
 
@@ -26,8 +24,9 @@ Edit `.env`:
 
 | Variable | Purpose |
 |---|---|
-| `AGENT_HOST` | Mac Bonjour / local hostname, e.g. `MacBook-Pro.local` |
-| `AGENT_PORT` | Agent port (default `8787`) |
+| `SERVER_HOST` | Mac Bonjour / local hostname, e.g. `MacBook-Pro.local` |
+| `SERVER_PORT` | Deploy server port (default `8787`) |
+| `SERVER_PASSWORD` | Shared password for the iOS client (required) |
 | `FLUTTER_ROOT` | Absolute path to the folder that contains your Flutter apps |
 | `DEPLOY_RB` | Optional. Defaults to `$FLUTTER_ROOT/ethan_workbench/deploy.rb` |
 
@@ -41,7 +40,7 @@ flutter pub get
 
 | What | Where |
 |---|---|
-| Sync / agent env | `Flutter/ethan_workbench/.env` (gitignored) |
+| Sync / server env | `Flutter/ethan_workbench/.env` (gitignored) |
 | PowerSync SQLite | `~/Documents/workbench_powersync.db` (`AppIdentity.localDatabaseStem`) |
 | macOS app support | `~/Library/Application Support/com.ethan.ethanWorkbench` |
 | Bundle id | `com.ethan.ethanWorkbench` |
@@ -50,7 +49,7 @@ Server-side history lives in Postgres `ethan_workbench.deploy_runs` on the home 
 
 ## Run
 
-**1. Mac companion** (leave running — this is the agent):
+**1. Mac companion** (leave running — this is the server for the iOS client):
 
 ```bash
 cd ethan_workbench
@@ -65,7 +64,7 @@ ruby deploy.rb ios --force
 # or: flutter run -d <your-iphone-id>
 ```
 
-Open Ethan Workbench on the phone, enter the PIN shown on the Mac, then deploy projects from the list.
+Open Ethan Workbench on the phone, enter the shared `SERVER_PASSWORD`, then deploy projects from the list.
 
 On the Mac companion, projects with an `ios/` folder also get a **meSim** plate: boots the iPhone Simulator named `meSim` if needed, then `flutter run` on it (same hot reload / stop controls as macOS Run).
 

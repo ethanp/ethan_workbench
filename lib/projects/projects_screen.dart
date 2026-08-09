@@ -202,8 +202,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  Future<void> _unpair() async {
-    await widget.trigger.onUnpair?.call();
+  Future<void> _signOut() async {
+    await widget.trigger.onSignOut?.call();
   }
 
   @override
@@ -222,11 +222,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         title: widget.trigger.title,
         actions: [
           _checkForChangesAction(),
-          if (widget.trigger.showUnpair)
+          if (widget.trigger.showSignOut)
             IconButton(
-              tooltip: 'Unpair',
-              onPressed: () => unawaited(_unpair()),
-              icon: const Icon(Icons.link_off_rounded),
+              tooltip: 'Sign out',
+              onPressed: () => unawaited(_signOut()),
+              icon: const Icon(Icons.logout_rounded),
             ),
         ],
       ),
@@ -323,7 +323,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       return _emptyState();
     }
 
-    final ongoing = _activeDeploy.ongoing;
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
     // Compact: 6px side inset (vs 8) — clears subpixel dual-cluster overflow.
     final listPadH = compact ? 6.0 : ELayout.spaceXl;
@@ -339,22 +338,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           listPadH,
           ELayout.spaceXl + 8,
         ),
-        itemCount: _catalog.projects.length + (ongoing != null ? 1 : 0),
+        itemCount: _catalog.projects.length,
         separatorBuilder: (context, index) =>
             const SizedBox(height: ELayout.spaceMd + 2),
-        itemBuilder: (context, index) {
-          if (ongoing != null) {
-            if (index == 0) {
-              return OngoingDeployBanner(
-                job: ongoing,
-                queuedCount: _activeDeploy.waiting.length,
-                onOpen: () => unawaited(_openOngoingDeploy()),
-              );
-            }
-            return _projectRow(_catalog.projects[index - 1]);
-          }
-          return _projectRow(_catalog.projects[index]);
-        },
+        itemBuilder: (context, index) => _projectRow(_catalog.projects[index]),
       ),
     );
   }

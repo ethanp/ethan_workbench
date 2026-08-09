@@ -2,21 +2,21 @@ import 'package:ethan_utils/ethan_utils.dart';
 import 'package:path/path.dart' as path;
 
 import '../app_identity.dart';
-import 'agent_endpoint.dart';
+import 'server_endpoint.dart';
 
-class AgentConfig {
+class ServerConfig {
   final int port;
   final List<String> flutterRoots;
   final String deployRbPath;
 
-  AgentConfig({int? port, List<String>? flutterRoots, String? deployRbPath})
-    : port = port ?? agentPort,
+  ServerConfig({int? port, List<String>? flutterRoots, String? deployRbPath})
+    : port = port ?? serverPort,
       flutterRoots = flutterRoots ?? [workbenchFlutterRoot],
       deployRbPath = deployRbPath ?? workbenchDeployRbPath;
 
   static String get defaultFlutterRoot => workbenchFlutterRoot;
   static String get defaultDeployRbPath => workbenchDeployRbPath;
-  static int get defaultPort => agentPort;
+  static int get defaultPort => serverPort;
 }
 
 String get workbenchFlutterRoot => envStringOr('FLUTTER_ROOT', '');

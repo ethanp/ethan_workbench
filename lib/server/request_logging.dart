@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:shelf/shelf.dart';
 
-const _log = ELogger('AgentHttp');
+const _log = ELogger('DeployHttp');
 
 /// Logs meaningful traffic; skips noisy job/health polls from the phone UI.
 Middleware quietRequestLog() {

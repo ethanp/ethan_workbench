@@ -113,7 +113,7 @@ class ProjectDeployFlow {
         error,
         afterJobScreenClosed: afterJobScreenClosed,
       );
-    } on AgentRequestException catch (error) {
+    } on ServerRequestException catch (error) {
       if (!context.mounted) return;
       if (error.isUnauthorized) {
         await trigger.onUnauthorized?.call();

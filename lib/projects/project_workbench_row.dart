@@ -376,34 +376,3 @@ class ProjectWorkbenchRow extends StatelessWidget {
         DeployPlatform.ios => FlutterRunDevice.meSim,
       };
 }
-
-/// Banner above the project list while a deploy is in progress.
-class OngoingDeployBanner extends StatelessWidget {
-  const OngoingDeployBanner({
-    super.key,
-    required this.job,
-    required this.onOpen,
-    this.queuedCount = 0,
-  });
-
-  final DeployJob job;
-  final VoidCallback onOpen;
-  final int queuedCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final queueSuffix = queuedCount == 0
-        ? ''
-        : ' · +$queuedCount queued';
-    return ETintedAction(
-      accent: EColors.accentGlow,
-      icon: Icons.rocket_launch_rounded,
-      title: job.projectName,
-      subtitle:
-          '${job.platform.label} deploy in progress — tap to open$queueSuffix',
-      chipLabel: job.status.pillLabel,
-      chipTone: job.status.statusTone,
-      onTap: onOpen,
-    );
-  }
-}

@@ -1,42 +1,41 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:ethan_utils/ethan_utils.dart';
 
-import '../agent/agent_endpoint.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_trigger.dart';
-import '../pairing/session_token_store.dart';
 import '../projects/deployable_project.dart';
 import '../projects/source_changes_progress.dart';
 import '../run/local_run_controls.dart';
 import '../run/remote_local_run_session.dart';
+import '../server/server_endpoint.dart';
 import 'deploy_http_client.dart';
+import 'server_password_store.dart';
 
 const _log = ELogger('PhoneJobEvents');
 
-/// Phone-side session: restore pairing, talk to the Mac agent, unpair on revoke.
-class PairedPhoneSession {
-  PairedPhoneSession({
-    MacAgentClient? agentClient,
-    SessionTokenStore? tokenStore,
-  }) : _agent = agentClient ?? MacAgentClient(),
-       _tokenStore = tokenStore ?? SessionTokenStore() {
-    _localRun = RemoteLocalRunSession(agent: _agent);
+/// iOS client session: restore shared password, talk to the Mac server.
+class PhoneSession {
+  PhoneSession({
+    DeployServerClient? serverClient,
+    ServerPasswordStore? passwordStore,
+  }) : _server = serverClient ?? DeployServerClient(),
+       _passwordStore = passwordStore ?? ServerPasswordStore() {
+    _localRun = RemoteLocalRunSession(server: _server);
   }
 
-  final MacAgentClient _agent;
-  final SessionTokenStore _tokenStore;
+  final DeployServerClient _server;
+  final ServerPasswordStore _passwordStore;
   final _jobUpdatesController = StreamController<DeployJob>.broadcast();
   late final RemoteLocalRunSession _localRun;
 
-  bool _paired = false;
+  bool _signedIn = false;
   bool _jobEventsLoopRunning = false;
   Future<void> Function()? _onUnauthorized;
 
-  bool get isPaired => _paired;
+  bool get isSignedIn => _signedIn;
 
   Stream<DeployJob> get jobUpdates => _jobUpdatesController.stream;
 
@@ -44,7 +43,7 @@ class PairedPhoneSession {
 
   DeployTrigger deployTrigger({void Function()? onSessionEnded}) {
     Future<void> endSession() async {
-      await unpair();
+      await signOut();
       onSessionEnded?.call();
     }
 
@@ -53,9 +52,9 @@ class PairedPhoneSession {
 
     return DeployTrigger(
       title: 'Deploy',
-      showUnpair: true,
+      showSignOut: true,
       preferredPlatforms: const [DeployPlatform.macos, DeployPlatform.ios],
-      unreachableHint: 'Is the Mac companion running at $agentBaseUrl?',
+      unreachableHint: 'Is the Mac server running at $serverBaseUrl?',
       listProjects: listProjects,
       evaluateSourceChanges: evaluateSourceChanges,
       startDeploy: startDeploy,
@@ -66,45 +65,44 @@ class PairedPhoneSession {
       cancelQueuedDeploy: cancelQueuedDeploy,
       jobUpdates: jobUpdates,
       onUnauthorized: endSession,
-      onUnpair: endSession,
+      onSignOut: endSession,
     );
   }
 
   Future<void> restore() async {
-    final token = await _tokenStore.loadToken();
-    _agent.setBearerToken(token);
-    _paired = token != null;
-    if (_paired) {
+    final password = await _passwordStore.loadPassword();
+    _server.setBearerToken(password);
+    _signedIn = password != null;
+    if (_signedIn) {
       _ensureJobEventsListening();
       _localRun.startListening();
     }
   }
 
-  Future<void> pair(String pin) async {
-    final token = await _agent.pair(
-      pin,
-      label: Platform.isIOS ? 'iPhone' : Platform.localHostname,
-    );
-    await _tokenStore.saveToken(token);
-    _paired = true;
+  Future<void> signIn(String password) async {
+    _server.setBearerToken(password);
+    // Verify against a protected route before persisting.
+    await _server.listProjects();
+    await _passwordStore.savePassword(password);
+    _signedIn = true;
     _ensureJobEventsListening();
     _localRun.startListening();
   }
 
-  Future<void> unpair() async {
-    _paired = false;
+  Future<void> signOut() async {
+    _signedIn = false;
     _localRun.stopListening();
-    _agent.cancelJobEvents();
-    await _tokenStore.clearToken();
-    _agent.setBearerToken(null);
+    _server.cancelJobEvents();
+    await _passwordStore.clearPassword();
+    _server.setBearerToken(null);
   }
 
-  Future<List<DeployableProject>> listProjects() => _agent.listProjects();
+  Future<List<DeployableProject>> listProjects() => _server.listProjects();
 
   Future<List<DeployableProject>> evaluateSourceChanges({
     void Function(SourceChangesProgress progress)? onProgress,
   }) {
-    return _agent.evaluateSourceChanges();
+    return _server.evaluateSourceChanges();
   }
 
   Future<DeployJob> startDeploy({
@@ -112,47 +110,47 @@ class PairedPhoneSession {
     required DeployPlatform platform,
     bool force = false,
   }) {
-    return _agent.startDeploy(
+    return _server.startDeploy(
       projectId: projectId,
       platform: platform,
       force: force,
     );
   }
 
-  Future<DeployJob> fetchJob(String jobId) => _agent.fetchJob(jobId);
+  Future<DeployJob> fetchJob(String jobId) => _server.fetchJob(jobId);
 
-  Future<DeployJob?> fetchActiveJob() => _agent.fetchActiveJob();
+  Future<DeployJob?> fetchActiveJob() => _server.fetchActiveJob();
 
   Future<List<DeployRunRecord>> listDeployHistory() =>
-      _agent.listDeployHistory();
+      _server.listDeployHistory();
 
-  Future<List<DeployJob>> fetchDeployQueue() => _agent.fetchDeployQueue();
+  Future<List<DeployJob>> fetchDeployQueue() => _server.fetchDeployQueue();
 
   Future<void> cancelQueuedDeploy(String jobId) =>
-      _agent.cancelQueuedDeploy(jobId);
+      _server.cancelQueuedDeploy(jobId);
 
   void _ensureJobEventsListening() {
     if (_jobEventsLoopRunning) {
-      _log.log('job-events loop already running paired=$_paired');
+      _log.log('job-events loop already running signedIn=$_signedIn');
       return;
     }
     _jobEventsLoopRunning = true;
-    _log.log('starting job-events loop baseUrl=$agentBaseUrl');
+    _log.log('starting job-events loop baseUrl=$serverBaseUrl');
     unawaited(_runJobEventsLoop());
   }
 
   Future<void> _runJobEventsLoop() async {
     var connectAttempt = 0;
     try {
-      while (_paired) {
+      while (_signedIn) {
         connectAttempt += 1;
         var eventCount = 0;
         String? lastStatus;
         String? lastChecklist;
         _log.log('SSE connect attempt=$connectAttempt');
         try {
-          await for (final job in _agent.watchJobEvents()) {
-            if (!_paired) break;
+          await for (final job in _server.watchJobEvents()) {
+            if (!_signedIn) break;
             eventCount += 1;
             final checklistSignature = job.checklist
                 .map((item) => '${item.id}:${item.status.name}')
@@ -176,11 +174,11 @@ class PairedPhoneSession {
           }
           _log.warn(
             'SSE stream ended attempt=$connectAttempt events=$eventCount '
-            'paired=$_paired',
+            'signedIn=$_signedIn',
           );
-        } on AgentRequestException catch (error) {
+        } on ServerRequestException catch (error) {
           _log.warn(
-            'SSE AgentRequestException attempt=$connectAttempt '
+            'SSE ServerRequestException attempt=$connectAttempt '
             'status=${error.statusCode} ${error.message}',
           );
           if (error.isUnauthorized) {
@@ -188,7 +186,7 @@ class PairedPhoneSession {
             if (onUnauthorized != null) {
               await onUnauthorized();
             } else {
-              await unpair();
+              await signOut();
             }
             break;
           }
@@ -199,20 +197,20 @@ class PairedPhoneSession {
             stackTrace,
           );
         }
-        if (!_paired) break;
+        if (!_signedIn) break;
         await Future<void>.delayed(const Duration(seconds: 1));
       }
     } finally {
       _jobEventsLoopRunning = false;
-      _log.log('job-events loop stopped paired=$_paired');
+      _log.log('job-events loop stopped signedIn=$_signedIn');
     }
   }
 
   void close() {
-    _paired = false;
+    _signedIn = false;
     unawaited(_localRun.close());
-    _agent.cancelJobEvents();
+    _server.cancelJobEvents();
     unawaited(_jobUpdatesController.close());
-    _agent.close();
+    _server.close();
   }
 }

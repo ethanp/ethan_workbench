@@ -10,11 +10,11 @@ import 'local_run_state.dart';
 
 const _log = ELogger('RemoteLocalRun');
 
-/// Phone-side proxy: drives Mac [LocalRunSession] over the LAN agent.
+/// Phone-side proxy: drives Mac [LocalRunSession] over the LAN server.
 class RemoteLocalRunSession implements LocalRunControls {
-  RemoteLocalRunSession({required this.agent, this.onUnauthorized});
+  RemoteLocalRunSession({required this.server, this.onUnauthorized});
 
-  final MacAgentClient agent;
+  final DeployServerClient server;
   Future<void> Function()? onUnauthorized;
 
   final _updatesController = StreamController<LocalRunState>.broadcast();
@@ -52,7 +52,7 @@ class RemoteLocalRunSession implements LocalRunControls {
     _wantListening = false;
     _pollTimer?.cancel();
     _pollTimer = null;
-    agent.cancelRunEvents();
+    server.cancelRunEvents();
   }
 
   void _ensureListening() {
@@ -70,7 +70,7 @@ class RemoteLocalRunSession implements LocalRunControls {
         LocalRunStatus? lastStatus;
         _log.log('SSE connect attempt=$connectAttempt');
         try {
-          await for (final runState in agent.watchLocalRunEvents()) {
+          await for (final runState in server.watchLocalRunEvents()) {
             if (!_wantListening || _closed) break;
             eventCount += 1;
             if (runState.status != lastStatus || eventCount == 1) {
@@ -86,9 +86,9 @@ class RemoteLocalRunSession implements LocalRunControls {
           _log.warn(
             'SSE stream ended attempt=$connectAttempt events=$eventCount',
           );
-        } on AgentRequestException catch (error) {
+        } on ServerRequestException catch (error) {
           _log.warn(
-            'SSE AgentRequestException attempt=$connectAttempt '
+            'SSE ServerRequestException attempt=$connectAttempt '
             'status=${error.statusCode} ${error.message}',
           );
           if (error.isUnauthorized) {
@@ -118,7 +118,7 @@ class RemoteLocalRunSession implements LocalRunControls {
   Future<void> _pullSnapshot({required String reason}) async {
     if (_closed || !_wantListening) return;
     try {
-      final runState = await agent.fetchLocalRun();
+      final runState = await server.fetchLocalRun();
       if (runState.status != _state.status ||
           runState.projectId != _state.projectId ||
           runState.deviceKey != _state.deviceKey ||
@@ -129,7 +129,7 @@ class RemoteLocalRunSession implements LocalRunControls {
         );
       }
       _publish(runState);
-    } on AgentRequestException catch (error) {
+    } on ServerRequestException catch (error) {
       if (error.isUnauthorized) {
         _log.warn('snapshot unauthorized');
         final callback = onUnauthorized;
@@ -154,7 +154,7 @@ class RemoteLocalRunSession implements LocalRunControls {
     DeployableProject project, {
     required FlutterRunDevice device,
   }) async {
-    final runState = await agent.startLocalRun(
+    final runState = await server.startLocalRun(
       projectId: project.projectId,
       deviceKey: device.key,
     );
@@ -163,25 +163,25 @@ class RemoteLocalRunSession implements LocalRunControls {
 
   @override
   Future<void> stop() async {
-    final runState = await agent.stopLocalRun();
+    final runState = await server.stopLocalRun();
     _publish(runState);
   }
 
   @override
   Future<void> hotReload() async {
-    final runState = await agent.hotReloadLocalRun();
+    final runState = await server.hotReloadLocalRun();
     _publish(runState);
   }
 
   @override
   Future<void> hotRestart() async {
-    final runState = await agent.hotRestartLocalRun();
+    final runState = await server.hotRestartLocalRun();
     _publish(runState);
   }
 
   @override
   Future<void> fullRestart() async {
-    final runState = await agent.fullRestartLocalRun();
+    final runState = await server.fullRestartLocalRun();
     _publish(runState);
   }
 
@@ -190,7 +190,7 @@ class RemoteLocalRunSession implements LocalRunControls {
     _wantListening = false;
     _pollTimer?.cancel();
     _pollTimer = null;
-    agent.cancelRunEvents();
+    server.cancelRunEvents();
     await _updatesController.close();
   }
 }
