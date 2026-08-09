@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:ethan_ui/ethan_ui.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
+import '../ui/workbench_action_accents.dart';
 import 'line_age_analyzer.dart';
+import 'line_age_blame_progress.dart';
 import 'line_age_chart.dart';
 
 class LineAgeScreen extends StatefulWidget {
@@ -66,11 +69,30 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
     }
   }
 
+  String? get _headerSubtitle {
+    final report = _report;
+    if (report != null) {
+      return '${report.totalLines.asCompactCount} Dart lines · '
+          '${report.fileCount} files · last-touched months';
+    }
+    if (_errorMessage != null) return 'Analysis failed';
+    if (_running) {
+      final progress = _progress;
+      if (progress == null) return 'Starting git blame…';
+      return 'Blaming ${progress.completedFiles}/${progress.totalFiles} files';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return EScaffoldShell(
-      appBar: AppBar(
-        title: Text('Line age — ${widget.repoName}', style: EText.title),
+      contentMaxWidth: ELayout.contentMaxWidth * 2,
+      appBar: EAppHeader(
+        eyebrow: 'LINE AGE',
+        title: widget.repoName,
+        subtitle: _headerSubtitle,
+        accent: WorkbenchActionAccents.lineAge,
       ),
       body: _body(),
     );
@@ -98,56 +120,16 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
 
     final report = _report;
     if (report != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: Text(
-              '${report.totalLines} current Dart lines across '
-              '${report.fileCount} files — when they were last touched',
-              style: EText.caption.copyWith(color: EColors.textMuted),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: LineAgeChart(report: report),
-            ),
-          ),
-        ],
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+        child: LineAgeChart(report: report),
       );
     }
 
-    final progress = _progress;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 18),
-            Text(
-              _running ? 'Analyzing with git blame…' : 'Starting…',
-              style: EText.section,
-            ),
-            if (progress != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                '${progress.completedFiles}/${progress.totalFiles}'
-                '${progress.currentRelativePath.isEmpty ? '' : ' — ${progress.currentRelativePath}'}',
-                style: EText.caption,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: 280,
-                child: LinearProgressIndicator(value: progress.fraction),
-              ),
-            ],
-          ],
-        ),
+        child: LineAgeBlameProgress(progress: _progress),
       ),
     );
   }
