@@ -251,7 +251,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
                 icon: Icons.bolt_rounded,
                 title: 'Hot reload',
                 enabled: canKeys,
-                onTap: () => unawaited(widget.session.hotReload()),
+                onActivated: () => unawaited(widget.session.hotReload()),
               ),
             ),
             const SizedBox(width: 10),
@@ -261,7 +261,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
                 icon: Icons.restart_alt_rounded,
                 title: 'Hot restart',
                 enabled: canKeys,
-                onTap: () => unawaited(widget.session.hotRestart()),
+                onActivated: () => unawaited(widget.session.hotRestart()),
               ),
             ),
           ],
@@ -275,7 +275,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
                 icon: Icons.replay_circle_filled_rounded,
                 title: 'Full restart',
                 enabled: canFullRestart,
-                onTap: () => unawaited(widget.session.fullRestart()),
+                onActivated: () => unawaited(widget.session.fullRestart()),
               ),
             ),
             const SizedBox(width: 10),
@@ -285,7 +285,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
                 icon: Icons.stop_circle_rounded,
                 title: 'Stop',
                 enabled: canStop,
-                onTap: () => unawaited(widget.session.stop()),
+                onActivated: () => unawaited(widget.session.stop()),
               ),
             ),
           ],
@@ -299,13 +299,13 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
     required IconData icon,
     required String title,
     required bool enabled,
-    required VoidCallback onTap,
+    required VoidCallback onActivated,
   }) {
     final plate = ETintedAction.compact(
       accent: enabled ? accent : EColors.textMuted,
       icon: icon,
       title: title,
-      onTap: enabled ? onTap : () {},
+      onActivated: enabled ? onActivated : () {},
     );
     if (enabled) return plate;
     return Opacity(opacity: 0.42, child: IgnorePointer(child: plate));

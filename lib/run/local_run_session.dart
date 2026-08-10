@@ -273,9 +273,9 @@ class LocalRunSession implements LocalRunControls {
   }
 
   void _adoptFlutterRun(LocalFlutterRun flutterRun) {
-    _flutterRunBinding.adopt(
+    _console.bindFlutterRunOutput(
+      _flutterRunBinding,
       flutterRun,
-      onOutput: _console.onOutputChunk,
       onExit: (exitCode) {
         unawaited(
           _settleExit(flutterRun, exitCode, stoppedIntentionally: false),

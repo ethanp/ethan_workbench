@@ -8,10 +8,10 @@ enum ProjectsCatalogLoadOutcome { succeeded, unauthorized, failed }
 
 /// Loads and refreshes the deployable project list (with optional change eval).
 class ProjectsCatalog {
-  ProjectsCatalog({required this.trigger, this.onChanged});
+  ProjectsCatalog({required this.trigger, this.onCatalogChanged});
 
   final DeployTrigger trigger;
-  final void Function()? onChanged;
+  final void Function()? onCatalogChanged;
 
   List<DeployableProject> projects = const [];
   bool loading = true;
@@ -33,14 +33,14 @@ class ProjectsCatalog {
     changesProgress = null;
     errorMessage = null;
     lastFailureMessage = null;
-    onChanged?.call();
+    onCatalogChanged?.call();
 
     try {
       final loaded = evaluateChanges
           ? await trigger.evaluateSourceChanges(
               onProgress: (progress) {
                 changesProgress = progress;
-                onChanged?.call();
+                onCatalogChanged?.call();
               },
             )
           : await trigger.listProjects();
@@ -51,13 +51,13 @@ class ProjectsCatalog {
       if (evaluateChanges) {
         lastChangesCheckedAt = DateTime.now();
       }
-      onChanged?.call();
+      onCatalogChanged?.call();
       return ProjectsCatalogLoadOutcome.succeeded;
     } on ServerRequestException catch (error) {
       loading = false;
       evaluatingChanges = false;
       changesProgress = null;
-      onChanged?.call();
+      onCatalogChanged?.call();
       if (error.isUnauthorized) {
         return ProjectsCatalogLoadOutcome.unauthorized;
       }
@@ -73,7 +73,7 @@ class ProjectsCatalog {
       changesProgress = null;
       lastFailureMessage = error.toString();
       errorMessage = error.toString();
-      onChanged?.call();
+      onCatalogChanged?.call();
       return ProjectsCatalogLoadOutcome.failed;
     }
   }

@@ -140,7 +140,7 @@ class ActiveDeploySlot {
     _console.seed(reclaimed, projectPath: projectPath);
     unawaited(checkpoint());
     await _startLogFollow(logPath);
-    _pidWatch.watch(pid, onDead: () => _onReclaimedPidDead(pid));
+    _pidWatch.watch(pid, onDead: () => _finishDeployForDeadPid(pid));
   }
 
   /// Process already exited when reclaiming after restart.
@@ -289,7 +289,7 @@ class ActiveDeploySlot {
     await follow?.stop();
   }
 
-  Future<void> _onReclaimedPidDead(int pid) async {
+  Future<void> _finishDeployForDeadPid(int pid) async {
     if (_pid != pid) return;
     final projectPath = _projectPath;
     final exitCodePath = _exitCodePath;

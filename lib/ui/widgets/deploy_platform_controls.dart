@@ -31,7 +31,7 @@ EActionClusterCell deployActionCell({
       statusLabel: ongoing.status.name,
       statusTone: ongoing.status.statusTone,
       live: true,
-      onTap: onOpenOngoing ?? () {},
+      onActivated: onOpenOngoing ?? () {},
     );
   }
 
@@ -49,7 +49,7 @@ EActionClusterCell deployActionCell({
     statusLabel: isQueuedBehind ? 'queued' : sourceStatus.chipLabel,
     statusTone:
         isQueuedBehind ? EStatusTone.accent : sourceStatus.chipTone,
-    onTap: onSelected,
+    onActivated: onSelected,
   );
 }
 

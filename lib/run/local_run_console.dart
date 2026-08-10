@@ -39,7 +39,19 @@ class LocalRunConsole {
     );
   }
 
-  void onOutputChunk(String chunk) {
+  void bindFlutterRunOutput(
+    LocalFlutterRunBinding binding,
+    LocalFlutterRun flutterRun, {
+    required void Function(int exitCode) onExit,
+  }) {
+    binding.adopt(
+      flutterRun,
+      onOutput: _ingestFlutterRunOutput,
+      onExit: onExit,
+    );
+  }
+
+  void _ingestFlutterRunOutput(String chunk) {
     _runProgress.appendLog(chunk);
     _captureVmServiceUri(chunk);
     _captureFlutterException();

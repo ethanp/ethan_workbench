@@ -68,6 +68,40 @@ class ProjectWorkbenchRow extends StatelessWidget {
   final VoidCallback onStopRun;
   final VoidCallback onOpenOngoingDeploy;
 
+  /// Width at which identity / Line age / clusters sit at preferred maxima.
+  /// Further width is unused blank inside the row (list padding is not included).
+  static double saturatedWidth({
+    required int platformCount,
+    required bool showLineAge,
+    required bool compact,
+  }) {
+    final rowPadH = compact
+        ? _WorkbenchRowLayout.compactRowPadH
+        : _WorkbenchRowLayout.rowPadH;
+    final clusterGap = compact
+        ? _WorkbenchRowLayout.compactClusterGap
+        : _WorkbenchRowLayout.clusterGap;
+    final identity = compact
+        ? _WorkbenchRowLayout.compactIdentityMaxWidth
+        : _WorkbenchRowLayout.identityMaxWidth;
+    final lineAge =
+        showLineAge ? _WorkbenchRowLayout.secondaryActionWidth : 0.0;
+    final platforms = math.max(0, platformCount);
+    final clusters = platforms * _WorkbenchRowLayout.clusterWidth;
+    final clusterGaps = math.max(0, platforms - 1) * clusterGap;
+    final afterIdentityGap = platforms > 0 || lineAge > 0
+        ? ELayout.spaceMd
+        : 0.0;
+    final lineAgeGap = lineAge > 0 ? clusterGap : 0.0;
+    return rowPadH * 2 +
+        identity +
+        afterIdentityGap +
+        lineAge +
+        lineAgeGap +
+        clusters +
+        clusterGaps;
+  }
+
   @override
   Widget build(BuildContext context) {
     final macosRunStatus = _activeRunStatus(FlutterRunDevice.macos);
@@ -118,14 +152,14 @@ class ProjectWorkbenchRow extends StatelessWidget {
                           icon: Icons.bar_chart_rounded,
                           title: 'Line age',
                           subtitle: 'Authorship',
-                          onTap: onLineAge,
+                          onActivated: onLineAge,
                         )
                       : ETintedAction.iconOnly(
                           accent: WorkbenchActionAccents.lineAge,
                           icon: Icons.bar_chart_rounded,
                           title: 'Line age',
                           subtitle: 'Authorship',
-                          onTap: onLineAge,
+                          onActivated: onLineAge,
                         ),
                 ),
                 SizedBox(width: clusterGap),
@@ -287,7 +321,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
                 : runStatus?.chipTone,
             live: runStatus != null,
             trailing: _runStopControl(runStatus),
-            onTap: () => onRun(runDevice),
+            onActivated: () => onRun(runDevice),
           ),
         deployActionCell(
           platform: platform,
@@ -316,7 +350,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
               title: 'Not available',
               subtitle: 'No ${platform.label} target',
               condensedLabel: 'N/A',
-              onTap: () {},
+              onActivated: () {},
             ),
           ],
         ),

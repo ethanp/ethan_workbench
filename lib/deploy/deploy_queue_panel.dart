@@ -8,8 +8,9 @@ import 'deploy_job.dart';
 
 /// Right-rail queue: active deploy + FIFO wait list (+ optional job detail).
 ///
-/// With a job detail open, the queue section is content-sized by default and
-/// the queue/detail split can be resized by dragging the handle between them.
+/// With a job detail open, the queue section is content-sized by default
+/// (and again whenever a new wait-queue job is enqueued). The queue/detail
+/// split can still be resized by dragging the handle between them.
 class DeployQueuePanel extends StatefulWidget {
   const DeployQueuePanel({
     super.key,
@@ -39,14 +40,22 @@ class DeployQueuePanel extends StatefulWidget {
 }
 
 class _DeployQueuePanelState extends State<DeployQueuePanel> {
-  static const _contentSizedQueueMaxHeight = 220.0;
   static const _queueMinHeight = 48.0;
   static const _jobDetailMinHeight = 160.0;
 
   /// Null until the split handle is first dragged; queue stays content-sized.
+  /// Cleared again when a new wait-queue job is enqueued so the split just-fits.
   double? _draggedQueueHeight;
-  double _maxQueueHeight = _contentSizedQueueMaxHeight;
+  double _maxQueueHeight = 220.0;
   final _queueSectionKey = GlobalKey();
+
+  @override
+  void didUpdateWidget(covariant DeployQueuePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_hasNewWaitingJob(oldWidget.waiting, widget.waiting)) {
+      _draggedQueueHeight = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,12 +91,7 @@ class _DeployQueuePanelState extends State<DeployQueuePanel> {
             else
               ConstrainedBox(
                 key: _queueSectionKey,
-                constraints: BoxConstraints(
-                  maxHeight: math.min(
-                    _contentSizedQueueMaxHeight,
-                    _maxQueueHeight,
-                  ),
-                ),
+                constraints: BoxConstraints(maxHeight: _maxQueueHeight),
                 child: _queueList(shrinkWrap: true),
               ),
             _splitDragHandle(),
@@ -96,6 +100,19 @@ class _DeployQueuePanelState extends State<DeployQueuePanel> {
         );
       },
     );
+  }
+
+  bool _hasNewWaitingJob(
+    List<DeployJob> previousWaiting,
+    List<DeployJob> nextWaiting,
+  ) {
+    final previousJobIds = {
+      for (final job in previousWaiting) job.jobId,
+    };
+    for (final job in nextWaiting) {
+      if (!previousJobIds.contains(job.jobId)) return true;
+    }
+    return false;
   }
 
   Widget _splitDragHandle() {
@@ -159,7 +176,7 @@ class _DeployQueuePanelState extends State<DeployQueuePanel> {
           const SizedBox(height: ELayout.spaceSm),
           _QueueJobTile(
             job: widget.ongoing!,
-            onTap: widget.onOpenOngoing,
+            onActivated: widget.onOpenOngoing,
             stageLabel: widget.ongoing!.activeStageLabel,
             remaining: widget.ongoingRemaining,
           ),
@@ -191,7 +208,7 @@ class _QueueJobTile extends StatelessWidget {
   const _QueueJobTile({
     required this.job,
     this.position,
-    this.onTap,
+    this.onActivated,
     this.onCancel,
     this.stageLabel,
     this.remaining,
@@ -199,7 +216,7 @@ class _QueueJobTile extends StatelessWidget {
 
   final DeployJob job;
   final int? position;
-  final VoidCallback? onTap;
+  final VoidCallback? onActivated;
   final VoidCallback? onCancel;
   final String? stageLabel;
   final Duration? remaining;
@@ -217,7 +234,7 @@ class _QueueJobTile extends StatelessWidget {
     return ESurface(
       kind: ESurfaceKind.tinted,
       accent: job.platform.accent,
-      onTap: onTap,
+      onActivated: onActivated,
       padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

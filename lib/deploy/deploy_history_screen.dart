@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:ethan_ui/ethan_ui.dart';
@@ -151,24 +152,38 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
         title: 'History',
       ),
       body: showJobRail
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _body()),
-                ESidePanel(
-                  title: 'Deploy',
-                  width: _jobDetailRailWidth,
-                  child: DeployJobDetail(
-                    key: ValueKey(selectedRunJob.jobId),
-                    trigger: widget.trigger,
-                    initialJob: selectedRunJob,
-                    embedded: true,
-                    onClose: () => setState(() => _selectedRunJob = null),
-                  ),
-                ),
-              ],
-            )
+          ? _bodyWithJobRail(selectedRunJob)
           : _body(),
+    );
+  }
+
+  /// History list + deploy detail rail; surplus width past feed comfort
+  /// goes to the rail.
+  Widget _bodyWithJobRail(DeployJob selectedRunJob) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final railWidth = math.max(
+          _jobDetailRailWidth,
+          constraints.maxWidth - ELayout.feedContentMaxWidth,
+        );
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: _body()),
+            ESidePanel(
+              title: 'Deploy',
+              width: railWidth,
+              child: DeployJobDetail(
+                key: ValueKey(selectedRunJob.jobId),
+                trigger: widget.trigger,
+                initialJob: selectedRunJob,
+                embedded: true,
+                onDismiss: () => setState(() => _selectedRunJob = null),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -217,7 +232,7 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
     return ESurface(
       kind: ESurfaceKind.row,
       attention: run.runId == _selectedRunJob?.jobId,
-      onTap: () => unawaited(_showRunDeployPanel(run)),
+      onActivated: () => unawaited(_showRunDeployPanel(run)),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
         children: [

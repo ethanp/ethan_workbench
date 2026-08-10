@@ -13,11 +13,11 @@ const _log = ELogger('ActiveDeployWatch');
 class ActiveDeployWatch {
   ActiveDeployWatch({
     required this.trigger,
-    required this.onChanged,
+    required this.onActiveDeployChanged,
   });
 
   final DeployTrigger trigger;
-  final void Function() onChanged;
+  final void Function() onActiveDeployChanged;
 
   DeployJob? ongoing;
   List<DeployJob> waiting = const [];
@@ -79,12 +79,12 @@ class ActiveDeployWatch {
         'stream update was=$was now=${ongoing?.debugSummary ?? 'none'}',
       );
     }
-    onChanged();
+    onActiveDeployChanged();
   }
 
   void _applyQueueUpdate(List<DeployJob> jobs) {
     waiting = List.unmodifiable(jobs);
-    onChanged();
+    onActiveDeployChanged();
   }
 
   void remember(DeployJob job) {
@@ -97,7 +97,7 @@ class ActiveDeployWatch {
       unawaited(_ensureTypicalDuration(ongoing!));
     }
     _log.log('remember ${ongoing?.debugSummary ?? 'none'}');
-    onChanged();
+    onActiveDeployChanged();
   }
 
   DeployJob? forProject(String projectId) {
@@ -136,7 +136,7 @@ class ActiveDeployWatch {
       if (was != now) {
         _log.log('refresh $was → $now waiting=${waiting.length}');
       }
-      onChanged();
+      onActiveDeployChanged();
     } on ServerRequestException catch (error) {
       _log.warn('refresh failed: ${error.message}', error);
       if (error.isUnauthorized) {

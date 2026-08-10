@@ -40,17 +40,17 @@ class _PhoneHomeState extends State<PhoneHome> {
     setState(() => _loading = false);
   }
 
-  void _onSignedIn() {
+  void _resetTabsAfterSignIn() {
     setState(() => _tabIndex = 0);
   }
 
-  void _onSessionEnded() {
+  void _resetTabsAfterSessionEnded() {
     if (!mounted) return;
     setState(() => _tabIndex = 0);
   }
 
   DeployTrigger get _deployTrigger => _session.deployTrigger(
-    onSessionEnded: _onSessionEnded,
+    onSessionEnded: _resetTabsAfterSessionEnded,
   );
 
   @override
@@ -59,7 +59,7 @@ class _PhoneHomeState extends State<PhoneHome> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (!_session.isSignedIn) {
-      return ServerSignInScreen(session: _session, onSignedIn: _onSignedIn);
+      return ServerSignInScreen(session: _session, onSignedIn: _resetTabsAfterSignIn);
     }
     final trigger = _deployTrigger;
     return Scaffold(

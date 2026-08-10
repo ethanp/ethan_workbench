@@ -19,7 +19,7 @@ class DeployJobDetail extends StatefulWidget {
     super.key,
     required this.trigger,
     required this.initialJob,
-    this.onClose,
+    this.onDismiss,
     this.onBecameTerminal,
     this.embedded = false,
   });
@@ -28,7 +28,7 @@ class DeployJobDetail extends StatefulWidget {
   final DeployJob initialJob;
 
   /// Shown in the embedded header; omitted in full-screen (AppBar back).
-  final VoidCallback? onClose;
+  final VoidCallback? onDismiss;
 
   /// Fired once when the job first reaches a terminal status.
   final VoidCallback? onBecameTerminal;
@@ -63,7 +63,7 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
 
     final jobUpdates = widget.trigger.jobUpdates;
     if (jobUpdates != null) {
-      _jobUpdatesSubscription = jobUpdates.listen(_onJobUpdate);
+      _jobUpdatesSubscription = jobUpdates.listen(_applyStreamedJob);
       _log.log('subscribed to jobUpdates + poll fallback');
     } else {
       _log.log('no jobUpdates stream — polling fetchJob every 2s');
@@ -88,7 +88,7 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
     super.dispose();
   }
 
-  void _onJobUpdate(DeployJob job) {
+  void _applyStreamedJob(DeployJob job) {
     if (!mounted) return;
     _streamEventCount += 1;
     if (job.jobId != _job.jobId) {
@@ -235,10 +235,10 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
             icon: const Icon(Icons.refresh_rounded, size: 18),
             color: EColors.textMuted,
           ),
-          if (widget.onClose != null)
+          if (widget.onDismiss != null)
             IconButton(
               tooltip: 'Close',
-              onPressed: widget.onClose,
+              onPressed: widget.onDismiss,
               visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.close_rounded, size: 18),
               color: EColors.textMuted,

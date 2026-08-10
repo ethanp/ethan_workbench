@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:ethan_ui/ethan_ui.dart';
@@ -54,13 +55,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     super.initState();
     _catalog = ProjectsCatalog(
       trigger: widget.trigger,
-      onChanged: () {
+      onCatalogChanged: () {
         if (mounted) setState(() {});
       },
     );
     _activeDeploy = ActiveDeployWatch(
       trigger: widget.trigger,
-      onChanged: () {
+      onActiveDeployChanged: () {
         if (mounted) setState(() {});
       },
     );
@@ -212,7 +213,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final showSideRail =
         !compact &&
         (_activeDeploy.hasQueuePanelContent || _inlineJob != null);
-    final showJobDetail = !compact && _inlineJob != null;
 
     return EScaffoldShell(
       contentMaxWidth:
@@ -231,34 +231,67 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         ],
       ),
       body: showSideRail
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _body()),
-                DeployQueuePanel(
-                  ongoing: _activeDeploy.ongoing,
-                  waiting: _activeDeploy.waiting,
-                  ongoingRemaining: _activeDeploy.ongoingRemainingEstimate,
-                  width: showJobDetail ? _queueWithJobWidth : _queueOnlyWidth,
-                  jobDetail: showJobDetail
-                      ? DeployJobDetail(
-                          key: ValueKey(_inlineJob!.jobId),
-                          trigger: widget.trigger,
-                          initialJob: _inlineJob!,
-                          embedded: true,
-                          onClose: _closeInlineJob,
-                          onBecameTerminal: () =>
-                              unawaited(_afterJobScreen()),
-                        )
-                      : null,
-                  onOpenOngoing: () => unawaited(_openOngoingDeploy()),
-                  onCancelWaiting: (jobId) =>
-                      _activeDeploy.cancelWaiting(jobId),
-                ),
-              ],
-            )
+          ? _bodyWithQueueRail(compact: compact)
           : _body(),
     );
+  }
+
+  /// Project list + deploy queue rail; surplus width past saturated rows
+  /// goes to the rail.
+  Widget _bodyWithQueueRail({required bool compact}) {
+    final showJobDetail = _inlineJob != null;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final railWidth = _queueRailWidth(
+          totalWidth: constraints.maxWidth,
+          showJobDetail: showJobDetail,
+          compact: compact,
+        );
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: _body()),
+            DeployQueuePanel(
+              ongoing: _activeDeploy.ongoing,
+              waiting: _activeDeploy.waiting,
+              ongoingRemaining: _activeDeploy.ongoingRemainingEstimate,
+              width: railWidth,
+              jobDetail: showJobDetail
+                  ? DeployJobDetail(
+                      key: ValueKey(_inlineJob!.jobId),
+                      trigger: widget.trigger,
+                      initialJob: _inlineJob!,
+                      embedded: true,
+                      onDismiss: _closeInlineJob,
+                      onBecameTerminal: () =>
+                          unawaited(_afterJobScreen()),
+                    )
+                  : null,
+              onOpenOngoing: () => unawaited(_openOngoingDeploy()),
+              onCancelWaiting: (jobId) =>
+                  _activeDeploy.cancelWaiting(jobId),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  double _queueRailWidth({
+    required double totalWidth,
+    required bool showJobDetail,
+    required bool compact,
+  }) {
+    final minRailWidth =
+        showJobDetail ? _queueWithJobWidth : _queueOnlyWidth;
+    final listPadH = compact ? 6.0 : ELayout.spaceXl;
+    final maxUsefulMainWidth = listPadH * 2 +
+        ProjectWorkbenchRow.saturatedWidth(
+          platformCount: widget.trigger.preferredPlatforms.length,
+          showLineAge: widget.trigger.showLineAgeAnalysis,
+          compact: compact,
+        );
+    return math.max(minRailWidth, totalWidth - maxUsefulMainWidth);
   }
 
   Widget _checkForChangesAction() {
@@ -299,7 +332,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           icon: Icons.refresh_rounded,
           title: 'Refresh',
           subtitle: lastCheckedLabel ?? 'Changed status',
-          onTap: onPressed,
+          onActivated: onPressed,
           trailing: progressIndicator,
         ),
       ),

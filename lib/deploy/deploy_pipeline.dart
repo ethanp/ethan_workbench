@@ -36,7 +36,7 @@ class DeployPipeline {
        ),
        _jobUpdatedController = StreamController<DeployJob>.broadcast() {
     _console = DeployConsole(onJobUpdated: _emitJob);
-    _waitQueue = DeployWaitQueue(onChanged: () {
+    _waitQueue = DeployWaitQueue(onQueueChanged: () {
       unawaited(_slot.checkpoint());
     });
     _slot = ActiveDeploySlot(
