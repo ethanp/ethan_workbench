@@ -116,7 +116,10 @@ class LineAgeAnalyzer {
       throw StateError('Not inside a git repository: $repoPath');
     }
 
-    final dartFiles = _findDartFiles(gitRoot);
+    final dartFiles = listDartFiles(
+      gitRoot,
+      extraExcludeSuffixes: extraExcludeSuffixes,
+    );
     if (dartFiles.isEmpty) {
       throw StateError('No non-generated Dart files found.');
     }
@@ -210,7 +213,11 @@ class LineAgeAnalyzer {
     );
   }
 
-  List<File> _findDartFiles(String scanRoot) {
+  /// Non-generated Dart sources under [scanRoot], matching analyze exclusions.
+  static List<File> listDartFiles(
+    String scanRoot, {
+    List<String> extraExcludeSuffixes = const [],
+  }) {
     final excludes = [...generatedSuffixes, ...extraExcludeSuffixes];
     final dartFiles = <File>[];
     final queue = Queue<Directory>()..add(Directory(scanRoot));

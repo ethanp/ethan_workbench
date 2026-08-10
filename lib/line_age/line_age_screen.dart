@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../ui/workbench_action_accents.dart';
 import 'line_age_analyzer.dart';
 import 'line_age_blame_progress.dart';
+import 'line_age_cache.dart';
 import 'line_age_chart.dart';
 
 class LineAgeScreen extends StatefulWidget {
@@ -47,14 +48,35 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
       _running = true;
       _errorMessage = null;
       _report = null;
+      _progress = null;
     });
     try {
+      final gitRoot = LineAgeCache.gitRootFor(widget.repoPath);
+      if (gitRoot != null) {
+        final cached = LineAgeCache.instance.cachedReport(gitRoot);
+        if (cached != null) {
+          if (!mounted) return;
+          setState(() {
+            _report = cached;
+            _running = false;
+          });
+          return;
+        }
+      }
+
       final report = await _analyzer.analyze(
         onProgress: (progress) {
           if (!mounted) return;
           setState(() => _progress = progress);
         },
       );
+      if (gitRoot != null) {
+        LineAgeCache.instance.put(
+          gitRoot: gitRoot,
+          fingerprint: LineAgeCache.computeFingerprint(gitRoot),
+          report: report,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _report = report;

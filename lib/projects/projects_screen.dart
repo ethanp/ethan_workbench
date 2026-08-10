@@ -13,6 +13,7 @@ import '../deploy/deploy_queue_panel.dart';
 import '../deploy/deploy_trigger.dart';
 import '../deploy/job_screen.dart';
 import '../line_age/line_age_analyzer.dart';
+import '../line_age/line_age_cache.dart';
 import '../line_age/line_age_screen.dart';
 import '../run/flutter_run_device.dart';
 import '../run/local_run_controls.dart';
@@ -86,11 +87,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
 
     _activeDeploy.start();
+    LineAgeCache.instance.addListener(_onLineAgeCacheChanged);
     unawaited(_reload(evaluateChanges: true));
+  }
+
+  void _onLineAgeCacheChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    LineAgeCache.instance.removeListener(_onLineAgeCacheChanged);
     _lastCheckedTicker?.cancel();
     unawaited(_localRunSubscription?.cancel());
     unawaited(_activeDeploy.dispose());
@@ -421,6 +428,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       localRunState: _localRunState,
       localRun: widget.localRun,
       showLineAge: widget.trigger.showLineAgeAnalysis,
+      lineAgeSubtitle:
+          LineAgeCache.instance.slocSubtitleForRepoPath(project.path),
       ongoingDeploy: _activeDeploy.forProject(project.projectId),
       waitingDeploys: _activeDeploy.waiting,
       onLineAge: () => _openLineAge(project),

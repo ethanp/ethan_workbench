@@ -45,6 +45,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
     required this.platforms,
     required this.localRunState,
     required this.showLineAge,
+    this.lineAgeSubtitle = '…',
     this.localRun,
     this.ongoingDeploy,
     this.waitingDeploys = const [],
@@ -59,6 +60,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
   final List<DeployPlatform> platforms;
   final LocalRunState localRunState;
   final bool showLineAge;
+  final String lineAgeSubtitle;
   final LocalRunControls? localRun;
   final DeployJob? ongoingDeploy;
   final List<DeployJob> waitingDeploys;
@@ -151,14 +153,14 @@ class ProjectWorkbenchRow extends StatelessWidget {
                           accent: WorkbenchActionAccents.lineAge,
                           icon: Icons.bar_chart_rounded,
                           title: 'Line age',
-                          subtitle: 'Authorship',
+                          subtitle: lineAgeSubtitle,
                           onActivated: onLineAge,
                         )
                       : ETintedAction.iconOnly(
                           accent: WorkbenchActionAccents.lineAge,
                           icon: Icons.bar_chart_rounded,
                           title: 'Line age',
-                          subtitle: 'Authorship',
+                          subtitle: lineAgeSubtitle,
                           onActivated: onLineAge,
                         ),
                 ),
