@@ -19,8 +19,6 @@ import 'local_run_state.dart';
 /// hot-restart reclaim in [LocalRunReclaimer].
 class LocalRunSession implements LocalRunControls {
   LocalRunSession({
-    this._isDeployBlocking,
-    this._deployBlockMessage,
     LocalRunPersistence? persistence,
     LocalRunProgress? runProgress,
   }) : _persistence = persistence ?? LocalRunPersistence(),
@@ -47,8 +45,6 @@ class LocalRunSession implements LocalRunControls {
     );
   }
 
-  final bool Function()? _isDeployBlocking;
-  final String? Function()? _deployBlockMessage;
   final LocalRunPersistence _persistence;
   final LocalRunProgress _runProgress;
   late final LocalFlutterRunBinding _flutterRunBinding;
@@ -83,12 +79,6 @@ class LocalRunSession implements LocalRunControls {
       throw LocalRunAlreadyActive(
         projectName: _runProgress.current.projectName ?? 'unknown',
         statusName: _runProgress.current.status.name,
-      );
-    }
-    if (_isDeployBlocking?.call() ?? false) {
-      throw DeployBlocksLocalRun(
-        projectName: _deployBlockMessage?.call() ?? 'deploy',
-        statusName: 'running',
       );
     }
 

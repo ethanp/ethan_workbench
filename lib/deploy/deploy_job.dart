@@ -31,6 +31,8 @@ enum DeployJobStatus {
   bool get isTerminal =>
       this == DeployJobStatus.succeeded || this == DeployJobStatus.failed;
 
+  bool get isFailed => this == DeployJobStatus.failed;
+
   bool get isWaiting => this == DeployJobStatus.waiting;
 
   /// Active runner (not sitting in the wait queue).

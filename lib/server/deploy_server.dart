@@ -12,7 +12,6 @@ import '../deploy/deploy_trigger.dart';
 import '../projects/deployable_project.dart';
 import '../projects/source_changes_progress.dart';
 import '../run/local_run_session.dart';
-import '../run/local_run_state.dart';
 import '../sync/deploy_ledger.dart';
 import 'deploy_http_server.dart';
 import 'server_config.dart';
@@ -26,16 +25,7 @@ class DeployServer {
       deployRbPath: _config.deployRbPath,
       persistence: DeploySessionPersistence(),
     );
-    _localRun = LocalRunSession(
-      isDeployBlocking: () {
-        final job = _deployPipeline.activeJob;
-        return job != null && job.status.isActiveRunner;
-      },
-      deployBlockMessage: () {
-        final job = _deployPipeline.activeJob;
-        return job?.projectName;
-      },
-    );
+    _localRun = LocalRunSession();
     _httpServer = DeployHttpServer(
       config: _config,
       deployPipeline: _deployPipeline,
@@ -94,12 +84,6 @@ class DeployServer {
     required DeployPlatform platform,
     bool force = false,
   }) {
-    if (_localRun.isActive) {
-      throw LocalRunBlocksDeploy(
-        projectName: _localRun.state.projectName ?? 'local run',
-        statusName: _localRun.state.status.name,
-      );
-    }
     return _deployPipeline.startDeploy(
       projectId: projectId,
       platform: platform,

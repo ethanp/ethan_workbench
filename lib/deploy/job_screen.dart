@@ -8,6 +8,7 @@ import '../phone/deploy_http_client.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
 import '../ui/widgets/deploy_progress_checklist.dart';
 import '../ui/widgets/status_pill.dart';
+import 'deploy_errors.dart';
 import 'deploy_job.dart';
 import 'deploy_trigger.dart';
 
@@ -21,6 +22,7 @@ class DeployJobDetail extends StatefulWidget {
     required this.initialJob,
     this.onDismiss,
     this.onBecameTerminal,
+    this.onRetryStarted,
     this.embedded = false,
   });
 
@@ -32,6 +34,9 @@ class DeployJobDetail extends StatefulWidget {
 
   /// Fired once when the job first reaches a terminal status.
   final VoidCallback? onBecameTerminal;
+
+  /// Fired when Retry starts an active deploy (not a wait-queue enqueue).
+  final void Function(DeployJob job)? onRetryStarted;
 
   /// Compact chrome for the side rail (no scaffold).
   final bool embedded;
@@ -48,6 +53,7 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
   final _logScrollController = ScrollController();
   var _streamEventCount = 0;
   var _reportedTerminal = false;
+  var _retrying = false;
 
   @override
   void initState() {
@@ -167,6 +173,77 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
       if (!position.hasContentDimensions) return;
       _logScrollController.jumpTo(position.maxScrollExtent);
     });
+  }
+
+  Future<void> _retryDeploy() async {
+    if (_retrying || !_job.status.isFailed) return;
+    setState(() => _retrying = true);
+    _log.log(
+      'retry ${_job.projectId} ${_job.platform.name} force=${_job.force}',
+    );
+    try {
+      final job = await widget.trigger.startDeploy(
+        projectId: _job.projectId,
+        platform: _job.platform,
+        force: _job.force,
+      );
+      if (!mounted) return;
+      if (job.status.isWaiting) {
+        setState(() => _retrying = false);
+        context.textSnackBar(
+          'Queued ${_job.projectName} (${_job.platform.label})',
+        );
+        return;
+      }
+      final onRetryStarted = widget.onRetryStarted;
+      if (onRetryStarted != null) {
+        setState(() => _retrying = false);
+        onRetryStarted(job);
+        return;
+      }
+      await _adoptJob(job);
+    } on DeployAlreadyQueued catch (error) {
+      if (!mounted) return;
+      setState(() => _retrying = false);
+      context.textSnackBar(error.toString());
+    } on ServerRequestException catch (error) {
+      if (!mounted) return;
+      setState(() => _retrying = false);
+      if (error.isUnauthorized) {
+        await widget.trigger.onUnauthorized?.call();
+        return;
+      }
+      context.textSnackBar(error.message);
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      _log.warn('retry failed', error, stackTrace);
+      setState(() => _retrying = false);
+      context.textSnackBar(error.toString());
+    }
+  }
+
+  Future<void> _adoptJob(DeployJob job) async {
+    _pollTimer?.cancel();
+    await _jobUpdatesSubscription?.cancel();
+    _jobUpdatesSubscription = null;
+    _streamEventCount = 0;
+    _reportedTerminal = job.status.isTerminal;
+    setState(() {
+      _job = job;
+      _errorMessage = null;
+      _retrying = false;
+    });
+    if (job.status.isTerminal) return;
+
+    final jobUpdates = widget.trigger.jobUpdates;
+    if (jobUpdates != null) {
+      _jobUpdatesSubscription = jobUpdates.listen(_applyStreamedJob);
+    }
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => unawaited(_refreshJob()),
+    );
+    unawaited(_refreshJob());
   }
 
   @override
@@ -298,6 +375,10 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
             const SizedBox(height: ELayout.spaceMd + 2),
             DeployProgressChecklist(items: _job.checklist),
           ],
+          if (_job.status.isFailed) ...[
+            const SizedBox(height: ELayout.spaceMd + 2),
+            _retryAction(),
+          ],
         ],
       ),
     );
@@ -324,6 +405,28 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _retryAction() {
+    final platform = _job.platform;
+    final accent = _retrying ? EColors.textMuted : platform.accent;
+    return ETintedAction.compact(
+      accent: accent,
+      icon: Icons.replay_rounded,
+      title: 'Retry',
+      subtitle: '${platform.label} deploy',
+      onActivated: _retrying ? null : () => unawaited(_retryDeploy()),
+      trailing: _retrying
+          ? SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: accent,
+              ),
+            )
+          : null,
     );
   }
 }

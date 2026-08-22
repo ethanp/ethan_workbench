@@ -120,12 +120,6 @@ class DeployHttpServer {
 
   Future<Response> _startDeploy(Request request) async {
     try {
-      if (localRun.isActive) {
-        throw LocalRunBlocksDeploy(
-          projectName: localRun.state.projectName ?? 'local run',
-          statusName: localRun.state.status.name,
-        );
-      }
       final body =
           jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final projectId = body['projectId'] as String?;
@@ -154,8 +148,6 @@ class DeployHttpServer {
           'alreadyQueued': true,
         },
       );
-    } on LocalRunBlocksDeploy catch (error) {
-      return jsonError(error.toString(), status: 409);
     } on UnknownProject catch (error) {
       return jsonError(error.toString(), status: 404);
     } on UnsupportedDeployPlatform catch (error) {
@@ -393,8 +385,6 @@ class DeployHttpServer {
         status: 409,
         extra: {'run': localRun.state.toJson()},
       );
-    } on DeployBlocksLocalRun catch (error) {
-      return jsonError(error.toString(), status: 409);
     } catch (error) {
       return jsonError(error.toString(), status: 500);
     }

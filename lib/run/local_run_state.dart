@@ -186,33 +186,3 @@ class LocalRunAlreadyActive implements Exception {
   String toString() =>
       'A local run is already active: $projectName ($statusName)';
 }
-
-class DeployBlocksLocalRun implements Exception {
-  const DeployBlocksLocalRun({
-    required this.projectName,
-    required this.statusName,
-  });
-
-  final String projectName;
-  final String statusName;
-
-  @override
-  String toString() =>
-      'Cannot start a local run while a deploy is active: '
-      '$projectName ($statusName)';
-}
-
-class LocalRunBlocksDeploy implements Exception {
-  const LocalRunBlocksDeploy({
-    required this.projectName,
-    required this.statusName,
-  });
-
-  final String projectName;
-  final String statusName;
-
-  @override
-  String toString() =>
-      'Cannot start a deploy while a local run is active: '
-      '$projectName ($statusName)';
-}

@@ -121,6 +121,31 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       }
     }
     setState(() {});
+    if (outcome == ProjectsCatalogLoadOutcome.succeeded &&
+        widget.trigger.showLineAgeAnalysis) {
+      unawaited(_warmLineAgeCaches());
+    }
+  }
+
+  /// Blames each distinct git root in parallel after Refresh; skips fresh cache hits.
+  Future<void> _warmLineAgeCaches() async {
+    final warmedRoots = <String>{};
+    final analyzePaths = <String>[];
+    for (final project in _catalog.projects) {
+      final gitRoot =
+          LineAgeCache.gitRootFor(project.path) ?? project.path;
+      if (!warmedRoots.add(gitRoot)) continue;
+      analyzePaths.add(project.path);
+    }
+    await Future.wait(analyzePaths.map(_warmOneLineAgeCache));
+  }
+
+  Future<void> _warmOneLineAgeCache(String repoPath) async {
+    try {
+      await LineAgeCache.instance.analyzeOrCached(repoPath);
+    } catch (_) {
+      // Keep other projects warming; button stays "…" on failure.
+    }
   }
 
   Future<void> _afterJobScreen() async {
@@ -272,6 +297,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       onDismiss: _closeInlineJob,
                       onBecameTerminal: () =>
                           unawaited(_afterJobScreen()),
+                      onRetryStarted: _presentJobInline,
                     )
                   : null,
               onOpenOngoing: () => unawaited(_openOngoingDeploy()),

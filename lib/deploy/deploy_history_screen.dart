@@ -179,6 +179,7 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
                 initialJob: selectedRunJob,
                 embedded: true,
                 onDismiss: () => setState(() => _selectedRunJob = null),
+                onRetryStarted: (job) => setState(() => _selectedRunJob = job),
               ),
             ),
           ],
