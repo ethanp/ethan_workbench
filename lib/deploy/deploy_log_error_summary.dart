@@ -2,7 +2,14 @@
 abstract final class DeployLogErrorSummary {
   static final _errorLine = RegExp(
     r'(✗|error:|exception|failed|fatal|BUILD FAILED|Command failed|'
-    r'Error \(Xcode\)|The following build commands failed)',
+    r'Error \(Xcode\)|The following build commands failed|'
+    r'Uncategorized \(Xcode\))',
+    caseSensitive: false,
+  );
+
+  static final _genericCloser = RegExp(
+    r'^(✗ Deploy (failed|crashed)|Command failed:|'
+    r'Encountered error while building)',
     caseSensitive: false,
   );
 
@@ -10,10 +17,17 @@ abstract final class DeployLogErrorSummary {
   static String? failureHint(String log) {
     final lines = _meaningfulLines(log);
     if (lines.isEmpty) return null;
+    String? genericCloser;
     for (var index = lines.length - 1; index >= 0; index--) {
       final line = lines[index];
-      if (_errorLine.hasMatch(line)) return _clip(line, 240);
+      if (!_errorLine.hasMatch(line)) continue;
+      if (_genericCloser.hasMatch(line)) {
+        genericCloser ??= line;
+        continue;
+      }
+      return _clip(_xcodebuildFailureReason(line), 240);
     }
+    if (genericCloser != null) return _clip(genericCloser, 240);
     return _clip(lines.last, 240);
   }
 
@@ -40,6 +54,17 @@ abstract final class DeployLogErrorSummary {
       for (final line in log.split('\n'))
         if (line.trim().isNotEmpty) line.trimRight(),
     ];
+  }
+
+  static String _xcodebuildFailureReason(String line) {
+    if (!line.contains('Failed to build workspace')) return line;
+    const reasonSeparator = '.: ';
+    final separatorIndex = line.lastIndexOf(reasonSeparator);
+    if (separatorIndex == -1) return line;
+    final reason = line
+        .substring(separatorIndex + reasonSeparator.length)
+        .trim();
+    return reason.isEmpty ? line : reason;
   }
 
   static String _clip(String text, int maxChars) {

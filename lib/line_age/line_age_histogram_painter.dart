@@ -72,10 +72,9 @@ class LineAgeHistogramPainter extends CustomPainter {
     final stacks = legend.stacksForMonth(month);
     if (stacks.isEmpty) return;
 
-    final barTop = geometry.yForTotal(month.totalLines, scale.max);
-    final barHeight =
-        geometry.margin.top + geometry.innerHeight - barTop;
-    if (barHeight < 0.5) return;
+    final barHeight = geometry.visibleBarHeight(month.totalLines, scale.max);
+    if (barHeight <= 0) return;
+    final barTop = geometry.yForVisibleBar(month.totalLines, scale.max);
 
     final barRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(x, barTop, width, barHeight),
@@ -85,9 +84,37 @@ class LineAgeHistogramPainter extends CustomPainter {
     canvas.save();
     canvas.clipRRect(barRect);
 
+    if (geometry.segmentHeight(month.totalLines, scale.max) <
+        LineAgeHistogramGeometry.minVisibleBarHeight) {
+      canvas.drawRect(
+        Rect.fromLTWH(x, barTop, width, barHeight),
+        Paint()
+          ..color = legend
+              .colorForKey(stacks.first.key)
+              .withValues(alpha: _stackAlpha(
+                isEmphasized: emphasizedDirectory == null ||
+                    emphasizedDirectory == stacks.first.key,
+                isSelected: isSelected,
+                isHovered: isHovered,
+              )),
+      );
+      canvas.restore();
+      _paintBarChrome(
+        canvas,
+        barRect: barRect,
+        barTop: barTop,
+        x: x,
+        width: width,
+        month: month,
+        isSelected: isSelected,
+        isHovered: isHovered,
+      );
+      return;
+    }
+
     var yBottom = geometry.margin.top + geometry.innerHeight;
     for (final stack in stacks) {
-      final height = geometry.segmentHeight(stack.lineCount, scale.max);
+      final height = barHeight * (stack.lineCount / month.totalLines);
       if (height < 0.5) {
         yBottom -= height;
         continue;
@@ -95,13 +122,16 @@ class LineAgeHistogramPainter extends CustomPainter {
       final yTop = yBottom - height;
       final isEmphasized = emphasizedDirectory == null ||
           emphasizedDirectory == stack.key;
-      final monthDim = !isSelected && !isHovered && selectedMonth != null;
-      var alpha = isEmphasized ? 0.92 : 0.18;
-      if (monthDim) alpha *= 0.55;
-      if (isHovered && isEmphasized) alpha = math.min(1.0, alpha + 0.06);
       canvas.drawRect(
         Rect.fromLTWH(x, yTop, width, height),
-        Paint()..color = legend.colorForKey(stack.key).withValues(alpha: alpha),
+        Paint()
+          ..color = legend.colorForKey(stack.key).withValues(
+            alpha: _stackAlpha(
+              isEmphasized: isEmphasized,
+              isSelected: isSelected,
+              isHovered: isHovered,
+            ),
+          ),
       );
       if (height > 2.5 && isEmphasized) {
         canvas.drawLine(
@@ -116,7 +146,39 @@ class LineAgeHistogramPainter extends CustomPainter {
     }
 
     canvas.restore();
+    _paintBarChrome(
+      canvas,
+      barRect: barRect,
+      barTop: barTop,
+      x: x,
+      width: width,
+      month: month,
+      isSelected: isSelected,
+      isHovered: isHovered,
+    );
+  }
 
+  double _stackAlpha({
+    required bool isEmphasized,
+    required bool isSelected,
+    required bool isHovered,
+  }) {
+    var alpha = isEmphasized ? 0.92 : 0.18;
+    if (!isSelected && !isHovered && selectedMonth != null) alpha *= 0.55;
+    if (isHovered && isEmphasized) alpha = math.min(1.0, alpha + 0.06);
+    return alpha;
+  }
+
+  void _paintBarChrome(
+    Canvas canvas, {
+    required RRect barRect,
+    required double barTop,
+    required double x,
+    required double width,
+    required LineAgeMonth month,
+    required bool isSelected,
+    required bool isHovered,
+  }) {
     if (isSelected) {
       canvas.drawRRect(
         barRect,
@@ -127,12 +189,13 @@ class LineAgeHistogramPainter extends CustomPainter {
       );
     }
 
-    final emphasized = isSelected || isHovered;
     final valueLabel = TextPainter(
       text: TextSpan(
         text: month.totalLines.asCompactCount,
         style: TextStyle(
-          color: emphasized ? EColors.textPrimary : EColors.textMuted,
+          color: isSelected || isHovered
+              ? EColors.textPrimary
+              : EColors.textMuted,
           fontSize: 11,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
         ),
@@ -181,7 +244,17 @@ class LineAgeHistogramPainter extends CustomPainter {
       Offset(geometry.margin.left + geometry.innerWidth, baselineY),
       axisPaint,
     );
+    _paintYTicks(canvas, geometry, scale);
+    _paintYearDividers(canvas, geometry, width, gap, originX, baselineY);
+    _paintMonthTicks(canvas, width, gap, originX, baselineY);
+    _paintYearLabels(canvas, width, gap, originX, baselineY);
+  }
 
+  void _paintYTicks(
+    Canvas canvas,
+    LineAgeHistogramGeometry geometry,
+    NiceValueScale scale,
+  ) {
     for (final tick in scale.ticks) {
       final y = geometry.yForTotal(tick, scale.max);
       final label = TextPainter(
@@ -196,15 +269,51 @@ class LineAgeHistogramPainter extends CustomPainter {
         Offset(geometry.margin.left - label.width - 8, y - label.height / 2),
       );
     }
+  }
 
+  void _paintYearDividers(
+    Canvas canvas,
+    LineAgeHistogramGeometry geometry,
+    double width,
+    double gap,
+    double originX,
+    double baselineY,
+  ) {
+    final bands = report.yearBands;
+    if (bands.length < 2) return;
+    final paint = Paint()
+      ..color = EColors.borderStrong.withValues(alpha: 0.42)
+      ..strokeWidth = 1;
+    for (var bandIndex = 1; bandIndex < bands.length; bandIndex++) {
+      final previous = bands[bandIndex - 1];
+      final next = bands[bandIndex];
+      final previousRight =
+          originX + previous.lastMonthIndex * (width + gap) + width;
+      final nextLeft = originX + next.firstMonthIndex * (width + gap);
+      final x = (previousRight + nextLeft) / 2;
+      canvas.drawLine(
+        Offset(x, geometry.margin.top),
+        Offset(x, baselineY + 34),
+        paint,
+      );
+    }
+  }
+
+  void _paintMonthTicks(
+    Canvas canvas,
+    double width,
+    double gap,
+    double originX,
+    double baselineY,
+  ) {
     for (var monthIndex = 0; monthIndex < report.months.length; monthIndex++) {
-      final month = report.months[monthIndex].month;
+      final month = report.months[monthIndex];
       final x = originX + monthIndex * (width + gap);
-      final isSelected = selectedMonth == month;
-      final isHovered = hoveredMonth == month;
+      final isSelected = selectedMonth == month.month;
+      final isHovered = hoveredMonth == month.month;
       final label = TextPainter(
         text: TextSpan(
-          text: month,
+          text: month.shortMonthName,
           style: TextStyle(
             color: isSelected || isHovered
                 ? EColors.textPrimary
@@ -216,10 +325,38 @@ class LineAgeHistogramPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       canvas.save();
-      canvas.translate(x + width / 2, baselineY + 10);
+      canvas.translate(x + width / 2, baselineY + 8);
       canvas.rotate(-0.65);
       label.paint(canvas, Offset(-label.width / 2, 0));
       canvas.restore();
+    }
+  }
+
+  void _paintYearLabels(
+    Canvas canvas,
+    double width,
+    double gap,
+    double originX,
+    double baselineY,
+  ) {
+    for (final band in report.yearBands) {
+      final left = originX + band.firstMonthIndex * (width + gap);
+      final right = originX + band.lastMonthIndex * (width + gap) + width;
+      final label = TextPainter(
+        text: TextSpan(
+          text: '${band.year}',
+          style: const TextStyle(
+            color: EColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      label.paint(
+        canvas,
+        Offset((left + right) / 2 - label.width / 2, baselineY + 38),
+      );
     }
   }
 

@@ -36,9 +36,53 @@ class LineAgeMonth {
     required this.segments,
   });
 
+  static const _shortMonthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
   final String month;
   final int totalLines;
   final List<LineAgeSegment> segments;
+
+  int? get year => _yearMonthPart(0, 4);
+
+  int? get monthNumber => _yearMonthPart(5, 7);
+
+  int? _yearMonthPart(int start, int end) {
+    if (month.length < 7 || month[4] != '-') return null;
+    return int.tryParse(month.substring(start, end));
+  }
+
+  /// Axis tick without the year (`Feb`). Raw [month] if the key is malformed.
+  String get shortMonthName {
+    final number = monthNumber;
+    if (number == null || number < 1 || number > 12) return month;
+    return _shortMonthNames[number - 1];
+  }
+}
+
+/// Contiguous months that share a calendar year — one x-axis year section.
+class LineAgeYearBand {
+  const LineAgeYearBand({
+    required this.year,
+    required this.firstMonthIndex,
+    required this.lastMonthIndex,
+  });
+
+  final int year;
+  final int firstMonthIndex;
+  final int lastMonthIndex;
 }
 
 /// Full stacked histogram for a repo.
@@ -60,6 +104,39 @@ class LineAgeReport {
   final int fileCount;
 
   List<String> get filesByTotalLines => totalLinesByFile.keys.toList();
+
+  /// Year sections in month order, for x-axis grouping.
+  List<LineAgeYearBand> get yearBands {
+    if (months.isEmpty) return const [];
+    final bands = <LineAgeYearBand>[];
+    var bandStart = 0;
+    var bandYear = months.first.year;
+    for (var monthIndex = 1; monthIndex < months.length; monthIndex++) {
+      final year = months[monthIndex].year;
+      if (year == bandYear) continue;
+      if (bandYear != null) {
+        bands.add(
+          LineAgeYearBand(
+            year: bandYear,
+            firstMonthIndex: bandStart,
+            lastMonthIndex: monthIndex - 1,
+          ),
+        );
+      }
+      bandStart = monthIndex;
+      bandYear = year;
+    }
+    if (bandYear != null) {
+      bands.add(
+        LineAgeYearBand(
+          year: bandYear,
+          firstMonthIndex: bandStart,
+          lastMonthIndex: months.length - 1,
+        ),
+      );
+    }
+    return bands;
+  }
 }
 
 /// Analyzes Dart line age via `git blame --line-porcelain`.

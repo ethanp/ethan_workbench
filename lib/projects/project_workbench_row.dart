@@ -18,8 +18,12 @@ abstract final class _WorkbenchRowLayout {
   static const clusterWidth = 320.0;
   static const clusterGap = 10.0;
   static const compactClusterGap = 6.0;
-  static const secondaryActionWidth = 140.0;
   static const secondaryActionIconOnlyWidth = 44.0;
+
+  /// Hugs icon + "Line age" + SLOC — not identity-column wide.
+  static double get secondaryActionWidth =>
+      (8.0 * 2 + 16.0 + ELayout.spaceSm + 60.0 * ELayout.typeScale)
+          .ceilToDouble();
 
   /// Icon-above-title column — sized for typical project names on 1–2 lines.
   static const identityMaxWidth = 140.0;
@@ -181,9 +185,9 @@ class ProjectWorkbenchRow extends StatelessWidget {
   }
 
   /// Identity first (up to max), then Line age, then clusters share the rest.
-  /// Line age steps down full-width → icon-only → hidden rather than squeeze
-  /// the identity column below [_WorkbenchRowLayout.identityMinWidth]; clusters
-  /// never steal identity to satisfy a large minimum.
+  /// Line age steps down labeled (hug title) → icon-only → hidden rather than
+  /// squeeze the identity column below [_WorkbenchRowLayout.identityMinWidth];
+  /// clusters never steal identity to satisfy a large minimum.
   ({double identity, double lineAge, double cluster}) _rowWidths(
     double maxWidth, {
     required bool compact,
@@ -242,14 +246,14 @@ class ProjectWorkbenchRow extends StatelessWidget {
     return (identity: identity, lineAge: lineAge, cluster: cluster);
   }
 
-  /// Widest Line age tier (full labeled → icon-only → 0) whose gap-inclusive
+  /// Widest Line age tier (labeled → icon-only → 0) whose gap-inclusive
   /// cost still leaves the identity floor inside [budget].
   double _lineAgeWidthLeavingIdentityFloor({
     required double budget,
     required double clusterGap,
   }) {
     if (!showLineAge) return 0;
-    for (final tierWidth in const [
+    for (final tierWidth in [
       _WorkbenchRowLayout.secondaryActionWidth,
       _WorkbenchRowLayout.secondaryActionIconOnlyWidth,
     ]) {

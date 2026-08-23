@@ -9,6 +9,8 @@ require 'fileutils'
 require 'find'
 require 'yaml'
 
+require_relative 'xcodebuild_error_capture'
+
 class Deployer
   def initialize(force:)
     @force = force
@@ -146,6 +148,14 @@ class Deployer
   def shell!(cmd)
     system(cmd) or raise "Command failed: #{cmd}"
   end
+
+  def flutter_build!(cmd)
+    XcodebuildErrorCapture.around do |capture, child_env|
+      ok = system(child_env, cmd)
+      capture.print_hidden_errors unless ok
+      raise "Command failed: #{cmd}" unless ok
+    end
+  end
 end
 
 class MacosDeployer < Deployer
@@ -163,7 +173,7 @@ class MacosDeployer < Deployer
   end
 
   def build_macos
-    shell! "flutter build macos --profile"
+    flutter_build! "flutter build macos --profile"
   end
 
   def copy_to_applications
@@ -202,7 +212,7 @@ class IosDeployer < Deployer
   def build_ios
     # tree shaking: Release builds may otherwise fail because the health_notes app uses
     # dynamically selected icons (or at least it did at one point).
-    shell! "flutter build ios --release --no-tree-shake-icons"
+    flutter_build! "flutter build ios --release --no-tree-shake-icons"
   end
 
   def install_to_device

@@ -9,9 +9,9 @@ import 'line_age_directory_groups.dart';
 /// Plot layout and stack hit-testing for the line-age histogram.
 class LineAgeHistogramGeometry {
   LineAgeHistogramGeometry(this.size)
-    : margin = const EdgeInsets.fromLTRB(56, 36, 16, 56),
+    : margin = const EdgeInsets.fromLTRB(56, 36, 16, 72),
       innerWidth = math.max(0.0, size.width - 72),
-      innerHeight = math.max(0.0, size.height - 92);
+      innerHeight = math.max(0.0, size.height - 108);
 
   final Size size;
   final EdgeInsets margin;
@@ -34,13 +34,24 @@ class LineAgeHistogramGeometry {
     return margin.left + math.max(0.0, (innerWidth - groupWidth) / 2);
   }
 
+  static const minVisibleBarHeight = 2.0;
+
   double segmentHeight(num lineCount, double scaleMax) {
     if (scaleMax <= 0) return 0;
     return innerHeight * (lineCount / scaleMax);
   }
 
+  /// Axis ticks stay on the true scale; bars with a few lines still get a sliver.
+  double visibleBarHeight(num totalLines, double scaleMax) {
+    if (totalLines <= 0 || scaleMax <= 0) return 0;
+    return math.max(minVisibleBarHeight, segmentHeight(totalLines, scaleMax));
+  }
+
   double yForTotal(num totalLines, double scaleMax) =>
       margin.top + innerHeight - segmentHeight(totalLines, scaleMax);
+
+  double yForVisibleBar(num totalLines, double scaleMax) =>
+      margin.top + innerHeight - visibleBarHeight(totalLines, scaleMax);
 
   /// Month column under [position], plus the directory stack segment if any.
   LineAgeStackHit? hitTestStack({
@@ -67,9 +78,12 @@ class LineAgeHistogramGeometry {
       if (position.dy < margin.top || position.dy > plotBottom) continue;
 
       final stacks = legend.stacksForMonth(month);
+      final barHeight = visibleBarHeight(month.totalLines, scale.max);
       var yBottom = plotBottom;
       for (final stack in stacks) {
-        final height = segmentHeight(stack.lineCount, scale.max);
+        final height = month.totalLines == 0
+            ? 0.0
+            : barHeight * (stack.lineCount / month.totalLines);
         final yTop = yBottom - height;
         if (height >= 0.5 &&
             position.dy >= yTop &&
