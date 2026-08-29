@@ -9,6 +9,8 @@ import 'line_age_analyzer.dart';
 import 'line_age_blame_progress.dart';
 import 'line_age_cache.dart';
 import 'line_age_chart.dart';
+import 'line_age_directory_groups.dart';
+import 'line_age_month_detail_header.dart';
 
 class LineAgeScreen extends StatefulWidget {
   const LineAgeScreen({
@@ -30,6 +32,11 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
   String? _errorMessage;
   bool _running = true;
 
+  LineAgeMonth? _selectedMonth;
+  String? _selectedDirectory;
+  String? _focusedFile;
+  String? _hoveredDirectory;
+
   @override
   void initState() {
     super.initState();
@@ -47,21 +54,23 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
     setState(() {
       _running = true;
       _errorMessage = null;
-      _report = null;
       _progress = null;
     });
     try {
+      await LineAgeCache.instance.ensureLoaded();
       final gitRoot = LineAgeCache.gitRootFor(widget.repoPath);
-      if (gitRoot != null) {
-        final cached = LineAgeCache.instance.cachedReport(gitRoot);
-        if (cached != null) {
-          if (!mounted) return;
-          setState(() {
-            _report = cached;
-            _running = false;
-          });
-          return;
-        }
+      final stored = gitRoot == null
+          ? null
+          : LineAgeCache.instance.lastStoredReport(gitRoot);
+      if (stored != null && mounted) {
+        setState(() => _report = stored);
+      }
+      if (stored != null &&
+          gitRoot != null &&
+          LineAgeCache.instance.isFingerprintCurrent(gitRoot)) {
+        if (!mounted) return;
+        setState(() => _running = false);
+        return;
       }
 
       final report = await _analyzer.analyze(
@@ -79,16 +88,51 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
       }
       if (!mounted) return;
       setState(() {
-        _report = report;
+        _adoptReport(report);
         _running = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = error.toString();
+        if (_report == null) _errorMessage = error.toString();
         _running = false;
       });
     }
+  }
+
+  void _adoptReport(LineAgeReport report) {
+    final selectedKey = _selectedMonth?.month;
+    LineAgeMonth? nextMonth;
+    if (selectedKey != null) {
+      for (final month in report.months) {
+        if (month.month == selectedKey) {
+          nextMonth = month;
+          break;
+        }
+      }
+    }
+    _report = report;
+    _selectedMonth = nextMonth;
+    if (nextMonth == null) {
+      _selectedDirectory = null;
+      _focusedFile = null;
+      _hoveredDirectory = null;
+    }
+  }
+
+  void _selectStack(LineAgeMonth? month, String? directory) {
+    setState(() {
+      _selectedMonth = month;
+      _selectedDirectory = directory;
+      _focusedFile = null;
+      _hoveredDirectory = null;
+    });
+  }
+
+  String? _emphasizedFromPopover(LineAgeDirectoryLegend legend) {
+    if (_hoveredDirectory != null) return _hoveredDirectory;
+    if (_focusedFile != null) return legend.resolveKey(_focusedFile!);
+    return _selectedDirectory;
   }
 
   String? get _headerSubtitle {
@@ -108,51 +152,97 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final report = _report;
+    final legend =
+        report == null ? null : LineAgeDirectoryGroups.legendFor(report);
     return EScaffoldShell(
-      contentMaxWidth: ELayout.contentMaxWidth * 2,
+      contentMaxWidth: double.infinity,
       appBar: EAppHeader(
         eyebrow: 'LINE AGE',
         title: widget.repoName,
         subtitle: _headerSubtitle,
         accent: WorkbenchActionAccents.lineAge,
+        actions: [
+          if (report != null && legend != null)
+            LineAgeMonthDetailHeaderAction(
+              report: report,
+              legend: legend,
+              month: _selectedMonth,
+              focusedFile: _focusedFile,
+              emphasizedDirectory: _emphasizedFromPopover(legend),
+              onFocusFile: (file) => setState(() {
+                _focusedFile = file;
+                if (file != null) {
+                  _hoveredDirectory = null;
+                  _selectedDirectory = legend.resolveKey(file);
+                }
+              }),
+              onHoverDirectory: (directory) => setState(() {
+                _hoveredDirectory = directory;
+                if (directory != null) _focusedFile = null;
+              }),
+              onDismissed: () => _selectStack(null, null),
+            ),
+        ],
       ),
-      body: _body(),
+      body: _body(report: report, legend: legend),
     );
   }
 
-  Widget _body() {
-    if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(_errorMessage!, style: EText.body, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => unawaited(_run()),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
+  Widget _body({
+    required LineAgeReport? report,
+    required LineAgeDirectoryLegend? legend,
+  }) {
+    if (_errorMessage != null) return _failedAnalysis();
+    if (report != null && legend != null) {
+      return _chartWithRefresh(report, legend);
     }
-
-    final report = _report;
-    if (report != null) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-        child: LineAgeChart(report: report),
-      );
-    }
-
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: LineAgeBlameProgress(progress: _progress),
       ),
+    );
+  }
+
+  Widget _failedAnalysis() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_errorMessage!, style: EText.body, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => unawaited(_run()),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chartWithRefresh(LineAgeReport report, LineAgeDirectoryLegend legend) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_running) LineAgeRefreshBar(progress: _progress),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            child: LineAgeChart(
+              report: report,
+              legend: legend,
+              selectedMonth: _selectedMonth,
+              selectedDirectory: _selectedDirectory,
+              emphasizedDirectory: _emphasizedFromPopover(legend),
+              onStackSelected: _selectStack,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

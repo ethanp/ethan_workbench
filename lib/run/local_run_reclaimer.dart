@@ -2,6 +2,7 @@ import 'local_flutter_run.dart';
 import 'local_flutter_run_binding.dart';
 import 'local_run_checkpoint.dart';
 import 'local_run_console.dart';
+import 'local_run_key.dart';
 import 'local_run_persistence.dart';
 import 'local_run_progress.dart';
 import 'local_run_state.dart';
@@ -10,6 +11,7 @@ import 'os_process_tree.dart';
 /// Reclaims a `flutter run` left alive across workbench hot restart.
 class LocalRunReclaimer {
   LocalRunReclaimer({
+    required this._runKey,
     required this._runProgress,
     required this._flutterRunBinding,
     required this._persistence,
@@ -19,6 +21,7 @@ class LocalRunReclaimer {
     required this._isDisposed,
   });
 
+  final LocalRunKey _runKey;
   final LocalRunProgress _runProgress;
   final LocalFlutterRunBinding _flutterRunBinding;
   final LocalRunPersistence _persistence;
@@ -32,14 +35,14 @@ class LocalRunReclaimer {
 
   Future<void> restorePersisted() async {
     if (_isDisposed() || _runProgress.isActive) return;
-    final record = await _persistence.read();
+    final record = await _persistence.read(_runKey);
     if (record == null) return;
 
     final persistedRunStillAlive = await record.pid.asOsProcessTree.isAlive;
     final hasVmServiceUri =
         record.vmServiceUri != null && record.vmServiceUri!.isNotEmpty;
     if (!persistedRunStillAlive && !hasVmServiceUri) {
-      await _persistence.clear();
+      await _persistence.clear(_runKey);
       return;
     }
 
@@ -99,7 +102,7 @@ class LocalRunReclaimer {
         watchOrphanPid(record.pid);
         return;
       }
-      await _persistence.clear();
+      await _persistence.clear(_runKey);
       _flutterRunBinding.clearIdentity();
       _runProgress.emit(
         _runProgress.current.copyWith(
@@ -119,7 +122,7 @@ class LocalRunReclaimer {
         if (_flutterRunBinding.hasFlutterRun || _isDisposed()) return;
         if (_flutterRunBinding.trackedPid != pid) return;
         _flutterRunBinding.clearIdentity();
-        await _persistence.clear();
+        await _persistence.clear(_runKey);
         if (!_runProgress.isActive) return;
         _runProgress.appendLog('Reclaimed flutter run exited (pid $pid).\n');
         _runProgress.emit(

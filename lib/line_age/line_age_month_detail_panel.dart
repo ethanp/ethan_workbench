@@ -6,9 +6,21 @@ import '../ui/workbench_action_accents.dart';
 import 'line_age_analyzer.dart';
 import 'line_age_directory_groups.dart';
 
-/// File breakdown for the selected month, grouped by directory.
-class LineAgeMonthDetailPanel extends StatelessWidget {
-  const LineAgeMonthDetailPanel({
+class LineAgeMonthDirectoryGroup {
+  const LineAgeMonthDirectoryGroup({
+    required this.directory,
+    required this.color,
+    required this.files,
+  });
+
+  final String directory;
+  final Color color;
+  final List<LineAgeSegment> files;
+}
+
+/// Scrollable per-file breakdown for a selected month — used in the header popover.
+class LineAgeMonthFileList extends StatelessWidget {
+  const LineAgeMonthFileList({
     required this.report,
     required this.legend,
     required this.month,
@@ -16,91 +28,45 @@ class LineAgeMonthDetailPanel extends StatelessWidget {
     required this.emphasizedDirectory,
     required this.onFocusFile,
     required this.onHoverDirectory,
+    required this.maxHeight,
   });
 
   final LineAgeReport report;
   final LineAgeDirectoryLegend legend;
-  final LineAgeMonth? month;
+  final LineAgeMonth month;
   final String? focusedFile;
   final String? emphasizedDirectory;
   final ValueChanged<String?> onFocusFile;
   final ValueChanged<String?> onHoverDirectory;
+  final double maxHeight;
+
+  static const width = 440.0;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: EColors.surface.withValues(alpha: 0.55),
-        borderRadius: ELayout.borderRadiusMd,
-        border: Border.all(color: EColors.border.withValues(alpha: 0.8)),
-      ),
-      child: month == null ? _emptyHint() : _monthBody(month!),
-    );
-  }
-
-  Widget _emptyHint() {
-    return Padding(
-      padding: const EdgeInsets.all(ELayout.spaceLg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Month detail', style: EText.section),
-          const SizedBox(height: ELayout.spaceSm),
-          Text(
-            'Click a stack segment to select that month and directory. '
-            'Hover a directory (legend or list) to preview emphasis.',
-            style: EText.caption.copyWith(
-              color: EColors.textMuted,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _monthBody(LineAgeMonth month) {
-    final groups = _groupedSegments(month);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: width, maxHeight: maxHeight),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: EColors.surface.withValues(alpha: 0.98),
+          borderRadius: ELayout.borderRadiusMd,
+          border: Border.all(color: EColors.border.withValues(alpha: 0.8)),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 10),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(month.month, style: EText.section),
-              const SizedBox(height: 4),
-              Text(
-                '${month.totalLines.asCompactCount} lines · '
-                '${month.segments.length} files',
-                style: EText.caption.copyWith(color: EColors.textMuted),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Share of each file\'s current lines',
-                style: EText.caption.copyWith(
-                  color: EColors.textSecondary,
-                  fontSize: 11,
-                ),
-              ),
+              for (final group in _groupedSegments()) _directorySection(group),
             ],
           ),
         ),
-        const Divider(height: 1, color: EColors.border),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            itemCount: groups.length,
-            itemBuilder: (context, index) => _directorySection(groups[index]),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  List<({String directory, Color color, List<LineAgeSegment> files})>
-      _groupedSegments(LineAgeMonth month) {
+  List<LineAgeMonthDirectoryGroup> _groupedSegments() {
     final buckets = <String, List<LineAgeSegment>>{};
     for (final segment in month.segments) {
       final key = legend.resolveKey(segment.file);
@@ -109,7 +75,7 @@ class LineAgeMonthDetailPanel extends StatelessWidget {
     return [
       for (final key in legend.orderedKeys)
         if (buckets.containsKey(key))
-          (
+          LineAgeMonthDirectoryGroup(
             directory: key,
             color: legend.colorForKey(key),
             files: buckets[key]!,
@@ -117,9 +83,7 @@ class LineAgeMonthDetailPanel extends StatelessWidget {
     ];
   }
 
-  Widget _directorySection(
-    ({String directory, Color color, List<LineAgeSegment> files}) group,
-  ) {
+  Widget _directorySection(LineAgeMonthDirectoryGroup group) {
     final isEmphasized = emphasizedDirectory == group.directory;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -132,7 +96,7 @@ class LineAgeMonthDetailPanel extends StatelessWidget {
                 ? group.color.withValues(alpha: 0.14)
                 : Colors.transparent,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
               child: Row(
                 children: [
                   Container(
@@ -167,7 +131,7 @@ class LineAgeMonthDetailPanel extends StatelessWidget {
         for (final segment in group.files.take(8)) _fileRow(segment),
         if (group.files.length > 8)
           Padding(
-            padding: const EdgeInsets.fromLTRB(28, 2, 12, 4),
+            padding: const EdgeInsets.fromLTRB(36, 4, 16, 6),
             child: Text(
               '+ ${group.files.length - 8} more',
               style: EText.caption.copyWith(color: EColors.textMuted),
@@ -198,7 +162,7 @@ class LineAgeMonthDetailPanel extends StatelessWidget {
             ? WorkbenchActionAccents.lineAge.withValues(alpha: 0.12)
             : Colors.transparent,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 5, 12, 5),
+          padding: const EdgeInsets.fromLTRB(36, 7, 16, 7),
           child: Row(
             children: [
               Expanded(
@@ -214,15 +178,15 @@ class LineAgeMonthDetailPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 16),
               Text(
                 segment.lineCount.asCompactCount,
                 softWrap: false,
                 style: metricsStyle.copyWith(color: EColors.textMuted),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 14),
               SizedBox(
-                width: 40,
+                width: 44,
                 child: Text(
                   '${pctOfFile.toStringAsFixed(0)}%',
                   maxLines: 1,

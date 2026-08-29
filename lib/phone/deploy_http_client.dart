@@ -269,15 +269,18 @@ class DeployServerClient {
     }
   }
 
-  Future<LocalRunState> fetchLocalRun() async {
+  Future<List<LocalRunState>> fetchLocalRuns() async {
     final response = await _httpClient.get(
-      Uri.parse('$_baseUrl/run'),
+      Uri.parse('$_baseUrl/runs'),
       headers: _headers,
     );
-    _throwIfFailed(response, 'Failed to load local run');
-    return LocalRunState.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
+    _throwIfFailed(response, 'Failed to load local runs');
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final runs = payload['runs'] as List<dynamic>? ?? [];
+    return [
+      for (final run in runs)
+        LocalRunState.fromJson(run as Map<String, dynamic>),
+    ];
   }
 
   Stream<LocalRunState> watchLocalRunEvents() async* {
@@ -287,7 +290,7 @@ class DeployServerClient {
     try {
       yield* _watchSseJson(
         client: eventsClient,
-        path: '/run/events',
+        path: '/runs/events',
         parse: (payload) =>
             LocalRunState.fromJson(payload as Map<String, dynamic>),
         failureMessage: 'Failed to open local run events stream',
@@ -303,57 +306,75 @@ class DeployServerClient {
   Future<LocalRunState> startLocalRun({
     required String projectId,
     required String deviceKey,
+  }) {
+    return _postLocalRun(
+      '/runs/start',
+      projectId: projectId,
+      deviceKey: deviceKey,
+      failureMessage: 'Failed to start local run',
+    );
+  }
+
+  Future<LocalRunState> stopLocalRun({
+    required String projectId,
+    required String deviceKey,
+  }) {
+    return _postLocalRun(
+      '/runs/stop',
+      projectId: projectId,
+      deviceKey: deviceKey,
+      failureMessage: 'Failed to stop local run',
+    );
+  }
+
+  Future<LocalRunState> hotReloadLocalRun({
+    required String projectId,
+    required String deviceKey,
+  }) {
+    return _postLocalRun(
+      '/runs/hot-reload',
+      projectId: projectId,
+      deviceKey: deviceKey,
+      failureMessage: 'Failed to hot reload',
+    );
+  }
+
+  Future<LocalRunState> hotRestartLocalRun({
+    required String projectId,
+    required String deviceKey,
+  }) {
+    return _postLocalRun(
+      '/runs/hot-restart',
+      projectId: projectId,
+      deviceKey: deviceKey,
+      failureMessage: 'Failed to hot restart',
+    );
+  }
+
+  Future<LocalRunState> fullRestartLocalRun({
+    required String projectId,
+    required String deviceKey,
+  }) {
+    return _postLocalRun(
+      '/runs/full-restart',
+      projectId: projectId,
+      deviceKey: deviceKey,
+      failureMessage: 'Failed to full restart',
+    );
+  }
+
+  Future<LocalRunState> _postLocalRun(
+    String path, {
+    required String projectId,
+    required String deviceKey,
+    required String failureMessage,
   }) async {
     final response = await _httpClient.post(
-      Uri.parse('$_baseUrl/run'),
+      Uri.parse('$_baseUrl$path'),
       headers: _headers,
       body: jsonEncode({'projectId': projectId, 'deviceKey': deviceKey}),
     );
-    _throwIfFailed(response, 'Failed to start local run');
-    return LocalRunState.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
-  }
-
-  Future<LocalRunState> stopLocalRun() async {
-    final response = await _httpClient.post(
-      Uri.parse('$_baseUrl/run/stop'),
-      headers: _headers,
-    );
-    _throwIfFailed(response, 'Failed to stop local run');
-    return LocalRunState.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
-  }
-
-  Future<LocalRunState> hotReloadLocalRun() async {
-    final response = await _httpClient.post(
-      Uri.parse('$_baseUrl/run/hot-reload'),
-      headers: _headers,
-    );
-    _throwIfFailed(response, 'Failed to hot reload');
-    return LocalRunState.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
-  }
-
-  Future<LocalRunState> hotRestartLocalRun() async {
-    final response = await _httpClient.post(
-      Uri.parse('$_baseUrl/run/hot-restart'),
-      headers: _headers,
-    );
-    _throwIfFailed(response, 'Failed to hot restart');
-    return LocalRunState.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
-  }
-
-  Future<LocalRunState> fullRestartLocalRun() async {
-    final response = await _httpClient.post(
-      Uri.parse('$_baseUrl/run/full-restart'),
-      headers: _headers,
-    );
-    _throwIfFailed(response, 'Failed to full restart');
+    _throwIfFailed(response, failureMessage);
     return LocalRunState.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );

@@ -8,8 +8,8 @@ import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_trigger.dart';
 import '../projects/deployable_project.dart';
 import '../projects/source_changes_progress.dart';
-import '../run/local_run_controls.dart';
-import '../run/remote_local_run_session.dart';
+import '../run/local_run_registry.dart';
+import '../run/remote_local_run_registry.dart';
 import '../server/server_endpoint.dart';
 import 'deploy_http_client.dart';
 import 'server_password_store.dart';
@@ -23,13 +23,13 @@ class PhoneSession {
     ServerPasswordStore? passwordStore,
   }) : _server = serverClient ?? DeployServerClient(),
        _passwordStore = passwordStore ?? ServerPasswordStore() {
-    _localRun = RemoteLocalRunSession(server: _server);
+    _localRunRegistry = RemoteLocalRunRegistry(server: _server);
   }
 
   final DeployServerClient _server;
   final ServerPasswordStore _passwordStore;
   final _jobUpdatesController = StreamController<DeployJob>.broadcast();
-  late final RemoteLocalRunSession _localRun;
+  late final RemoteLocalRunRegistry _localRunRegistry;
 
   bool _signedIn = false;
   bool _jobEventsLoopRunning = false;
@@ -39,7 +39,7 @@ class PhoneSession {
 
   Stream<DeployJob> get jobUpdates => _jobUpdatesController.stream;
 
-  LocalRunControls get localRun => _localRun;
+  LocalRunRegistry get localRunRegistry => _localRunRegistry;
 
   DeployTrigger deployTrigger({void Function()? onSessionEnded}) {
     Future<void> endSession() async {
@@ -48,7 +48,7 @@ class PhoneSession {
     }
 
     _onUnauthorized = endSession;
-    _localRun.setOnUnauthorized(endSession);
+    _localRunRegistry.setOnUnauthorized(endSession);
 
     return DeployTrigger(
       title: 'Deploy',
@@ -75,7 +75,7 @@ class PhoneSession {
     _signedIn = password != null;
     if (_signedIn) {
       _ensureJobEventsListening();
-      _localRun.startListening();
+      _localRunRegistry.startListening();
     }
   }
 
@@ -86,12 +86,12 @@ class PhoneSession {
     await _passwordStore.savePassword(password);
     _signedIn = true;
     _ensureJobEventsListening();
-    _localRun.startListening();
+    _localRunRegistry.startListening();
   }
 
   Future<void> signOut() async {
     _signedIn = false;
-    _localRun.stopListening();
+    _localRunRegistry.stopListening();
     _server.cancelJobEvents();
     await _passwordStore.clearPassword();
     _server.setBearerToken(null);
@@ -208,7 +208,7 @@ class PhoneSession {
 
   void close() {
     _signedIn = false;
-    unawaited(_localRun.close());
+    unawaited(_localRunRegistry.close());
     _server.cancelJobEvents();
     unawaited(_jobUpdatesController.close());
     _server.close();

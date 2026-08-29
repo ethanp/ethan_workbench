@@ -16,7 +16,8 @@ import '../line_age/line_age_analyzer.dart';
 import '../line_age/line_age_cache.dart';
 import '../line_age/line_age_screen.dart';
 import '../run/flutter_run_device.dart';
-import '../run/local_run_controls.dart';
+import '../run/local_run_key.dart';
+import '../run/local_run_registry.dart';
 import '../run/local_run_state.dart';
 import 'active_deploy_watch.dart';
 import 'deployable_project.dart';
@@ -26,10 +27,10 @@ import 'project_workbench_row.dart';
 import 'projects_catalog.dart';
 
 class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({required this.trigger, this.localRun});
+  const ProjectsScreen({required this.trigger, this.localRunRegistry});
 
   final DeployTrigger trigger;
-  final LocalRunControls? localRun;
+  final LocalRunRegistry? localRunRegistry;
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
@@ -42,8 +43,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   final _localRunFlow = const ProjectLocalRunFlow();
 
   Timer? _lastCheckedTicker;
-  StreamSubscription<LocalRunState>? _localRunSubscription;
-  LocalRunState _localRunState = LocalRunState.idle;
+  StreamSubscription<void>? _localRunSubscription;
 
   /// Job shown in the Mac side rail under the queue (null = rail closed).
   DeployJob? _inlineJob;
@@ -77,18 +77,23 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       setState(() {});
     });
 
-    final localRun = widget.localRun;
-    if (localRun != null) {
-      _localRunState = localRun.state;
-      _localRunSubscription = localRun.updates.listen((state) {
+    final localRunRegistry = widget.localRunRegistry;
+    if (localRunRegistry != null) {
+      _localRunSubscription = localRunRegistry.changes.listen((_) {
         if (!mounted) return;
-        setState(() => _localRunState = state);
+        setState(() {});
       });
     }
 
     _activeDeploy.start();
     LineAgeCache.instance.addListener(_onLineAgeCacheChanged);
+    unawaited(_bootstrapLineAgeCache());
     unawaited(_reload(evaluateChanges: true));
+  }
+
+  Future<void> _bootstrapLineAgeCache() async {
+    await LineAgeCache.instance.ensureLoaded();
+    if (mounted) setState(() {});
   }
 
   void _onLineAgeCacheChanged() {
@@ -206,20 +211,28 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     DeployableProject project,
     FlutterRunDevice device,
   ) async {
-    final session = widget.localRun;
-    if (session == null) return;
+    final registry = widget.localRunRegistry;
+    if (registry == null) return;
     await _localRunFlow.open(
       context,
-      session: session,
+      registry: registry,
       project: project,
       device: device,
     );
   }
 
-  Future<void> _stopRun() async {
-    final session = widget.localRun;
-    if (session == null) return;
-    await _localRunFlow.stop(context, session: session);
+  Future<void> _stopRun(
+    DeployableProject project,
+    FlutterRunDevice device,
+  ) async {
+    final registry = widget.localRunRegistry;
+    if (registry == null) return;
+    await _localRunFlow.stop(
+      context,
+      registry: registry,
+      project: project,
+      device: device,
+    );
   }
 
   void _openLineAge(DeployableProject project) {
@@ -451,8 +464,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return ProjectWorkbenchRow(
       project: project,
       platforms: _catalog.platformsFor(project),
-      localRunState: _localRunState,
-      localRun: widget.localRun,
+      runStateFor: (device) {
+        final registry = widget.localRunRegistry;
+        if (registry == null) return LocalRunState.idle;
+        return registry.stateFor(
+          LocalRunKey(projectId: project.projectId, deviceKey: device.key),
+        );
+      },
+      canRunLocally: widget.localRunRegistry != null,
       showLineAge: widget.trigger.showLineAgeAnalysis,
       lineAgeSubtitle:
           LineAgeCache.instance.slocSubtitleForRepoPath(project.path),
@@ -461,7 +480,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       onLineAge: () => _openLineAge(project),
       onDeploy: (platform) => unawaited(_deploy(project, platform)),
       onRun: (device) => unawaited(_run(project, device)),
-      onStopRun: () => unawaited(_stopRun()),
+      onStopRun: (device) => unawaited(_stopRun(project, device)),
       onOpenOngoingDeploy: () => unawaited(_openOngoingDeploy()),
     );
   }

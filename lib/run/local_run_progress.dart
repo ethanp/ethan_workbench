@@ -1,12 +1,16 @@
 import 'dart:async';
 
 import 'local_run_cursor_mirror.dart';
+import 'local_run_key.dart';
 import 'local_run_state.dart';
 
 /// Published session snapshot + log for the UI.
 ///
 /// One job: hold [LocalRunState], append log lines, and broadcast changes.
 class LocalRunProgress {
+  LocalRunProgress({required this.runKey});
+
+  final LocalRunKey runKey;
   LocalRunState _current = LocalRunState.idle;
   final _changes = StreamController<LocalRunState>.broadcast();
   final _log = StringBuffer();
@@ -20,12 +24,12 @@ class LocalRunProgress {
 
   void clearLog() {
     _log.clear();
-    unawaited(LocalRunCursorMirror.clearLog());
+    unawaited(LocalRunCursorMirror.clearLog(runKey));
   }
 
   void emit(LocalRunState state) {
     _current = state;
-    LocalRunCursorMirror.scheduleStatus(state);
+    LocalRunCursorMirror.scheduleStatus(runKey, state);
     if (!_closed) {
       _changes.add(state);
     }
@@ -33,7 +37,7 @@ class LocalRunProgress {
 
   void appendLog(String chunk) {
     _log.write(chunk);
-    unawaited(LocalRunCursorMirror.appendLog(chunk));
+    unawaited(LocalRunCursorMirror.appendLog(runKey, chunk));
     emit(_current.copyWith(log: _log.toString()));
   }
 

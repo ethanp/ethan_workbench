@@ -7,6 +7,7 @@ import 'local_flutter_run_binding.dart';
 import 'local_run_checkpoint.dart';
 import 'local_run_console.dart';
 import 'local_run_controls.dart';
+import 'local_run_key.dart';
 import 'local_run_persistence.dart';
 import 'local_run_progress.dart';
 import 'local_run_reclaimer.dart';
@@ -17,14 +18,16 @@ import 'local_run_state.dart';
 /// Published run state lives in [LocalRunProgress]; process binding in
 /// [LocalFlutterRunBinding]; console interpretation in [LocalRunConsole];
 /// hot-restart reclaim in [LocalRunReclaimer].
-class LocalRunSession implements LocalRunControls {
-  LocalRunSession({
+class LocalRunSlot implements LocalRunControls {
+  LocalRunSlot({
+    required LocalRunKey runKey,
     LocalRunPersistence? persistence,
-    LocalRunProgress? runProgress,
-  }) : _persistence = persistence ?? LocalRunPersistence(),
-       _runProgress = runProgress ?? LocalRunProgress() {
+  }) : _runKey = runKey,
+       _persistence = persistence ?? LocalRunPersistence(),
+       _runProgress = LocalRunProgress(runKey: runKey) {
     _flutterRunBinding = LocalFlutterRunBinding();
     _checkpoint = LocalRunCheckpoint(
+      runKey: _runKey,
       runProgress: _runProgress,
       flutterRunBinding: _flutterRunBinding,
       persistence: _persistence,
@@ -35,6 +38,7 @@ class LocalRunSession implements LocalRunControls {
       checkpoint: _checkpoint,
     );
     _reclaimer = LocalRunReclaimer(
+      runKey: _runKey,
       runProgress: _runProgress,
       flutterRunBinding: _flutterRunBinding,
       persistence: _persistence,
@@ -45,6 +49,7 @@ class LocalRunSession implements LocalRunControls {
     );
   }
 
+  final LocalRunKey _runKey;
   final LocalRunPersistence _persistence;
   final LocalRunProgress _runProgress;
   late final LocalFlutterRunBinding _flutterRunBinding;
@@ -69,17 +74,12 @@ class LocalRunSession implements LocalRunControls {
     required FlutterRunDevice device,
   }) async {
     if (_disposed) return;
-    if (_runProgress.current.projectId == project.projectId &&
-        _runProgress.current.deviceKey == device.key &&
-        (_runProgress.current.status == LocalRunStatus.starting ||
-            _runProgress.current.status == LocalRunStatus.running)) {
+    if (_runProgress.current.status == LocalRunStatus.starting ||
+        _runProgress.current.status == LocalRunStatus.running) {
       return;
     }
-    if (_runProgress.isActive) {
-      throw LocalRunAlreadyActive(
-        projectName: _runProgress.current.projectName ?? 'unknown',
-        statusName: _runProgress.current.status.name,
-      );
+    if (_runProgress.current.status == LocalRunStatus.stopping) {
+      return;
     }
 
     _reclaimer.cancelLiveness();

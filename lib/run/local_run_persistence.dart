@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import 'local_run_key.dart';
+
 /// On-disk record of an active `flutter run` so workbench hot restart can reclaim it.
 class LocalRunRecord {
   const LocalRunRecord({
@@ -27,6 +29,9 @@ class LocalRunRecord {
   final String deviceLabel;
   final String flutterDeviceId;
   final String? vmServiceUri;
+
+  LocalRunKey get runKey =>
+      LocalRunKey(projectId: projectId, deviceKey: deviceKey);
 
   Map<String, Object?> toJson() => {
     'pid': pid,
@@ -56,13 +61,56 @@ class LocalRunRecord {
 }
 
 class LocalRunPersistence {
-  Future<File> _file() async {
+  Future<Directory> _directory() async {
+    final supportDirectory = await getApplicationSupportDirectory();
+    return Directory(path.join(supportDirectory.path, 'active_local_runs'));
+  }
+
+  Future<File> _fileFor(LocalRunKey runKey) async {
+    final directory = await _directory();
+    return File(path.join(directory.path, '${runKey.fileName}.json'));
+  }
+
+  Future<File> _legacyFile() async {
     final supportDirectory = await getApplicationSupportDirectory();
     return File(path.join(supportDirectory.path, 'active_local_run.json'));
   }
 
-  Future<LocalRunRecord?> read() async {
-    final file = await _file();
+  Future<void> migrateLegacyIfNeeded() async {
+    final legacyFile = await _legacyFile();
+    if (!await legacyFile.exists()) return;
+    try {
+      final json = jsonDecode(await legacyFile.readAsString());
+      if (json is Map<String, dynamic>) {
+        final record = LocalRunRecord.fromJson(json);
+        await write(record.runKey, record);
+      }
+    } catch (_) {}
+    if (await legacyFile.exists()) {
+      await legacyFile.delete();
+    }
+  }
+
+  Future<List<LocalRunRecord>> readAll() async {
+    await migrateLegacyIfNeeded();
+    final directory = await _directory();
+    if (!await directory.exists()) return [];
+    final records = <LocalRunRecord>[];
+    await for (final entity in directory.list()) {
+      if (entity is! File || !entity.path.endsWith('.json')) continue;
+      try {
+        final json = jsonDecode(await entity.readAsString());
+        if (json is Map<String, dynamic>) {
+          records.add(LocalRunRecord.fromJson(json));
+        }
+      } catch (_) {}
+    }
+    return records;
+  }
+
+  Future<LocalRunRecord?> read(LocalRunKey runKey) async {
+    await migrateLegacyIfNeeded();
+    final file = await _fileFor(runKey);
     if (!await file.exists()) return null;
     try {
       final json = jsonDecode(await file.readAsString());
@@ -73,14 +121,14 @@ class LocalRunPersistence {
     }
   }
 
-  Future<void> write(LocalRunRecord record) async {
-    final file = await _file();
+  Future<void> write(LocalRunKey runKey, LocalRunRecord record) async {
+    final file = await _fileFor(runKey);
     await file.parent.create(recursive: true);
     await file.writeAsString(jsonEncode(record.toJson()));
   }
 
-  Future<void> clear() async {
-    final file = await _file();
+  Future<void> clear(LocalRunKey runKey) async {
+    final file = await _fileFor(runKey);
     if (await file.exists()) {
       await file.delete();
     }

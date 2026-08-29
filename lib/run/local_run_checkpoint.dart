@@ -1,15 +1,18 @@
 import 'local_flutter_run_binding.dart';
+import 'local_run_key.dart';
 import 'local_run_persistence.dart';
 import 'local_run_progress.dart';
 
 /// Writes / clears the on-disk local-run reclaim record.
 class LocalRunCheckpoint {
   LocalRunCheckpoint({
+    required this._runKey,
     required this._runProgress,
     required this._flutterRunBinding,
     required this._persistence,
   });
 
+  final LocalRunKey _runKey;
   final LocalRunProgress _runProgress;
   final LocalFlutterRunBinding _flutterRunBinding;
   final LocalRunPersistence _persistence;
@@ -32,6 +35,7 @@ class LocalRunCheckpoint {
       return;
     }
     await _persistence.write(
+      _runKey,
       LocalRunRecord(
         pid: pid,
         projectId: projectId,
@@ -46,5 +50,5 @@ class LocalRunCheckpoint {
     );
   }
 
-  Future<void> clear() => _persistence.clear();
+  Future<void> clear() => _persistence.clear(_runKey);
 }

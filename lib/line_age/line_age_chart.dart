@@ -6,15 +6,24 @@ import 'line_age_directory_groups.dart';
 import 'line_age_directory_legend_bar.dart';
 import 'line_age_histogram_geometry.dart';
 import 'line_age_histogram_painter.dart';
-import 'line_age_month_detail_panel.dart';
 
-/// Line-age overview: histogram + directory legend + month detail panel.
-///
-/// Owns selection/hover focus and composes the deep chart collaborators.
+/// Line-age histogram + directory legend. Selection lives on [LineAgeScreen].
 class LineAgeChart extends StatefulWidget {
-  const LineAgeChart({required this.report});
+  const LineAgeChart({
+    required this.report,
+    required this.legend,
+    required this.selectedMonth,
+    required this.selectedDirectory,
+    required this.emphasizedDirectory,
+    required this.onStackSelected,
+  });
 
   final LineAgeReport report;
+  final LineAgeDirectoryLegend legend;
+  final LineAgeMonth? selectedMonth;
+  final String? selectedDirectory;
+  final String? emphasizedDirectory;
+  final void Function(LineAgeMonth? month, String? directory) onStackSelected;
 
   @override
   State<LineAgeChart> createState() => _LineAgeChartState();
@@ -22,61 +31,25 @@ class LineAgeChart extends StatefulWidget {
 
 class _LineAgeChartState extends State<LineAgeChart> {
   LineAgeMonth? _hoveredMonth;
-  LineAgeMonth? _selectedMonth;
-  String? _focusedFile;
   String? _hoveredDirectory;
-  String? _selectedDirectory;
-
-  late final LineAgeDirectoryLegend _legend =
-      LineAgeDirectoryGroups.legendFor(widget.report);
 
   String? get _emphasizedDirectory {
     if (_hoveredDirectory != null) return _hoveredDirectory;
-    if (_focusedFile != null) return _legend.resolveKey(_focusedFile!);
-    return _selectedDirectory;
+    return widget.emphasizedDirectory;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: _histogram()),
-              const SizedBox(height: ELayout.spaceSm),
-              LineAgeDirectoryLegendBar(
-                legend: _legend,
-                emphasizedDirectory: _emphasizedDirectory,
-                onHoverDirectory: (directory) =>
-                    setState(() => _hoveredDirectory = directory),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: ELayout.spaceMd),
-        SizedBox(
-          width: 380,
-          child: LineAgeMonthDetailPanel(
-            report: widget.report,
-            legend: _legend,
-            month: _selectedMonth,
-            focusedFile: _focusedFile,
-            emphasizedDirectory: _emphasizedDirectory,
-            onFocusFile: (file) => setState(() {
-              _focusedFile = file;
-              if (file != null) {
-                _hoveredDirectory = null;
-                _selectedDirectory = _legend.resolveKey(file);
-              }
-            }),
-            onHoverDirectory: (directory) => setState(() {
-              _hoveredDirectory = directory;
-              if (directory != null) _focusedFile = null;
-            }),
-          ),
+        Expanded(child: _histogram()),
+        const SizedBox(height: ELayout.spaceSm),
+        LineAgeDirectoryLegendBar(
+          legend: widget.legend,
+          emphasizedDirectory: _emphasizedDirectory,
+          onHoverDirectory: (directory) =>
+              setState(() => _hoveredDirectory = directory),
         ),
       ],
     );
@@ -95,7 +68,7 @@ class _LineAgeChartState extends State<LineAgeChart> {
           onHover: (event) {
             final hit = geometry.hitTestStack(
               report: widget.report,
-              legend: _legend,
+              legend: widget.legend,
               position: event.localPosition,
             );
             if (hit?.month == _hoveredMonth &&
@@ -112,22 +85,17 @@ class _LineAgeChartState extends State<LineAgeChart> {
             onTapUp: (details) {
               final hit = geometry.hitTestStack(
                 report: widget.report,
-                legend: _legend,
+                legend: widget.legend,
                 position: details.localPosition,
               );
-              setState(() {
-                _selectedMonth = hit?.month;
-                _selectedDirectory = hit?.directory;
-                _focusedFile = null;
-                _hoveredDirectory = null;
-              });
+              widget.onStackSelected(hit?.month, hit?.directory);
             },
             child: CustomPaint(
               painter: LineAgeHistogramPainter(
                 report: widget.report,
-                legend: _legend,
+                legend: widget.legend,
                 hoveredMonth: _hoveredMonth?.month,
-                selectedMonth: _selectedMonth?.month,
+                selectedMonth: widget.selectedMonth?.month,
                 emphasizedDirectory: _emphasizedDirectory,
               ),
               child: const SizedBox.expand(),

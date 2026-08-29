@@ -69,7 +69,7 @@ class _PhoneHomeState extends State<PhoneHome> {
         children: [
           ProjectsScreen(
             trigger: trigger,
-            localRun: _session.localRun,
+            localRunRegistry: _session.localRunRegistry,
           ),
           DeployHistoryScreen(trigger: trigger),
         ],

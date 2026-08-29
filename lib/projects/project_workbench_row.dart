@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../run/flutter_run_device.dart';
-import '../run/local_run_controls.dart';
 import '../run/local_run_state.dart';
 import '../ui/workbench_action_accents.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
@@ -47,10 +46,10 @@ class ProjectWorkbenchRow extends StatelessWidget {
     super.key,
     required this.project,
     required this.platforms,
-    required this.localRunState,
+    required this.runStateFor,
+    required this.canRunLocally,
     required this.showLineAge,
     this.lineAgeSubtitle = '…',
-    this.localRun,
     this.ongoingDeploy,
     this.waitingDeploys = const [],
     required this.onLineAge,
@@ -62,16 +61,16 @@ class ProjectWorkbenchRow extends StatelessWidget {
 
   final DeployableProject project;
   final List<DeployPlatform> platforms;
-  final LocalRunState localRunState;
+  final LocalRunState Function(FlutterRunDevice device) runStateFor;
+  final bool canRunLocally;
   final bool showLineAge;
   final String lineAgeSubtitle;
-  final LocalRunControls? localRun;
   final DeployJob? ongoingDeploy;
   final List<DeployJob> waitingDeploys;
   final VoidCallback onLineAge;
   final ValueChanged<DeployPlatform> onDeploy;
   final ValueChanged<FlutterRunDevice> onRun;
-  final VoidCallback onStopRun;
+  final ValueChanged<FlutterRunDevice> onStopRun;
   final VoidCallback onOpenOngoingDeploy;
 
   /// Width at which identity / Line age / clusters sit at preferred maxima.
@@ -298,7 +297,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
     }
 
     final runDevice = _runDeviceFor(platform);
-    final canRun = localRun != null && runDevice != null;
+    final canRun = canRunLocally && runDevice != null;
     final runStatus = canRun ? _activeRunStatus(runDevice) : null;
     final runHasException = canRun && _runHasException(runDevice);
     final idleSubtitle =
@@ -326,7 +325,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
                 ? EStatusTone.danger
                 : runStatus?.chipTone,
             live: runStatus != null,
-            trailing: _runStopControl(runStatus),
+            trailing: _runStopControl(runStatus, runDevice),
             onActivated: () => onRun(runDevice),
           ),
         deployActionCell(
@@ -364,7 +363,10 @@ class ProjectWorkbenchRow extends StatelessWidget {
     );
   }
 
-  Widget? _runStopControl(LocalRunStatus? runStatus) {
+  Widget? _runStopControl(
+    LocalRunStatus? runStatus,
+    FlutterRunDevice runDevice,
+  ) {
     if (runStatus != LocalRunStatus.starting &&
         runStatus != LocalRunStatus.running) {
       return null;
@@ -372,7 +374,7 @@ class ProjectWorkbenchRow extends StatelessWidget {
     return Tooltip(
       message: 'Stop run',
       child: InkWell(
-        onTap: onStopRun,
+        onTap: () => onStopRun(runDevice),
         customBorder: const CircleBorder(),
         child: SizedBox(
           width: 24,
@@ -397,17 +399,15 @@ class ProjectWorkbenchRow extends StatelessWidget {
   }
 
   LocalRunStatus? _activeRunStatus(FlutterRunDevice device) {
-    if (localRunState.projectId != project.projectId) return null;
-    if (localRunState.deviceKey != device.key) return null;
-    if (!localRunState.status.isActive) return null;
-    return localRunState.status;
+    final runState = runStateFor(device);
+    if (!runState.status.isActive) return null;
+    return runState.status;
   }
 
   bool _runHasException(FlutterRunDevice device) {
-    if (localRunState.projectId != project.projectId) return false;
-    if (localRunState.deviceKey != device.key) return false;
-    if (!localRunState.status.isActive) return false;
-    return localRunState.flutterException != null;
+    final runState = runStateFor(device);
+    if (!runState.status.isActive) return false;
+    return runState.flutterException != null;
   }
 
   static FlutterRunDevice? _runDeviceFor(DeployPlatform platform) =>

@@ -144,7 +144,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
         children: [
           ProjectsScreen(
             trigger: _server.localDeployTrigger,
-            localRun: _server.localRun,
+            localRunRegistry: _server.localRunRegistry,
           ),
           DeployHistoryScreen(
             key: ValueKey(_ledgerGeneration),

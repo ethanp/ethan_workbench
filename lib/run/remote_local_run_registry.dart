@@ -6,32 +6,52 @@ import '../phone/deploy_http_client.dart';
 import '../projects/deployable_project.dart';
 import 'flutter_run_device.dart';
 import 'local_run_controls.dart';
+import 'local_run_key.dart';
+import 'local_run_registry.dart';
 import 'local_run_state.dart';
 
 const _log = ELogger('RemoteLocalRun');
 
-/// Phone-side proxy: drives Mac [LocalRunSession] over the LAN server.
-class RemoteLocalRunSession implements LocalRunControls {
-  RemoteLocalRunSession({required this.server, this.onUnauthorized});
+/// Phone-side proxy: drives Mac [MacLocalRunRegistry] over the LAN server.
+class RemoteLocalRunRegistry implements LocalRunRegistry {
+  RemoteLocalRunRegistry({required this.server, this.onUnauthorized});
 
   final DeployServerClient server;
   Future<void> Function()? onUnauthorized;
 
-  final _updatesController = StreamController<LocalRunState>.broadcast();
-  LocalRunState _state = LocalRunState.idle;
+  final Map<LocalRunKey, LocalRunState> _states = {};
+  final Map<LocalRunKey, RemoteLocalRunSlot> _slots = {};
+  final _changes = StreamController<void>.broadcast();
+  final _stateUpdates = StreamController<LocalRunState>.broadcast();
   bool _listening = false;
   bool _closed = false;
   bool _wantListening = false;
   Timer? _pollTimer;
 
   @override
-  LocalRunState get state => _state;
+  Stream<void> get changes => _changes.stream;
 
   @override
-  Stream<LocalRunState> get updates => _updatesController.stream;
+  Stream<LocalRunState> get stateUpdates => _stateUpdates.stream;
 
   @override
-  bool get isActive => _state.status.isActive;
+  List<LocalRunState> get knownStates => _states.values.toList();
+
+  @override
+  int get activeCount =>
+      _states.values.where((runState) => runState.status.isActive).length;
+
+  @override
+  LocalRunState stateFor(LocalRunKey runKey) =>
+      _states[runKey] ?? LocalRunState.idle;
+
+  @override
+  LocalRunControls controlsFor(LocalRunKey runKey) {
+    return _slots.putIfAbsent(
+      runKey,
+      () => RemoteLocalRunSlot(remoteRunRegistry: this, runKey: runKey),
+    );
+  }
 
   void setOnUnauthorized(Future<void> Function()? callback) {
     onUnauthorized = callback;
@@ -67,21 +87,23 @@ class RemoteLocalRunSession implements LocalRunControls {
       while (_wantListening && !_closed) {
         connectAttempt += 1;
         var eventCount = 0;
-        LocalRunStatus? lastStatus;
+        String? lastSignature;
         _log.log('SSE connect attempt=$connectAttempt');
         try {
           await for (final runState in server.watchLocalRunEvents()) {
             if (!_wantListening || _closed) break;
             eventCount += 1;
-            if (runState.status != lastStatus || eventCount == 1) {
+            final signature =
+                '${runState.projectId}/${runState.deviceKey}:${runState.status.name}';
+            if (signature != lastSignature || eventCount == 1) {
               _log.log(
                 'SSE event #$eventCount ${runState.status.name} '
                 'project=${runState.projectId} device=${runState.deviceKey} '
-                'hasListeners=${_updatesController.hasListener}',
+                'hasListeners=${_changes.hasListener}',
               );
-              lastStatus = runState.status;
+              lastSignature = signature;
             }
-            _publish(runState);
+            adopt(runState);
           }
           _log.warn(
             'SSE stream ended attempt=$connectAttempt events=$eventCount',
@@ -118,17 +140,11 @@ class RemoteLocalRunSession implements LocalRunControls {
   Future<void> _pullSnapshot({required String reason}) async {
     if (_closed || !_wantListening) return;
     try {
-      final runState = await server.fetchLocalRun();
-      if (runState.status != _state.status ||
-          runState.projectId != _state.projectId ||
-          runState.deviceKey != _state.deviceKey ||
-          reason == 'start') {
-        _log.log(
-          '$reason snapshot ${runState.status.name} '
-          'project=${runState.projectId} device=${runState.deviceKey}',
-        );
+      final runStates = await server.fetchLocalRuns();
+      _log.log('$reason snapshot count=${runStates.length}');
+      for (final runState in runStates) {
+        adopt(runState);
       }
-      _publish(runState);
     } on ServerRequestException catch (error) {
       if (error.isUnauthorized) {
         _log.warn('snapshot unauthorized');
@@ -142,47 +158,16 @@ class RemoteLocalRunSession implements LocalRunControls {
     }
   }
 
-  void _publish(LocalRunState runState) {
-    _state = runState;
-    if (!_updatesController.isClosed) {
-      _updatesController.add(runState);
+  void adopt(LocalRunState runState) {
+    final runKey = runState.runKey;
+    if (runKey == null) return;
+    _states[runKey] = runState;
+    if (!_changes.isClosed) {
+      _changes.add(null);
     }
-  }
-
-  @override
-  Future<void> start(
-    DeployableProject project, {
-    required FlutterRunDevice device,
-  }) async {
-    final runState = await server.startLocalRun(
-      projectId: project.projectId,
-      deviceKey: device.key,
-    );
-    _publish(runState);
-  }
-
-  @override
-  Future<void> stop() async {
-    final runState = await server.stopLocalRun();
-    _publish(runState);
-  }
-
-  @override
-  Future<void> hotReload() async {
-    final runState = await server.hotReloadLocalRun();
-    _publish(runState);
-  }
-
-  @override
-  Future<void> hotRestart() async {
-    final runState = await server.hotRestartLocalRun();
-    _publish(runState);
-  }
-
-  @override
-  Future<void> fullRestart() async {
-    final runState = await server.fullRestartLocalRun();
-    _publish(runState);
+    if (!_stateUpdates.isClosed) {
+      _stateUpdates.add(runState);
+    }
   }
 
   Future<void> close() async {
@@ -191,6 +176,78 @@ class RemoteLocalRunSession implements LocalRunControls {
     _pollTimer?.cancel();
     _pollTimer = null;
     server.cancelRunEvents();
-    await _updatesController.close();
+    await _changes.close();
+    await _stateUpdates.close();
+  }
+}
+
+class RemoteLocalRunSlot implements LocalRunControls {
+  RemoteLocalRunSlot({
+    required this.remoteRunRegistry,
+    required this.runKey,
+  });
+
+  final RemoteLocalRunRegistry remoteRunRegistry;
+  final LocalRunKey runKey;
+
+  @override
+  LocalRunState get state => remoteRunRegistry.stateFor(runKey);
+
+  @override
+  Stream<LocalRunState> get updates => remoteRunRegistry.stateUpdates.where(
+    (runState) =>
+        runState.projectId == runKey.projectId &&
+        runState.deviceKey == runKey.deviceKey,
+  );
+
+  @override
+  bool get isActive => state.status.isActive;
+
+  @override
+  Future<void> start(
+    DeployableProject project, {
+    required FlutterRunDevice device,
+  }) async {
+    final runState = await remoteRunRegistry.server.startLocalRun(
+      projectId: project.projectId,
+      deviceKey: device.key,
+    );
+    remoteRunRegistry.adopt(runState);
+  }
+
+  @override
+  Future<void> stop() async {
+    final runState = await remoteRunRegistry.server.stopLocalRun(
+      projectId: runKey.projectId,
+      deviceKey: runKey.deviceKey,
+    );
+    remoteRunRegistry.adopt(runState);
+  }
+
+  @override
+  Future<void> hotReload() async {
+    final runState = await remoteRunRegistry.server.hotReloadLocalRun(
+      projectId: runKey.projectId,
+      deviceKey: runKey.deviceKey,
+    );
+    remoteRunRegistry.adopt(runState);
+  }
+
+  @override
+  Future<void> hotRestart() async {
+    final runState = await remoteRunRegistry.server.hotRestartLocalRun(
+      projectId: runKey.projectId,
+      deviceKey: runKey.deviceKey,
+    );
+    remoteRunRegistry.adopt(runState);
+  }
+
+  @override
+  Future<void> fullRestart() async {
+    final runState = await remoteRunRegistry.server.fullRestartLocalRun(
+      projectId: runKey.projectId,
+      deviceKey: runKey.deviceKey,
+    );
+    remoteRunRegistry.adopt(runState);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:ethan_ui/ethan_ui.dart';
 
 import 'flutter_run_exception.dart';
+import 'local_run_key.dart';
 
 /// Lifecycle of a local `flutter run` session.
 enum LocalRunStatus {
@@ -92,6 +93,13 @@ class LocalRunState {
   /// Latest high-signal Flutter EXCEPTION CAUGHT dump, if any.
   final FlutterRunException? flutterException;
 
+  LocalRunKey? get runKey {
+    final projectId = this.projectId;
+    final deviceKey = this.deviceKey;
+    if (projectId == null || deviceKey == null) return null;
+    return LocalRunKey(projectId: projectId, deviceKey: deviceKey);
+  }
+
   factory LocalRunState.fromJson(Map<String, dynamic> json) {
     final exceptionJson = json['flutterException'];
     return LocalRunState(
@@ -171,18 +179,4 @@ class LocalRunState {
           : (flutterException ?? this.flutterException),
     );
   }
-}
-
-class LocalRunAlreadyActive implements Exception {
-  const LocalRunAlreadyActive({
-    required this.projectName,
-    required this.statusName,
-  });
-
-  final String projectName;
-  final String statusName;
-
-  @override
-  String toString() =>
-      'A local run is already active: $projectName ($statusName)';
 }

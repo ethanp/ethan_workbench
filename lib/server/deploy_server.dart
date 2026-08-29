@@ -11,7 +11,7 @@ import '../deploy/deploy_session_persistence.dart';
 import '../deploy/deploy_trigger.dart';
 import '../projects/deployable_project.dart';
 import '../projects/source_changes_progress.dart';
-import '../run/local_run_session.dart';
+import '../run/local_run_registry.dart';
 import '../sync/deploy_ledger.dart';
 import 'deploy_http_server.dart';
 import 'server_config.dart';
@@ -25,25 +25,25 @@ class DeployServer {
       deployRbPath: _config.deployRbPath,
       persistence: DeploySessionPersistence(),
     );
-    _localRun = LocalRunSession();
+    _localRunRegistry = MacLocalRunRegistry();
     _httpServer = DeployHttpServer(
       config: _config,
       deployPipeline: _deployPipeline,
-      localRun: _localRun,
+      localRunRegistry: _localRunRegistry,
     );
   }
 
   final ServerConfig _config;
   late final DeployPipeline _deployPipeline;
   late final DeployHttpServer _httpServer;
-  late final LocalRunSession _localRun;
+  late final MacLocalRunRegistry _localRunRegistry;
 
   ServerConfig get config => _config;
   DeployJob? get activeJob => _deployPipeline.activeJob;
   List<DeployJob> get waitingQueue => _deployPipeline.waitingQueue;
   Stream<DeployJob> get jobUpdates => _deployPipeline.jobUpdates;
   Stream<List<DeployJob>> get queueUpdates => _deployPipeline.queueUpdates;
-  LocalRunSession get localRun => _localRun;
+  LocalRunRegistry get localRunRegistry => _localRunRegistry;
   bool get isRunning => _httpServer.isRunning;
   int? get boundPort => _httpServer.boundPort;
 
@@ -111,14 +111,14 @@ class DeployServer {
   Future<void> stop() => _httpServer.stop();
 
   /// Reclaim a `flutter run` left alive across workbench hot restart.
-  Future<void> restoreLocalRun() => _localRun.restorePersisted();
+  Future<void> restoreLocalRun() => _localRunRegistry.restorePersisted();
 
   /// Reclaim a deploy left running across workbench hot restart.
   Future<void> restoreDeploySession() =>
       _deployPipeline.restorePersistedSession();
 
   Future<void> dispose() async {
-    await _localRun.dispose();
+    await _localRunRegistry.dispose();
     await stop();
     await _deployPipeline.dispose();
   }

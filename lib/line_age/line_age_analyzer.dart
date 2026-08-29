@@ -26,6 +26,18 @@ class LineAgeSegment {
 
   final String file;
   final int lineCount;
+
+  Map<String, Object?> toJson() => {
+    'file': file,
+    'lineCount': lineCount,
+  };
+
+  factory LineAgeSegment.fromJson(Map<String, dynamic> json) {
+    return LineAgeSegment(
+      file: json['file'] as String,
+      lineCount: json['lineCount'] as int,
+    );
+  }
 }
 
 /// All file segments for a single YYYY-MM bucket.
@@ -69,6 +81,23 @@ class LineAgeMonth {
     final number = monthNumber;
     if (number == null || number < 1 || number > 12) return month;
     return _shortMonthNames[number - 1];
+  }
+
+  Map<String, Object?> toJson() => {
+    'month': month,
+    'totalLines': totalLines,
+    'segments': [for (final segment in segments) segment.toJson()],
+  };
+
+  factory LineAgeMonth.fromJson(Map<String, dynamic> json) {
+    return LineAgeMonth(
+      month: json['month'] as String,
+      totalLines: json['totalLines'] as int,
+      segments: [
+        for (final segment in json['segments'] as List<dynamic>)
+          LineAgeSegment.fromJson(segment as Map<String, dynamic>),
+      ],
+    );
   }
 }
 
@@ -136,6 +165,31 @@ class LineAgeReport {
       );
     }
     return bands;
+  }
+
+  Map<String, Object?> toJson() => {
+    'repoName': repoName,
+    'totalLines': totalLines,
+    'fileCount': fileCount,
+    'totalLinesByFile': totalLinesByFile,
+    'months': [for (final month in months) month.toJson()],
+  };
+
+  factory LineAgeReport.fromJson(Map<String, dynamic> json) {
+    return LineAgeReport(
+      repoName: json['repoName'] as String,
+      totalLines: json['totalLines'] as int,
+      fileCount: json['fileCount'] as int,
+      totalLinesByFile: {
+        for (final entry
+            in (json['totalLinesByFile'] as Map<String, dynamic>).entries)
+          entry.key: entry.value as int,
+      },
+      months: [
+        for (final month in json['months'] as List<dynamic>)
+          LineAgeMonth.fromJson(month as Map<String, dynamic>),
+      ],
+    );
   }
 }
 

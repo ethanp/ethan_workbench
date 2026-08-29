@@ -96,7 +96,7 @@ bool _shouldLogRequest(Request request, Response response) {
   if (request.method == 'GET' && path == '/health') return false;
   if (request.method == 'GET' && path.startsWith('/jobs/')) return false;
   if (request.method == 'GET' &&
-      (path == '/run' || path.startsWith('/run/'))) {
+      (path == '/runs' || path.startsWith('/runs/'))) {
     return false;
   }
   return true;

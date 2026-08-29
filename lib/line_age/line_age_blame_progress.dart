@@ -11,7 +11,6 @@ class LineAgeBlameProgress extends StatelessWidget {
 
   final LineAgeProgress? progress;
 
-  static const _trackHeight = 12.0;
   static const _pathLineHeight = 1.3;
   static const _minWidth = 420.0;
   static const _maxWidth = 640.0;
@@ -55,7 +54,7 @@ class LineAgeBlameProgress extends StatelessWidget {
           ),
           _pathLine(fileName, style: fileNameStyle),
           const SizedBox(height: 18),
-          _capsuleTrack(accent: accent, fraction: progress.fraction),
+          _LineAgeCapsuleTrack(accent: accent, fraction: progress.fraction),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -102,10 +101,57 @@ class LineAgeBlameProgress extends StatelessWidget {
     );
   }
 
-  Widget _capsuleTrack({
-    required Color accent,
-    required double fraction,
-  }) {
+}
+
+/// Thin capsule + file counts while a cached chart stays on screen.
+class LineAgeRefreshBar extends StatelessWidget {
+  const LineAgeRefreshBar({this.progress});
+
+  final LineAgeProgress? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = WorkbenchActionAccents.lineAge;
+    final progress = this.progress;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: _LineAgeCapsuleTrack(
+              accent: accent,
+              fraction: progress?.fraction ?? 0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            progress == null
+                ? 'Refreshing…'
+                : '${progress.completedFiles} / ${progress.totalFiles}',
+            style: EText.caption.copyWith(
+              color: EColors.textMuted,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LineAgeCapsuleTrack extends StatelessWidget {
+  const _LineAgeCapsuleTrack({
+    required this.accent,
+    required this.fraction,
+  });
+
+  final Color accent;
+  final double fraction;
+
+  static const _trackHeight = 12.0;
+
+  @override
+  Widget build(BuildContext context) {
     final radius = BorderRadius.circular(_trackHeight);
     return SizedBox(
       height: _trackHeight,
