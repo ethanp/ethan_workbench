@@ -83,6 +83,37 @@ class LineAgeMonth {
     return _shortMonthNames[number - 1];
   }
 
+  bool get isEmpty => totalLines == 0;
+
+  factory LineAgeMonth.empty(String month) => LineAgeMonth(
+    month: month,
+    totalLines: 0,
+    segments: const [],
+  );
+
+  /// Inclusive YYYY-MM keys from [start] to [end]. Malformed keys stay as given.
+  static List<String> keysFromTo(String start, String end) {
+    final startMonth = LineAgeMonth.empty(start);
+    final endMonth = LineAgeMonth.empty(end);
+    if (startMonth.year == null ||
+        startMonth.monthNumber == null ||
+        endMonth.year == null ||
+        endMonth.monthNumber == null) {
+      return [start, if (end != start) end];
+    }
+    final keys = <String>[];
+    var cursor = DateTime(startMonth.year!, startMonth.monthNumber!);
+    final last = DateTime(endMonth.year!, endMonth.monthNumber!);
+    while (!cursor.isAfter(last)) {
+      keys.add(
+        '${cursor.year.toString().padLeft(4, '0')}-'
+        '${cursor.month.toString().padLeft(2, '0')}',
+      );
+      cursor = DateTime(cursor.year, cursor.month + 1);
+    }
+    return keys;
+  }
+
   Map<String, Object?> toJson() => {
     'month': month,
     'totalLines': totalLines,
@@ -134,14 +165,26 @@ class LineAgeReport {
 
   List<String> get filesByTotalLines => totalLinesByFile.keys.toList();
 
-  /// Year sections in month order, for x-axis grouping.
-  List<LineAgeYearBand> get yearBands {
+  /// First-to-last months with empty slots so gaps stay on the x-axis.
+  List<LineAgeMonth> get timelineMonths {
     if (months.isEmpty) return const [];
+    final byKey = {for (final month in months) month.month: month};
+    final sortedKeys = months.map((month) => month.month).toList()..sort();
+    return [
+      for (final key in LineAgeMonth.keysFromTo(sortedKeys.first, sortedKeys.last))
+        byKey[key] ?? LineAgeMonth.empty(key),
+    ];
+  }
+
+  /// Year sections on [timelineMonths], for x-axis grouping.
+  List<LineAgeYearBand> get yearBands {
+    final timeline = timelineMonths;
+    if (timeline.isEmpty) return const [];
     final bands = <LineAgeYearBand>[];
     var bandStart = 0;
-    var bandYear = months.first.year;
-    for (var monthIndex = 1; monthIndex < months.length; monthIndex++) {
-      final year = months[monthIndex].year;
+    var bandYear = timeline.first.year;
+    for (var monthIndex = 1; monthIndex < timeline.length; monthIndex++) {
+      final year = timeline[monthIndex].year;
       if (year == bandYear) continue;
       if (bandYear != null) {
         bands.add(
@@ -160,7 +203,7 @@ class LineAgeReport {
         LineAgeYearBand(
           year: bandYear,
           firstMonthIndex: bandStart,
-          lastMonthIndex: months.length - 1,
+          lastMonthIndex: timeline.length - 1,
         ),
       );
     }

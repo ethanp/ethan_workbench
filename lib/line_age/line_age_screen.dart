@@ -212,7 +212,7 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: EText.body, textAlign: TextAlign.center),
+            Text(_errorMessage!, style: EText.body.medium, textAlign: TextAlign.center),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => unawaited(_run()),

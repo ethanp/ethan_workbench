@@ -76,7 +76,7 @@ class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
         Expanded(
           child: Text(
             item.label,
-            style: EText.body.copyWith(
+            style: EText.body.medium.copyWith(
               color: _labelColor(item.status),
               decoration: item.status == DeployChecklistItemStatus.skipped
                   ? TextDecoration.lineThrough

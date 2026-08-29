@@ -277,14 +277,14 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
                 ? 'Auth: SERVER_PASSWORD from .env (shared with the iOS client).'
                 : 'SERVER_PASSWORD is empty — set it in .env or the iOS client '
                     'cannot sign in.',
-            style: EText.body.copyWith(
+            style: EText.body.medium.copyWith(
               color: passwordConfigured ? null : EColors.warning,
             ),
           ),
           const SizedBox(height: 10),
           Text(
             'Keep this window open while deploying from the phone.',
-            style: EText.body,
+            style: EText.body.medium,
           ),
         ],
       ),
@@ -300,7 +300,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
       child: job == null
           ? Text(
               'Deploys from this Mac or the iOS client show live logs here.',
-              style: EText.body,
+              style: EText.body.medium,
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,

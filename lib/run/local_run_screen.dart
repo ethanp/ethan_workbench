@@ -55,7 +55,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
             const SizedBox(height: 14),
             _actions(),
             const SizedBox(height: 14),
-            Text('RUN LOG', style: EText.label),
+            Text('RUN LOG', style: EText.label.small),
             const SizedBox(height: 8),
             Expanded(
               child: LogConsole(
@@ -140,7 +140,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
             const SizedBox(height: 8),
             Text(
               _state.errorMessage!,
-              style: EText.body.copyWith(color: EColors.danger),
+              style: EText.body.medium.copyWith(color: EColors.danger),
             ),
           ],
         ],

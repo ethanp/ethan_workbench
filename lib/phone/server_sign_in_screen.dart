@@ -67,7 +67,7 @@ class _ServerSignInScreenState extends State<ServerSignInScreen> {
           Text(
             'Enter the SERVER_PASSWORD from the Mac companion .env. '
             'Same value for every phone on your LAN.',
-            style: EText.body,
+            style: EText.body.medium,
           ),
           const SizedBox(height: 8),
           Text(serverBaseUrl, style: EText.monoEmphasis),
@@ -77,7 +77,7 @@ class _ServerSignInScreenState extends State<ServerSignInScreen> {
             obscureText: _obscurePassword,
             autocorrect: false,
             enableSuggestions: false,
-            style: EText.body,
+            style: EText.body.medium,
             decoration: InputDecoration(
               hintText: 'Password',
               filled: true,
@@ -114,7 +114,7 @@ class _ServerSignInScreenState extends State<ServerSignInScreen> {
             const SizedBox(height: 16),
             Text(
               _errorMessage!,
-              style: EText.body.copyWith(color: EColors.danger),
+              style: EText.body.medium.copyWith(color: EColors.danger),
             ),
           ],
         ],

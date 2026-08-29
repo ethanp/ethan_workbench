@@ -446,7 +446,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             const SizedBox(height: 10),
             Text(
               _catalog.errorMessage!,
-              style: EText.body,
+              style: EText.body.medium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 22),

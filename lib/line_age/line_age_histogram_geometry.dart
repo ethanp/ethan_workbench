@@ -59,20 +59,20 @@ class LineAgeHistogramGeometry {
     required LineAgeDirectoryLegend legend,
     required Offset position,
   }) {
-    if (report.months.isEmpty) return null;
-    final dataMax = report.months
+    if (report.timelineMonths.isEmpty) return null;
+    final dataMax = report.timelineMonths
         .map((month) => month.totalLines)
         .reduce(math.max)
         .toDouble();
     final scale = NiceValueScale.forMax(dataMax);
-    final monthCount = report.months.length;
+    final monthCount = report.timelineMonths.length;
     final width = bandWidth(monthCount);
     final gap = bandGap(monthCount, width);
     final originX = groupOriginX(monthCount, width, gap);
     final plotBottom = margin.top + innerHeight;
 
     for (var monthIndex = 0; monthIndex < monthCount; monthIndex++) {
-      final month = report.months[monthIndex];
+      final month = report.timelineMonths[monthIndex];
       final x = originX + monthIndex * (width + gap);
       if (position.dx < x || position.dx > x + width) continue;
       if (position.dy < margin.top || position.dy > plotBottom) continue;

@@ -37,7 +37,7 @@ class LineAgeBlameProgress extends StatelessWidget {
       color: EColors.textMuted,
       height: _pathLineHeight,
     );
-    final fileNameStyle = EText.body.copyWith(
+    final fileNameStyle = EText.body.medium.copyWith(
       color: EColors.textSecondary,
       height: _pathLineHeight,
     );
@@ -60,7 +60,7 @@ class LineAgeBlameProgress extends StatelessWidget {
             children: [
               Text(
                 '$percent%',
-                style: EText.label.copyWith(
+                style: EText.label.medium.copyWith(
                   color: accent,
                   letterSpacing: 0.6,
                   fontFeatures: const [FontFeature.tabularFigures()],

@@ -300,7 +300,7 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
           Expanded(
             child: Text(
               _job.projectName,
-              style: EText.label.copyWith(color: EColors.textPrimary),
+              style: EText.label.medium.copyWith(color: EColors.textPrimary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -344,11 +344,11 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
               const SizedBox(height: 10),
               Text(
                 _errorMessage!,
-                style: EText.body.copyWith(color: EColors.danger),
+                style: EText.body.medium.copyWith(color: EColors.danger),
               ),
             ],
             const SizedBox(height: 14),
-            Text('BUILD LOG', style: EText.label),
+            Text('BUILD LOG', style: EText.label.small),
             const SizedBox(height: 8),
             Expanded(
               child: LogConsole(
@@ -397,7 +397,7 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
             children: [
               Text(
                 _job.force ? 'Force rebuild' : 'Incremental deploy',
-                style: EText.body,
+                style: EText.body.medium,
               ),
               if (_job.exitCode != null)
                 Text('Exit ${_job.exitCode}', style: EText.caption),

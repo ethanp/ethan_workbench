@@ -318,7 +318,7 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
             const SizedBox(height: 18),
             Text(title, style: EText.section, textAlign: TextAlign.center),
             const SizedBox(height: 10),
-            Text(detail, style: EText.body, textAlign: TextAlign.center),
+            Text(detail, style: EText.body.medium, textAlign: TextAlign.center),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 22),
               FilledButton(onPressed: onAction, child: Text(actionLabel)),

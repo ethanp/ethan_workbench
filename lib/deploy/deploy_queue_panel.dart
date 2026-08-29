@@ -172,7 +172,7 @@ class _DeployQueuePanelState extends State<DeployQueuePanel> {
       ),
       children: [
         if (widget.ongoing != null) ...[
-          Text('Now', style: EText.label),
+          Text('Now', style: EText.label.small),
           const SizedBox(height: ELayout.spaceSm),
           _QueueJobTile(
             job: widget.ongoing!,
@@ -182,7 +182,7 @@ class _DeployQueuePanelState extends State<DeployQueuePanel> {
           ),
           const SizedBox(height: ELayout.spaceLg),
         ],
-        Text('Up next', style: EText.label),
+        Text('Up next', style: EText.label.small),
         const SizedBox(height: ELayout.spaceSm),
         if (widget.waiting.isEmpty)
           Text(
@@ -255,7 +255,7 @@ class _QueueJobTile extends StatelessWidget {
               children: [
                 Text(
                   job.projectName,
-                  style: EText.label.copyWith(
+                  style: EText.label.medium.copyWith(
                     color: EColors.textPrimary,
                     letterSpacing: 0.2,
                   ),

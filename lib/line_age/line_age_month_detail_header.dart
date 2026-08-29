@@ -140,7 +140,7 @@ class _LineAgeMonthDetailHeaderActionState
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.right,
-          style: EText.label.copyWith(color: EColors.textPrimary),
+          style: EText.label.medium.copyWith(color: EColors.textPrimary),
         ),
         const SizedBox(height: 2),
         Text(
