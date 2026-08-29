@@ -83,6 +83,13 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
   }
 
   @override
+  void didUpdateWidget(covariant DeployJobDetail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialJob.jobId == widget.initialJob.jobId) return;
+    unawaited(_adoptJob(widget.initialJob));
+  }
+
+  @override
   void dispose() {
     _log.log(
       'dispose jobId=${_job.jobId} status=${_job.status.name} '

@@ -223,21 +223,12 @@ class _QueueJobTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final platformLine = job.force
-        ? '${job.platform.label} · force'
-        : job.platform.label;
-    final detailLine = stageLabel == null
-        ? platformLine
-        : '$platformLine · $stageLabel';
-    final remainingLine = _remainingCaption(remaining);
-
     return ESurface(
       kind: ESurfaceKind.tinted,
       accent: job.platform.accent,
       onActivated: onActivated,
-      padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
+      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (position != null) ...[
             Text(
@@ -249,65 +240,76 @@ class _QueueJobTile extends StatelessWidget {
             ),
             const SizedBox(width: ELayout.spaceSm),
           ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  job.projectName,
-                  style: EText.label.medium.copyWith(
-                    color: EColors.textPrimary,
-                    letterSpacing: 0.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(
-                      job.platform.icon,
-                      size: 12,
-                      color: job.platform.accent,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        detailLine,
-                        style: EText.caption.copyWith(
-                          fontSize: ELayout.typeSize(11),
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                if (remainingLine != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    remainingLine,
-                    style: EText.caption.copyWith(
-                      color: EColors.accentGlow,
-                      fontSize: ELayout.typeSize(11),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (onCancel != null)
-            IconButton(
-              tooltip: 'Remove from queue',
-              onPressed: onCancel,
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.close_rounded, size: 18),
-              color: EColors.textMuted,
-            ),
+          Expanded(child: _titleAndStatus()),
+          if (onCancel != null) _removeFromQueueButton(),
         ],
       ),
+    );
+  }
+
+  Widget _titleAndStatus() {
+    final String? remainingCaption = _remainingCaption(remaining);
+    final String? statusCaption = remainingCaption ?? stageLabel;
+    if (statusCaption == null) return _titleAndPlatform();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _titleAndPlatform(),
+        const SizedBox(height: 2),
+        Text(
+          statusCaption,
+          style: EText.caption.copyWith(
+            color: remainingCaption != null ? EColors.accentGlow : null,
+            fontSize: ELayout.typeSize(11),
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  Widget _titleAndPlatform() {
+    return Row(
+      children: [
+        Flexible(
+          child: Text(
+            job.projectName,
+            style: EText.label.medium.copyWith(
+              color: EColors.textPrimary,
+              letterSpacing: 0.2,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Icon(
+          job.platform.icon,
+          size: 12,
+          color: job.platform.accent,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          job.force ? '${job.platform.label} · force' : job.platform.label,
+          style: EText.caption.copyWith(fontSize: ELayout.typeSize(11)),
+        ),
+      ],
+    );
+  }
+
+  Widget _removeFromQueueButton() {
+    return IconButton(
+      tooltip: 'Remove from queue',
+      onPressed: onCancel,
+      visualDensity: VisualDensity.compact,
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        minimumSize: const Size(28, 28),
+        padding: const EdgeInsets.all(4),
+      ),
+      icon: const Icon(Icons.close_rounded, size: 18),
+      color: EColors.textMuted,
     );
   }
 

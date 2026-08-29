@@ -1,3 +1,4 @@
+import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_trigger.dart';
 import '../phone/deploy_http_client.dart';
@@ -23,11 +24,32 @@ class ProjectsCatalog {
   /// User-facing message from the most recent failed load (for snackbars).
   String? lastFailureMessage;
 
+  /// Incremented on each [load] so a slower earlier refresh cannot clobber.
+  var _loadEpoch = 0;
+
   bool get hasProjects => projects.isNotEmpty;
+
+  /// Instant left-panel update: this platform is current as of [job.finishedAt].
+  void applySuccessfulDeploy(DeployJob job) {
+    if (job.status != DeployJobStatus.succeeded) return;
+    final deployedAt = job.finishedAt ?? DateTime.now();
+    projects = [
+      for (final project in projects)
+        if (project.projectId == job.projectId)
+          project.withSuccessfulDeploy(
+            platform: job.platform,
+            deployedAt: deployedAt,
+          )
+        else
+          project,
+    ]..sort((left, right) => left.compareByChangeThenName(right));
+    onCatalogChanged?.call();
+  }
 
   Future<ProjectsCatalogLoadOutcome> load({
     required bool evaluateChanges,
   }) async {
+    final loadEpoch = ++_loadEpoch;
     loading = true;
     evaluatingChanges = evaluateChanges;
     changesProgress = null;
@@ -39,11 +61,15 @@ class ProjectsCatalog {
       final loaded = evaluateChanges
           ? await trigger.evaluateSourceChanges(
               onProgress: (progress) {
+                if (loadEpoch != _loadEpoch) return;
                 changesProgress = progress;
                 onCatalogChanged?.call();
               },
             )
           : await trigger.listProjects();
+      if (loadEpoch != _loadEpoch) {
+        return ProjectsCatalogLoadOutcome.succeeded;
+      }
       projects = loaded;
       loading = false;
       evaluatingChanges = false;
@@ -54,6 +80,9 @@ class ProjectsCatalog {
       onCatalogChanged?.call();
       return ProjectsCatalogLoadOutcome.succeeded;
     } on ServerRequestException catch (error) {
+      if (loadEpoch != _loadEpoch) {
+        return ProjectsCatalogLoadOutcome.succeeded;
+      }
       loading = false;
       evaluatingChanges = false;
       changesProgress = null;
@@ -68,6 +97,9 @@ class ProjectsCatalog {
           : (hint == null ? error.message : '${error.message}\n\n$hint');
       return ProjectsCatalogLoadOutcome.failed;
     } catch (error) {
+      if (loadEpoch != _loadEpoch) {
+        return ProjectsCatalogLoadOutcome.succeeded;
+      }
       loading = false;
       evaluatingChanges = false;
       changesProgress = null;

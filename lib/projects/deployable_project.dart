@@ -62,6 +62,29 @@ class DeployableProject {
     (platform) => sourceStatusFor(platform) == DeploySourceStatus.changed,
   );
 
+  /// Mark this platform current as of [deployedAt] after a successful deploy.
+  DeployableProject withSuccessfulDeploy({
+    required DeployPlatform platform,
+    required DateTime deployedAt,
+  }) {
+    return copyWith(
+      lastDeployedAt: {...lastDeployedAt, platform: deployedAt},
+      sourceStatus: {
+        ...sourceStatus,
+        platform: DeploySourceStatus.unchanged,
+      },
+    );
+  }
+
+  /// Changed apps first, then A–Z by name — same order as a Refresh.
+  int compareByChangeThenName(DeployableProject other) {
+    final changeOrder = (hasChangedSources ? 0 : 1).compareTo(
+      other.hasChangedSources ? 0 : 1,
+    );
+    if (changeOrder != 0) return changeOrder;
+    return name.toLowerCase().compareTo(other.name.toLowerCase());
+  }
+
   DeployableProject copyWith({
     Map<DeployPlatform, DateTime?>? lastDeployedAt,
     Map<DeployPlatform, DeploySourceStatus>? sourceStatus,

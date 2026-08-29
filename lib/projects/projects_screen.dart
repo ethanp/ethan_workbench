@@ -63,8 +63,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     _activeDeploy = ActiveDeployWatch(
       trigger: widget.trigger,
       onActiveDeployChanged: () {
-        if (mounted) setState(() {});
+        if (!mounted) return;
+        setState(_followCurrentDeploy);
       },
+      onDeployFinished: _refreshAfterDeployFinished,
     );
     _deployFlow = ProjectDeployFlow(
       trigger: widget.trigger,
@@ -158,6 +160,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     await _reload(evaluateChanges: true);
   }
 
+  void _refreshAfterDeployFinished(DeployJob job) {
+    if (!mounted) return;
+    if (job.status != DeployJobStatus.succeeded) return;
+    _catalog.applySuccessfulDeploy(job);
+    unawaited(_reload(evaluateChanges: true));
+  }
+
   void _presentJobInline(DeployJob job) {
     if (!mounted) return;
     // Phone / compact still uses the full-screen route.
@@ -166,6 +175,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       return;
     }
     setState(() => _inlineJob = job);
+  }
+
+  /// When the rail is open, keep the build log on the Now job as the
+  /// queue advances. Leave a finished job up if nothing is running.
+  void _followCurrentDeploy() {
+    if (_inlineJob == null) return;
+    final ongoing = _activeDeploy.ongoing;
+    if (ongoing == null) return;
+    if (ongoing.jobId == _inlineJob!.jobId) return;
+    _inlineJob = ongoing;
   }
 
   Future<void> _pushJobScreen(DeployJob job) async {
@@ -308,8 +327,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       initialJob: _inlineJob!,
                       embedded: true,
                       onDismiss: _closeInlineJob,
-                      onBecameTerminal: () =>
-                          unawaited(_afterJobScreen()),
                       onRetryStarted: _presentJobInline,
                     )
                   : null,

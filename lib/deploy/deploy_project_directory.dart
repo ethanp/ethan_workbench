@@ -64,14 +64,7 @@ class DeployProjectDirectory {
         ),
       );
     }
-    evaluated.sort((left, right) {
-      final leftChanged = left.hasChangedSources ? 0 : 1;
-      final rightChanged = right.hasChangedSources ? 0 : 1;
-      if (leftChanged != rightChanged) {
-        return leftChanged.compareTo(rightChanged);
-      }
-      return left.name.toLowerCase().compareTo(right.name.toLowerCase());
-    });
+    evaluated.sort((left, right) => left.compareByChangeThenName(right));
     return evaluated;
   }
 
@@ -89,10 +82,16 @@ class DeployProjectDirectory {
       }
       final merged = <DeployPlatform, DateTime?>{...project.lastDeployedAt};
       for (final entry in ledgerTimes.entries) {
-        merged[entry.key] = entry.value ?? merged[entry.key];
+        merged[entry.key] = _laterDate(entry.value, merged[entry.key]);
       }
       enriched.add(project.copyWith(lastDeployedAt: merged));
     }
     return enriched;
+  }
+
+  DateTime? _laterDate(DateTime? left, DateTime? right) {
+    if (left == null) return right;
+    if (right == null) return left;
+    return left.isAfter(right) ? left : right;
   }
 }

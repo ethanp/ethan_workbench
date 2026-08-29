@@ -14,10 +14,14 @@ class ActiveDeployWatch {
   ActiveDeployWatch({
     required this.trigger,
     required this.onActiveDeployChanged,
+    this.onDeployFinished,
   });
 
   final DeployTrigger trigger;
   final void Function() onActiveDeployChanged;
+
+  /// Fired once per job when it first reaches a terminal status.
+  final void Function(DeployJob job)? onDeployFinished;
 
   DeployJob? ongoing;
   List<DeployJob> waiting = const [];
@@ -29,6 +33,7 @@ class ActiveDeployWatch {
   StreamSubscription<DeployJob>? _jobSubscription;
   StreamSubscription<List<DeployJob>>? _queueSubscription;
   String? _typicalDurationCacheKey;
+  String? _finishedJobId;
 
   bool get hasQueuePanelContent =>
       ongoing != null || waiting.isNotEmpty;
@@ -79,7 +84,23 @@ class ActiveDeployWatch {
         'stream update was=$was now=${ongoing?.debugSummary ?? 'none'}',
       );
     }
+    _notifyIfFinished(job);
     onActiveDeployChanged();
+  }
+
+  void _notifyIfFinished(DeployJob job) {
+    if (!job.status.isTerminal) return;
+    if (_finishedJobId == job.jobId) return;
+    _finishedJobId = job.jobId;
+    onDeployFinished?.call(job);
+  }
+
+  Future<void> _notifyFinishedFromRefresh(String jobId) async {
+    try {
+      _notifyIfFinished(await trigger.fetchJob(jobId));
+    } catch (error, stackTrace) {
+      _log.warn('fetch finished job $jobId failed', error, stackTrace);
+    }
   }
 
   void _applyQueueUpdate(List<DeployJob> jobs) {
@@ -120,10 +141,11 @@ class ActiveDeployWatch {
 
   Future<void> refresh() async {
     try {
+      final previousOngoing = ongoing;
       final job = await trigger.fetchActiveJob();
       final next = job != null && !job.status.isTerminal ? job : null;
       final queue = await trigger.fetchDeployQueue();
-      final was = ongoing?.debugSummary ?? 'none';
+      final was = previousOngoing?.debugSummary ?? 'none';
       final now = next?.debugSummary ?? 'none';
       ongoing = next;
       waiting = List.unmodifiable(queue);
@@ -135,6 +157,10 @@ class ActiveDeployWatch {
       }
       if (was != now) {
         _log.log('refresh $was → $now waiting=${waiting.length}');
+      }
+      if (previousOngoing != null &&
+          previousOngoing.jobId != next?.jobId) {
+        await _notifyFinishedFromRefresh(previousOngoing.jobId);
       }
       onActiveDeployChanged();
     } on ServerRequestException catch (error) {
