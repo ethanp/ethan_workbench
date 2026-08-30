@@ -4,15 +4,14 @@ import 'package:path/path.dart' as path;
 import '../app_identity.dart';
 import 'server_endpoint.dart';
 
-class ServerConfig {
-  final int port;
-  final List<String> flutterRoots;
-  final String deployRbPath;
-
-  ServerConfig({int? port, List<String>? flutterRoots, String? deployRbPath})
-    : port = port ?? serverPort,
-      flutterRoots = flutterRoots ?? [workbenchFlutterRoot],
-      deployRbPath = deployRbPath ?? workbenchDeployRbPath;
+class ServerConfig({
+  int? port,
+  List<String>? flutterRoots,
+  String? deployRbPath,
+}) {
+  final int port = port ?? serverPort;
+  final List<String> flutterRoots = flutterRoots ?? [workbenchFlutterRoot];
+  final String deployRbPath = deployRbPath ?? workbenchDeployRbPath;
 
   static String get defaultFlutterRoot => workbenchFlutterRoot;
   static String get defaultDeployRbPath => workbenchDeployRbPath;

@@ -18,13 +18,11 @@ import 'local_run_state.dart';
 /// Published run state lives in [LocalRunProgress]; process binding in
 /// [LocalFlutterRunBinding]; console interpretation in [LocalRunConsole];
 /// hot-restart reclaim in [LocalRunReclaimer].
-class LocalRunSlot implements LocalRunControls {
-  LocalRunSlot({
-    required LocalRunKey runKey,
-    LocalRunPersistence? persistence,
-  }) : _runKey = runKey,
-       _persistence = persistence ?? LocalRunPersistence(),
-       _runProgress = LocalRunProgress(runKey: runKey) {
+class LocalRunSlot({
+  required final LocalRunKey _runKey,
+  LocalRunPersistence? persistence,
+}) implements LocalRunControls {
+  this {
     _flutterRunBinding = LocalFlutterRunBinding();
     _checkpoint = LocalRunCheckpoint(
       runKey: _runKey,
@@ -49,9 +47,8 @@ class LocalRunSlot implements LocalRunControls {
     );
   }
 
-  final LocalRunKey _runKey;
-  final LocalRunPersistence _persistence;
-  final LocalRunProgress _runProgress;
+  final LocalRunPersistence _persistence = persistence ?? LocalRunPersistence();
+  final LocalRunProgress _runProgress = LocalRunProgress(runKey: _runKey);
   late final LocalFlutterRunBinding _flutterRunBinding;
   late final LocalRunCheckpoint _checkpoint;
   late final LocalRunConsole _console;

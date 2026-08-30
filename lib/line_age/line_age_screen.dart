@@ -12,20 +12,15 @@ import 'line_age_chart.dart';
 import 'line_age_directory_groups.dart';
 import 'line_age_month_detail_header.dart';
 
-class LineAgeScreen extends StatefulWidget {
-  const LineAgeScreen({
-    required this.repoPath,
-    required this.repoName,
-  });
-
-  final String repoPath;
-  final String repoName;
-
+class const LineAgeScreen({
+  required final String repoPath,
+  required final String repoName,
+}) extends StatefulWidget {
   @override
   State<LineAgeScreen> createState() => _LineAgeScreenState();
 }
 
-class _LineAgeScreenState extends State<LineAgeScreen> {
+class _LineAgeScreenState() extends State<LineAgeScreen> {
   late final LineAgeAnalyzer _analyzer;
   LineAgeProgress? _progress;
   LineAgeReport? _report;
@@ -153,8 +148,9 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
   @override
   Widget build(BuildContext context) {
     final report = _report;
-    final legend =
-        report == null ? null : LineAgeDirectoryGroups.legendFor(report);
+    final legend = report == null
+        ? null
+        : LineAgeDirectoryGroups.legendFor(report);
     return EScaffoldShell(
       contentMaxWidth: double.infinity,
       appBar: EAppHeader(
@@ -212,7 +208,11 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_errorMessage!, style: EText.body.medium, textAlign: TextAlign.center),
+            Text(
+              _errorMessage!,
+              style: EText.body.medium,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => unawaited(_run()),
@@ -224,7 +224,10 @@ class _LineAgeScreenState extends State<LineAgeScreen> {
     );
   }
 
-  Widget _chartWithRefresh(LineAgeReport report, LineAgeDirectoryLegend legend) {
+  Widget _chartWithRefresh(
+    LineAgeReport report,
+    LineAgeDirectoryLegend legend,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

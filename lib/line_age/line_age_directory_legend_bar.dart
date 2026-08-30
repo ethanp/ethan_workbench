@@ -4,17 +4,11 @@ import 'package:flutter/material.dart';
 import 'line_age_directory_groups.dart';
 
 /// Color key for directory stacks — hover previews emphasis on the histogram.
-class LineAgeDirectoryLegendBar extends StatelessWidget {
-  const LineAgeDirectoryLegendBar({
-    required this.legend,
-    required this.emphasizedDirectory,
-    required this.onHoverDirectory,
-  });
-
-  final LineAgeDirectoryLegend legend;
-  final String? emphasizedDirectory;
-  final ValueChanged<String?> onHoverDirectory;
-
+class const LineAgeDirectoryLegendBar({
+  required final LineAgeDirectoryLegend legend,
+  required final String? emphasizedDirectory,
+  required final ValueChanged<String?> onHoverDirectory,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -30,8 +24,8 @@ class LineAgeDirectoryLegendBar extends StatelessWidget {
               child: _chip(
                 key: key,
                 color: legend.colorForKey(key),
-                emphasized: emphasizedDirectory == null ||
-                    emphasizedDirectory == key,
+                emphasized:
+                    emphasizedDirectory == null || emphasizedDirectory == key,
               ),
             ),
         ],

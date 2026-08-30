@@ -41,4 +41,3 @@ void main() {
     expect(LineAgeAnalyzer.findGitRoot(outside.path), isNull);
   });
 }
-

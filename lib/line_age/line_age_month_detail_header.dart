@@ -7,27 +7,16 @@ import 'line_age_directory_groups.dart';
 import 'line_age_month_detail_panel.dart';
 
 /// App-bar trailing slot: empty hint or selected-month summary + file-list popover.
-class LineAgeMonthDetailHeaderAction extends StatefulWidget {
-  const LineAgeMonthDetailHeaderAction({
-    required this.report,
-    required this.legend,
-    required this.month,
-    required this.focusedFile,
-    required this.emphasizedDirectory,
-    required this.onFocusFile,
-    required this.onHoverDirectory,
-    required this.onDismissed,
-  });
-
-  final LineAgeReport report;
-  final LineAgeDirectoryLegend legend;
-  final LineAgeMonth? month;
-  final String? focusedFile;
-  final String? emphasizedDirectory;
-  final ValueChanged<String?> onFocusFile;
-  final ValueChanged<String?> onHoverDirectory;
-  final VoidCallback onDismissed;
-
+class const LineAgeMonthDetailHeaderAction({
+  required final LineAgeReport report,
+  required final LineAgeDirectoryLegend legend,
+  required final LineAgeMonth? month,
+  required final String? focusedFile,
+  required final String? emphasizedDirectory,
+  required final ValueChanged<String?> onFocusFile,
+  required final ValueChanged<String?> onHoverDirectory,
+  required final VoidCallback onDismissed,
+}) extends StatefulWidget {
   static const width = 200.0;
 
   @override
@@ -35,7 +24,7 @@ class LineAgeMonthDetailHeaderAction extends StatefulWidget {
       _LineAgeMonthDetailHeaderActionState();
 }
 
-class _LineAgeMonthDetailHeaderActionState
+class _LineAgeMonthDetailHeaderActionState()
     extends State<LineAgeMonthDetailHeaderAction> {
   final OverlayPortalController _portal = OverlayPortalController();
   final LayerLink _layerLink = LayerLink();
@@ -94,7 +83,10 @@ class _LineAgeMonthDetailHeaderActionState
   Widget _fileListOverlay(BuildContext context) {
     final month = widget.month;
     if (month == null) return const SizedBox.shrink();
-    final maxHeight = (MediaQuery.sizeOf(context).height * 0.55).clamp(240.0, 560.0);
+    final maxHeight = (MediaQuery.sizeOf(context).height * 0.55).clamp(
+      240.0,
+      560.0,
+    );
     return Positioned.fill(
       child: Stack(
         children: [

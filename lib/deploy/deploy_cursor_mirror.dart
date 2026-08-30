@@ -15,7 +15,7 @@ import 'deploy_log_error_summary.dart';
 /// - application support `cursor/` (always), as a fallback path
 ///
 /// Prefer [lastFailedLogFileName] when debugging a finished failure.
-abstract final class DeployCursorMirror {
+abstract final class DeployCursorMirror() {
   static const logFileName = 'current_deploy.log';
   static const statusFileName = 'current_deploy_status.json';
   static const lastFailedLogFileName = 'last_failed_deploy.log';
@@ -26,10 +26,7 @@ abstract final class DeployCursorMirror {
   static String? _pendingProjectPath;
 
   /// Clear live log and write the starting status for a new deploy.
-  static Future<void> beginJob(
-    DeployJob job, {
-    String? projectPath,
-  }) async {
+  static Future<void> beginJob(DeployJob job, {String? projectPath}) async {
     await WorkbenchCursorDirs.ensureResolved();
     for (final directory in WorkbenchCursorDirs.directories) {
       await WorkbenchCursorDirs.writeSafely(
@@ -64,14 +61,10 @@ abstract final class DeployCursorMirror {
     });
   }
 
-  static Future<void> writeStatus(
-    DeployJob job, {
-    String? projectPath,
-  }) async {
+  static Future<void> writeStatus(DeployJob job, {String? projectPath}) async {
     await WorkbenchCursorDirs.ensureResolved();
-    final encoded = const JsonEncoder.withIndent('  ').convert(
-      _statusPayload(job, projectPath: projectPath),
-    );
+    final encoded = const JsonEncoder.withIndent('  ')
+        .convert(_statusPayload(job, projectPath: projectPath));
     for (final directory in WorkbenchCursorDirs.directories) {
       await WorkbenchCursorDirs.writeSafely(
         File(path.join(directory.path, statusFileName)),
@@ -81,10 +74,7 @@ abstract final class DeployCursorMirror {
   }
 
   /// Rewrite the live log from an in-memory job (e.g. after reclaim).
-  static Future<void> seedJob(
-    DeployJob job, {
-    String? projectPath,
-  }) async {
+  static Future<void> seedJob(DeployJob job, {String? projectPath}) async {
     await WorkbenchCursorDirs.ensureResolved();
     for (final directory in WorkbenchCursorDirs.directories) {
       await WorkbenchCursorDirs.writeSafely(
@@ -98,10 +88,7 @@ abstract final class DeployCursorMirror {
   /// Flush status and, on failure, write the job's full in-memory log to the
   /// stable last-failed paths Cursor should open first. The in-memory log is
   /// authoritative; the live log file is not reused for this.
-  static Future<void> finalize(
-    DeployJob job, {
-    String? projectPath,
-  }) async {
+  static Future<void> finalize(DeployJob job, {String? projectPath}) async {
     _statusDebounce?.cancel();
     await writeStatus(job, projectPath: projectPath);
     if (job.status != DeployJobStatus.failed) return;
@@ -161,8 +148,7 @@ abstract final class DeployCursorMirror {
           'failureHint in $lastFailedStatusFileName) before the full log. '
           'While a deploy is running, use $logFileName.',
       'mirrorDirectories': [
-        for (final directory in WorkbenchCursorDirs.directories)
-          directory.path,
+        for (final directory in WorkbenchCursorDirs.directories) directory.path,
       ],
     };
   }

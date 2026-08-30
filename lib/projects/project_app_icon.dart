@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as path;
 
 /// Finds a list-tile-sized launcher PNG under a Flutter project's AppIcon sets.
-abstract final class ProjectAppIcon {
+abstract final class ProjectAppIcon() {
   static const _preferredFileNames = [
     'Icon-App-76x76@2x.png',
     'Icon-App-60x60@3x.png',

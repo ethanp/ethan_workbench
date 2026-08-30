@@ -11,6 +11,7 @@ import '../deploy/deploy_job.dart';
 import '../projects/projects_screen.dart';
 import '../sync/deploy_ledger.dart';
 import '../sync/sync_config.dart';
+
 import 'package:ethan_ui/ethan_ui.dart';
 
 import '../ui/widgets/deploy_platform_controls.dart';
@@ -20,16 +21,13 @@ import 'deploy_server.dart';
 import 'server_config.dart';
 import 'server_endpoint.dart';
 
-class MacosCompanionScreen extends StatefulWidget {
-  const MacosCompanionScreen({this.syncContainer});
-
-  final ProviderContainer? syncContainer;
-
+class const MacosCompanionScreen({final ProviderContainer? syncContainer})
+    extends StatefulWidget {
   @override
   State<MacosCompanionScreen> createState() => _MacosCompanionScreenState();
 }
 
-class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
+class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
   final _server = DeployServer();
   String? _lanAddress;
   String? _statusMessage;
@@ -158,18 +156,9 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
           selectedIndex: _tabIndex,
           onSelected: (index) => setState(() => _tabIndex = index),
           segments: const [
-            ESegment(
-              icon: Icons.rocket_launch_rounded,
-              label: 'Deploy',
-            ),
-            ESegment(
-              icon: Icons.history_rounded,
-              label: 'History',
-            ),
-            ESegment(
-              icon: Icons.dns_rounded,
-              label: 'Server',
-            ),
+            ESegment(icon: Icons.rocket_launch_rounded, label: 'Deploy'),
+            ESegment(icon: Icons.history_rounded, label: 'History'),
+            ESegment(icon: Icons.dns_rounded, label: 'Server'),
           ],
         ),
       ),
@@ -203,7 +192,9 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
   Widget _serverPanel() {
     return EPanel(
       title: 'Server',
-      subtitle: _server.isRunning ? 'Ready for the iOS client' : 'Server offline',
+      subtitle: _server.isRunning
+          ? 'Ready for the iOS client'
+          : 'Server offline',
       trailing: StatusPill.server(running: _server.isRunning),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,10 +207,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
           Row(
             children: [
               if (_server.isRunning)
-                const OutlinedButton(
-                  onPressed: null,
-                  child: Text('Start'),
-                )
+                const OutlinedButton(onPressed: null, child: Text('Start'))
               else
                 FilledButton(
                   onPressed: _busy ? null : () => unawaited(_startServer()),
@@ -232,10 +220,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
                   child: const Text('Stop'),
                 )
               else
-                const OutlinedButton(
-                  onPressed: null,
-                  child: Text('Stop'),
-                ),
+                const OutlinedButton(onPressed: null, child: Text('Stop')),
             ],
           ),
           if (_statusMessage != null) ...[
@@ -259,10 +244,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
             kind: ESurfaceKind.inset,
             borderRadius: ELayout.borderRadiusSm,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: SelectableText(
-              serverBaseUrl,
-              style: EText.monoEmphasis,
-            ),
+            child: SelectableText(serverBaseUrl, style: EText.monoEmphasis),
           ),
           if (_lanAddress != null) ...[
             const SizedBox(height: 10),
@@ -276,7 +258,7 @@ class _MacosCompanionScreenState extends State<MacosCompanionScreen> {
             passwordConfigured
                 ? 'Auth: SERVER_PASSWORD from .env (shared with the iOS client).'
                 : 'SERVER_PASSWORD is empty — set it in .env or the iOS client '
-                    'cannot sign in.',
+                      'cannot sign in.',
             style: EText.body.medium.copyWith(
               color: passwordConfigured ? null : EColors.warning,
             ),

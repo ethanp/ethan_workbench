@@ -1,6 +1,6 @@
 import 'deploy_platform.dart';
 
-enum DeployChecklistItemStatus {
+enum DeployChecklistItemStatus() {
   pending,
   active,
   done,
@@ -15,22 +15,14 @@ enum DeployChecklistItemStatus {
   }
 }
 
-class DeployChecklistItem {
-  final String id;
-  final String label;
-  final DeployChecklistItemStatus status;
-  final DateTime? startedAt;
-  final DateTime? finishedAt;
-
-  const DeployChecklistItem({
-    required this.id,
-    required this.label,
-    required this.status,
-    this.startedAt,
-    this.finishedAt,
-  });
-
-  factory DeployChecklistItem.fromJson(Map<String, dynamic> json) {
+class const DeployChecklistItem({
+  required final String id,
+  required final String label,
+  required final DeployChecklistItemStatus status,
+  final DateTime? startedAt,
+  final DateTime? finishedAt,
+}) {
+  factory fromJson(Map<String, dynamic> json) {
     return DeployChecklistItem(
       id: json['id'] as String,
       label: json['label'] as String,
@@ -98,7 +90,7 @@ class DeployChecklistItem {
   }
 }
 
-abstract final class DeployChecklist {
+abstract final class DeployChecklist() {
   static const phasePrefix = 'DEPLOY_PHASE:';
 
   static List<DeployChecklistItem> planned({

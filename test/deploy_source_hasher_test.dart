@@ -18,40 +18,30 @@ void main() {
       path.join(fixtureRoot.path, 'packages', 'shared'),
     )..createSync(recursive: true);
 
-    File(
-      path.join(appDirectory.path, 'pubspec.yaml'),
-    ).writeAsStringSync('name: sample\n');
-    File(
-      path.join(appDirectory.path, 'pubspec.lock'),
-    ).writeAsStringSync('lock\n');
+    File(path.join(appDirectory.path, 'pubspec.yaml'))
+        .writeAsStringSync('name: sample\n');
+    File(path.join(appDirectory.path, 'pubspec.lock'))
+        .writeAsStringSync('lock\n');
     Directory(path.join(appDirectory.path, 'lib')).createSync();
-    File(
-      path.join(appDirectory.path, 'lib', 'main.dart'),
-    ).writeAsStringSync('void main() {}\n');
-    Directory(
-      path.join(appDirectory.path, 'macos', 'Runner'),
-    ).createSync(recursive: true);
-    File(
-      path.join(appDirectory.path, 'macos', 'Runner', 'App.swift'),
-    ).writeAsStringSync('struct App {}\n');
+    File(path.join(appDirectory.path, 'lib', 'main.dart'))
+        .writeAsStringSync('void main() {}\n');
+    Directory(path.join(appDirectory.path, 'macos', 'Runner'))
+        .createSync(recursive: true);
+    File(path.join(appDirectory.path, 'macos', 'Runner', 'App.swift'))
+        .writeAsStringSync('struct App {}\n');
 
     // Volatile noise that must be ignored by both hashers.
-    Directory(
-      path.join(appDirectory.path, 'lib', '.dart_tool'),
-    ).createSync(recursive: true);
-    File(
-      path.join(appDirectory.path, 'lib', '.dart_tool', 'noise.txt'),
-    ).writeAsStringSync('noise\n');
+    Directory(path.join(appDirectory.path, 'lib', '.dart_tool'))
+        .createSync(recursive: true);
+    File(path.join(appDirectory.path, 'lib', '.dart_tool', 'noise.txt'))
+        .writeAsStringSync('noise\n');
     File(path.join(appDirectory.path, '.DS_Store')).writeAsStringSync('mac\n');
-    File(
-      path.join(packagesDirectory.path, 'code.dart'),
-    ).writeAsStringSync('shared\n');
-    Directory(
-      path.join(packagesDirectory.path, '.dart_tool'),
-    ).createSync(recursive: true);
-    File(
-      path.join(packagesDirectory.path, '.dart_tool', 'x'),
-    ).writeAsStringSync('x\n');
+    File(path.join(packagesDirectory.path, 'code.dart'))
+        .writeAsStringSync('shared\n');
+    Directory(path.join(packagesDirectory.path, '.dart_tool'))
+        .createSync(recursive: true);
+    File(path.join(packagesDirectory.path, '.dart_tool', 'x'))
+        .writeAsStringSync('x\n');
 
     final deployRb = File(path.join(Directory.current.path, 'deploy.rb'));
     expect(deployRb.existsSync(), isTrue);

@@ -7,10 +7,7 @@ import 'local_run_state.dart';
 /// Published session snapshot + log for the UI.
 ///
 /// One job: hold [LocalRunState], append log lines, and broadcast changes.
-class LocalRunProgress {
-  LocalRunProgress({required this.runKey});
-
-  final LocalRunKey runKey;
+class LocalRunProgress({required final LocalRunKey runKey}) {
   LocalRunState _current = LocalRunState.idle;
   final _changes = StreamController<LocalRunState>.broadcast();
   final _log = StringBuffer();

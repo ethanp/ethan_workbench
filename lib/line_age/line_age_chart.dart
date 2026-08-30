@@ -8,28 +8,20 @@ import 'line_age_histogram_geometry.dart';
 import 'line_age_histogram_painter.dart';
 
 /// Line-age histogram + directory legend. Selection lives on [LineAgeScreen].
-class LineAgeChart extends StatefulWidget {
-  const LineAgeChart({
-    required this.report,
-    required this.legend,
-    required this.selectedMonth,
-    required this.selectedDirectory,
-    required this.emphasizedDirectory,
-    required this.onStackSelected,
-  });
-
-  final LineAgeReport report;
-  final LineAgeDirectoryLegend legend;
-  final LineAgeMonth? selectedMonth;
-  final String? selectedDirectory;
-  final String? emphasizedDirectory;
-  final void Function(LineAgeMonth? month, String? directory) onStackSelected;
-
+class const LineAgeChart({
+  required final LineAgeReport report,
+  required final LineAgeDirectoryLegend legend,
+  required final LineAgeMonth? selectedMonth,
+  required final String? selectedDirectory,
+  required final String? emphasizedDirectory,
+  required final void Function(LineAgeMonth? month, String? directory)
+  onStackSelected,
+}) extends StatefulWidget {
   @override
   State<LineAgeChart> createState() => _LineAgeChartState();
 }
 
-class _LineAgeChartState extends State<LineAgeChart> {
+class _LineAgeChartState() extends State<LineAgeChart> {
   LineAgeMonth? _hoveredMonth;
   String? _hoveredDirectory;
 

@@ -17,9 +17,8 @@ import 'deploy_http_server.dart';
 import 'server_config.dart';
 
 /// Mac façade: deploy workbench + LAN HTTP server for the iOS client.
-class DeployServer {
-  DeployServer({ServerConfig? config})
-    : _config = config ?? ServerConfig() {
+class DeployServer({ServerConfig? config}) {
+  this {
     _deployPipeline = DeployPipeline(
       flutterRoots: _config.flutterRoots,
       deployRbPath: _config.deployRbPath,
@@ -33,7 +32,7 @@ class DeployServer {
     );
   }
 
-  final ServerConfig _config;
+  final ServerConfig _config = config ?? ServerConfig();
   late final DeployPipeline _deployPipeline;
   late final DeployHttpServer _httpServer;
   late final MacLocalRunRegistry _localRunRegistry;

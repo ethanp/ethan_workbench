@@ -4,7 +4,13 @@ import 'flutter_run_exception.dart';
 import 'local_run_key.dart';
 
 /// Lifecycle of a local `flutter run` session.
-enum LocalRunStatus {
+enum LocalRunStatus({
+  required final String chipLabel,
+  required final EStatusTone chipTone,
+
+  /// Fixed plate subtitle while active; null means use the idle caption.
+  required final String? actionSubtitle,
+}) {
   idle(chipLabel: 'idle', chipTone: EStatusTone.muted, actionSubtitle: null),
   starting(
     chipLabel: 'starting',
@@ -21,20 +27,16 @@ enum LocalRunStatus {
     chipTone: EStatusTone.warning,
     actionSubtitle: 'Stopping…',
   ),
-  exited(chipLabel: 'exited', chipTone: EStatusTone.muted, actionSubtitle: null),
-  failed(chipLabel: 'failed', chipTone: EStatusTone.danger, actionSubtitle: null);
-
-  const LocalRunStatus({
-    required this.chipLabel,
-    required this.chipTone,
-    required this.actionSubtitle,
-  });
-
-  final String chipLabel;
-  final EStatusTone chipTone;
-
-  /// Fixed plate subtitle while active; null means use the idle caption.
-  final String? actionSubtitle;
+  exited(
+    chipLabel: 'exited',
+    chipTone: EStatusTone.muted,
+    actionSubtitle: null,
+  ),
+  failed(
+    chipLabel: 'failed',
+    chipTone: EStatusTone.danger,
+    actionSubtitle: null,
+  );
 
   bool get isActive =>
       this == LocalRunStatus.starting ||
@@ -48,50 +50,34 @@ enum LocalRunStatus {
 }
 
 /// Snapshot of the current local `flutter run` session.
-class LocalRunState {
-  const LocalRunState({
-    required this.status,
-    required this.log,
-    required this.readyForKeyCommands,
-    this.projectId,
-    this.projectName,
-    this.projectPath,
-    this.deviceKey,
-    this.deviceLabel,
-    this.flutterDeviceId,
-    this.errorMessage,
-    this.exitCode,
-    this.reattached = false,
-    this.flutterException,
-  });
+class const LocalRunState({
+  required final LocalRunStatus status,
+  required final String log,
+  required final bool readyForKeyCommands,
+  final String? projectId,
+  final String? projectName,
+  final String? projectPath,
 
+  /// [FlutterRunDevice.key] for the active target (`macos`, `meSim`, …).
+  final String? deviceKey,
+  final String? deviceLabel,
+
+  /// Resolved `-d` argument (UDID or `macos`).
+  final String? flutterDeviceId,
+  final String? errorMessage,
+  final int? exitCode,
+
+  /// True when this session was reclaimed after a workbench restart (no stdin).
+  final bool reattached = false,
+
+  /// Latest high-signal Flutter EXCEPTION CAUGHT dump, if any.
+  final FlutterRunException? flutterException,
+}) {
   static const idle = LocalRunState(
     status: LocalRunStatus.idle,
     log: '',
     readyForKeyCommands: false,
   );
-
-  final LocalRunStatus status;
-  final String log;
-  final bool readyForKeyCommands;
-  final String? projectId;
-  final String? projectName;
-  final String? projectPath;
-
-  /// [FlutterRunDevice.key] for the active target (`macos`, `meSim`, …).
-  final String? deviceKey;
-  final String? deviceLabel;
-
-  /// Resolved `-d` argument (UDID or `macos`).
-  final String? flutterDeviceId;
-  final String? errorMessage;
-  final int? exitCode;
-
-  /// True when this session was reclaimed after a workbench restart (no stdin).
-  final bool reattached;
-
-  /// Latest high-signal Flutter EXCEPTION CAUGHT dump, if any.
-  final FlutterRunException? flutterException;
 
   LocalRunKey? get runKey {
     final projectId = this.projectId;
@@ -100,7 +86,7 @@ class LocalRunState {
     return LocalRunKey(projectId: projectId, deviceKey: deviceKey);
   }
 
-  factory LocalRunState.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final exceptionJson = json['flutterException'];
     return LocalRunState(
       status: LocalRunStatus.values.firstWhere(

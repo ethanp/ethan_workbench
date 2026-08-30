@@ -10,6 +10,7 @@ import 'server/macos_companion_screen.dart';
 import 'app_identity.dart';
 import 'phone/phone_home.dart';
 import 'sync/sync_config.dart';
+
 import 'package:ethan_ui/ethan_ui.dart';
 
 Future<void> main() async {
@@ -37,11 +38,8 @@ Future<void> main() async {
   );
 }
 
-class EthanWorkbenchApp extends StatelessWidget {
-  const EthanWorkbenchApp({required this.container});
-
-  final ProviderContainer container;
-
+class const EthanWorkbenchApp({required final ProviderContainer container})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

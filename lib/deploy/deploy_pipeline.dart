@@ -21,6 +21,8 @@ import 'ruby_deploy_executor.dart';
 /// Collaborators own the deep work — wait queue, console/log, project directory,
 /// and the active run slot.
 class DeployPipeline {
+  // Primary constructors cannot express this initializer list + body.
+  // ignore: use_primary_constructors, unnecessary_type_name_in_constructor
   DeployPipeline({
     required List<String> flutterRoots,
     required this.deployRbPath,
@@ -36,9 +38,11 @@ class DeployPipeline {
        ),
        _jobUpdatedController = StreamController<DeployJob>.broadcast() {
     _console = DeployConsole(onJobUpdated: _emitJob);
-    _waitQueue = DeployWaitQueue(onQueueChanged: () {
-      unawaited(_slot.checkpoint());
-    });
+    _waitQueue = DeployWaitQueue(
+      onQueueChanged: () {
+        unawaited(_slot.checkpoint());
+      },
+    );
     _slot = ActiveDeploySlot(
       deployRbPath: deployRbPath,
       scriptRunner: scriptRunner ?? DeployScriptRunner(),

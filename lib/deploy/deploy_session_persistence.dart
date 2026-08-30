@@ -7,23 +7,14 @@ import 'package:path_provider/path_provider.dart';
 import 'deploy_job.dart';
 
 /// On-disk snapshot of the active deploy + wait queue for Mac hot restart.
-class DeploySessionRecord {
-  const DeploySessionRecord({
-    required this.activeJob,
-    required this.projectPath,
-    required this.exitCodePath,
-    this.logPath,
-    this.pid,
-    this.waiting = const [],
-  });
-
-  final DeployJob activeJob;
-  final String projectPath;
-  final String exitCodePath;
-  final String? logPath;
-  final int? pid;
-  final List<DeployJob> waiting;
-
+class const DeploySessionRecord({
+  required final DeployJob activeJob,
+  required final String projectPath,
+  required final String exitCodePath,
+  final String? logPath,
+  final int? pid,
+  final List<DeployJob> waiting = const [],
+}) {
   Map<String, Object?> toJson() => {
     'activeJob': activeJob.toJson(),
     'projectPath': projectPath,
@@ -33,12 +24,10 @@ class DeploySessionRecord {
     'waiting': [for (final job in waiting) job.toJson()],
   };
 
-  factory DeploySessionRecord.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final waitingJson = json['waiting'] as List<dynamic>? ?? const [];
     return DeploySessionRecord(
-      activeJob: DeployJob.fromJson(
-        json['activeJob'] as Map<String, dynamic>,
-      ),
+      activeJob: DeployJob.fromJson(json['activeJob'] as Map<String, dynamic>),
       projectPath: json['projectPath'] as String,
       exitCodePath: json['exitCodePath'] as String,
       logPath: json['logPath'] as String?,
@@ -51,7 +40,7 @@ class DeploySessionRecord {
   }
 }
 
-class DeploySessionPersistence {
+class DeploySessionPersistence() {
   Future<Directory> _supportDirectory() async {
     final supportDirectory = await getApplicationSupportDirectory();
     return Directory(supportDirectory.path);

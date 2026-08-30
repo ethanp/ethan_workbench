@@ -3,7 +3,7 @@ import 'deploy_platform.dart';
 import 'deploy_run_record.dart';
 
 /// Typical wall-clock duration from past successful deploys of one app/platform.
-abstract final class DeployDurationEstimate {
+abstract final class DeployDurationEstimate() {
   /// Median elapsed among recent successful runs for [projectId]/[platform].
   ///
   /// Prefers runs matching [force] when at least two such samples exist;
@@ -34,9 +34,7 @@ abstract final class DeployDurationEstimate {
       if (forceMatched.length >= 2) samples = forceMatched;
     }
 
-    final durations = [
-      for (final run in samples.take(maxSamples)) run.elapsed,
-    ];
+    final durations = [for (final run in samples.take(maxSamples)) run.elapsed];
     if (durations.isEmpty) return null;
 
     durations.sort((left, right) => left.compareTo(right));

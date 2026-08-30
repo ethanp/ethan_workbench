@@ -6,11 +6,8 @@ import '../ui/workbench_action_accents.dart';
 import 'line_age_analyzer.dart';
 
 /// Blame loading UI — spinner until the first tick, then a 12px capsule track.
-class LineAgeBlameProgress extends StatelessWidget {
-  const LineAgeBlameProgress({this.progress});
-
-  final LineAgeProgress? progress;
-
+class const LineAgeBlameProgress({final LineAgeProgress? progress})
+    extends StatelessWidget {
   static const _pathLineHeight = 1.3;
   static const _minWidth = 420.0;
   static const _maxWidth = 640.0;
@@ -48,10 +45,7 @@ class LineAgeBlameProgress extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _pathLine(
-            showDirectory ? directory : ' ',
-            style: directoryStyle,
-          ),
+          _pathLine(showDirectory ? directory : ' ', style: directoryStyle),
           _pathLine(fileName, style: fileNameStyle),
           const SizedBox(height: 18),
           _LineAgeCapsuleTrack(accent: accent, fraction: progress.fraction),
@@ -100,15 +94,11 @@ class LineAgeBlameProgress extends StatelessWidget {
       ),
     );
   }
-
 }
 
 /// Thin capsule + file counts while a cached chart stays on screen.
-class LineAgeRefreshBar extends StatelessWidget {
-  const LineAgeRefreshBar({this.progress});
-
-  final LineAgeProgress? progress;
-
+class const LineAgeRefreshBar({final LineAgeProgress? progress})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = WorkbenchActionAccents.lineAge;
@@ -139,15 +129,10 @@ class LineAgeRefreshBar extends StatelessWidget {
   }
 }
 
-class _LineAgeCapsuleTrack extends StatelessWidget {
-  const _LineAgeCapsuleTrack({
-    required this.accent,
-    required this.fraction,
-  });
-
-  final Color accent;
-  final double fraction;
-
+class const _LineAgeCapsuleTrack({
+  required final Color accent,
+  required final double fraction,
+}) extends StatelessWidget {
   static const _trackHeight = 12.0;
 
   @override
@@ -197,9 +182,7 @@ class _LineAgeCapsuleTrack extends StatelessWidget {
   }
 }
 
-class _LineAgeBlameStarting extends StatelessWidget {
-  const _LineAgeBlameStarting();
-
+class const _LineAgeBlameStarting() extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(

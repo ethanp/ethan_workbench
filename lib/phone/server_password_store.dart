@@ -1,7 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Persists the iOS client's shared server password across app launches.
-class ServerPasswordStore {
+class ServerPasswordStore() {
   static const _passwordKey = 'deploy_server_password';
 
   Future<String?> loadPassword() async {

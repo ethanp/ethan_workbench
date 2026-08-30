@@ -10,19 +10,13 @@ import '../phone/deploy_http_client.dart';
 const _log = ELogger('ActiveDeployWatch');
 
 /// Tracks the active deploy and FIFO wait queue for banner + queue panel.
-class ActiveDeployWatch {
-  ActiveDeployWatch({
-    required this.trigger,
-    required this.onActiveDeployChanged,
-    this.onDeployFinished,
-  });
-
-  final DeployTrigger trigger;
-  final void Function() onActiveDeployChanged;
+class ActiveDeployWatch({
+  required final DeployTrigger trigger,
+  required final void Function() onActiveDeployChanged,
 
   /// Fired once per job when it first reaches a terminal status.
-  final void Function(DeployJob job)? onDeployFinished;
-
+  final void Function(DeployJob job)? onDeployFinished,
+}) {
   DeployJob? ongoing;
   List<DeployJob> waiting = const [];
 
@@ -35,8 +29,7 @@ class ActiveDeployWatch {
   String? _typicalDurationCacheKey;
   String? _finishedJobId;
 
-  bool get hasQueuePanelContent =>
-      ongoing != null || waiting.isNotEmpty;
+  bool get hasQueuePanelContent => ongoing != null || waiting.isNotEmpty;
 
   /// Remaining wall time vs typical successful runs; null if no baseline yet.
   Duration? get ongoingRemainingEstimate {
@@ -80,9 +73,7 @@ class ActiveDeployWatch {
       unawaited(_ensureTypicalDuration(ongoing!));
     }
     if (was != (ongoing?.debugSummary ?? 'none')) {
-      _log.log(
-        'stream update was=$was now=${ongoing?.debugSummary ?? 'none'}',
-      );
+      _log.log('stream update was=$was now=${ongoing?.debugSummary ?? 'none'}');
     }
     _notifyIfFinished(job);
     onActiveDeployChanged();
@@ -158,8 +149,7 @@ class ActiveDeployWatch {
       if (was != now) {
         _log.log('refresh $was → $now waiting=${waiting.length}');
       }
-      if (previousOngoing != null &&
-          previousOngoing.jobId != next?.jobId) {
+      if (previousOngoing != null && previousOngoing.jobId != next?.jobId) {
         await _notifyFinishedFromRefresh(previousOngoing.jobId);
       }
       onActiveDeployChanged();

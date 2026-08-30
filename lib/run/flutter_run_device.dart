@@ -1,26 +1,19 @@
 import 'me_sim_iphone_simulator.dart';
 
 /// Where a local `flutter run` should launch.
-class FlutterRunDevice {
-  const FlutterRunDevice._({
-    required this.key,
-    required this.label,
-    required this.flutterDeviceId,
-    this.prepareDeviceId,
-  });
-
+class const FlutterRunDevice._({
   /// Stable identity for UI / session matching (`macos`, `meSim`).
-  final String key;
+  required final String key,
 
   /// Short label for plates and status copy.
-  final String label;
+  required final String label,
 
   /// Argument for `flutter run -d` when [prepareDeviceId] is null.
-  final String flutterDeviceId;
+  required final String flutterDeviceId,
 
   /// Boots / resolves the real device id (e.g. simulator UDID) before run.
-  final Future<String> Function()? prepareDeviceId;
-
+  final Future<String> Function()? prepareDeviceId,
+}) {
   static const macos = FlutterRunDevice._(
     key: 'macos',
     label: 'macOS',

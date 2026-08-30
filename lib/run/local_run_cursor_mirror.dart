@@ -12,7 +12,7 @@ import 'local_run_state.dart';
 ///
 /// Writes under `{ethan_workbench}/.workbench/local_runs/` and the application
 /// support `cursor/local_runs/` fallback.
-abstract final class LocalRunCursorMirror {
+abstract final class LocalRunCursorMirror() {
   static final Map<LocalRunKey, Timer> _statusDebounce = {};
   static final Map<LocalRunKey, LocalRunState> _pendingStatus = {};
 

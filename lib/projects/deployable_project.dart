@@ -6,20 +6,15 @@ import 'package:ethan_ui/ethan_ui.dart';
 import '../deploy/deploy_platform.dart';
 
 /// Result of comparing current sources to `.deploy_*_hash`.
-enum DeploySourceStatus {
+enum DeploySourceStatus({
+  required final String? chipLabel,
+  required final EStatusTone? chipTone,
+}) {
   /// CTA has not been run for this platform yet.
   unevaluated(chipLabel: null, chipTone: null),
   neverDeployed(chipLabel: null, chipTone: null),
   unchanged(chipLabel: 'current', chipTone: EStatusTone.success),
   changed(chipLabel: 'changed', chipTone: EStatusTone.warning);
-
-  const DeploySourceStatus({
-    required this.chipLabel,
-    required this.chipTone,
-  });
-
-  final String? chipLabel;
-  final EStatusTone? chipTone;
 
   static DeploySourceStatus fromName(String name) {
     return DeploySourceStatus.values.firstWhere(
@@ -31,25 +26,15 @@ enum DeploySourceStatus {
   bool get isEvaluated => this != DeploySourceStatus.unevaluated;
 }
 
-class DeployableProject {
-  final String projectId;
-  final String name;
-  final String path;
-  final Set<DeployPlatform> platforms;
-  final Map<DeployPlatform, DateTime?> lastDeployedAt;
-  final Map<DeployPlatform, DeploySourceStatus> sourceStatus;
-  final Uint8List? iconPngBytes;
-
-  const DeployableProject({
-    required this.projectId,
-    required this.name,
-    required this.path,
-    required this.platforms,
-    this.lastDeployedAt = const {},
-    this.sourceStatus = const {},
-    this.iconPngBytes,
-  });
-
+class const DeployableProject({
+  required final String projectId,
+  required final String name,
+  required final String path,
+  required final Set<DeployPlatform> platforms,
+  final Map<DeployPlatform, DateTime?> lastDeployedAt = const {},
+  final Map<DeployPlatform, DeploySourceStatus> sourceStatus = const {},
+  final Uint8List? iconPngBytes,
+}) {
   bool supports(DeployPlatform platform) => platforms.contains(platform);
 
   DateTime? lastDeployedAtFor(DeployPlatform platform) =>
@@ -69,10 +54,7 @@ class DeployableProject {
   }) {
     return copyWith(
       lastDeployedAt: {...lastDeployedAt, platform: deployedAt},
-      sourceStatus: {
-        ...sourceStatus,
-        platform: DeploySourceStatus.unchanged,
-      },
+      sourceStatus: {...sourceStatus, platform: DeploySourceStatus.unchanged},
     );
   }
 
@@ -101,7 +83,7 @@ class DeployableProject {
     );
   }
 
-  factory DeployableProject.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final platformNames = json['platforms'] as List<dynamic>?;
     final platforms = platformNames == null || platformNames.isEmpty
         ? {DeployPlatform.ios}

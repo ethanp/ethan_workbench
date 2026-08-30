@@ -17,8 +17,7 @@ Middleware passwordAuthMiddleware() {
       if (expected.isEmpty) {
         return Response.unauthorized(
           jsonEncode({
-            'error':
-                'SERVER_PASSWORD is not set on the Mac — add it to .env and restart',
+            'error': 'SERVER_PASSWORD is not set on the Mac — add it to .env and restart',
           }),
           headers: const {'Content-Type': 'application/json'},
         );

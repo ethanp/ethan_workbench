@@ -24,16 +24,11 @@ import 'server_config.dart';
 const _log = ELogger('ServerJobEvents');
 
 /// Shelf HTTP surface for the iOS client: projects, deploys, and local runs.
-class DeployHttpServer {
-  DeployHttpServer({
-    required this.config,
-    required this.deployPipeline,
-    required this.localRunRegistry,
-  });
-
-  final ServerConfig config;
-  final DeployPipeline deployPipeline;
-  final LocalRunRegistry localRunRegistry;
+class DeployHttpServer({
+  required final ServerConfig config,
+  required final DeployPipeline deployPipeline,
+  required final LocalRunRegistry localRunRegistry,
+}) {
   HttpServer? _httpServer;
 
   static const _sseHeaders = {
@@ -145,10 +140,7 @@ class DeployHttpServer {
       return jsonError(
         error.toString(),
         status: 409,
-        extra: {
-          'job': error.job.toJson(),
-          'alreadyQueued': true,
-        },
+        extra: {'job': error.job.toJson(), 'alreadyQueued': true},
       );
     } on UnknownProject catch (error) {
       return jsonError(error.toString(), status: 404);
@@ -225,10 +217,7 @@ class DeployHttpServer {
       if (controller.isClosed) return;
       controller.add(
         utf8.encode(
-          'data: ${jsonEncode({
-            'type': 'queue',
-            'jobs': jobs.map((job) => job.toJson()).toList(),
-          })}\n\n',
+          'data: ${jsonEncode({'type': 'queue', 'jobs': jobs.map((job) => job.toJson()).toList()})}\n\n',
         ),
       );
     }
@@ -287,11 +276,7 @@ class DeployHttpServer {
       return utf8.encode('$escaped\n\n');
     });
 
-    return Response.ok(
-      transformed,
-      headers: _sseHeaders,
-      context: _sseContext,
-    );
+    return Response.ok(transformed, headers: _sseHeaders, context: _sseContext);
   }
 
   Future<Response> _listLocalRuns(Request request) async {
@@ -453,9 +438,7 @@ class DeployHttpServer {
   }
 }
 
-class _LocalRunTarget {
-  const _LocalRunTarget({required this.runKey, required this.device});
-
-  final LocalRunKey runKey;
-  final FlutterRunDevice device;
-}
+class const _LocalRunTarget({
+  required final LocalRunKey runKey,
+  required final FlutterRunDevice device,
+});

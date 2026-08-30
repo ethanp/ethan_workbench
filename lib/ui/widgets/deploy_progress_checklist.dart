@@ -7,17 +7,15 @@ import 'package:ethan_ui/ethan_ui.dart';
 import '../../deploy/deploy_checklist.dart';
 
 /// Live checklist of deploy steps with an elapsed ticker on the active step.
-class DeployProgressChecklist extends StatefulWidget {
-  const DeployProgressChecklist({required this.items});
-
-  final List<DeployChecklistItem> items;
-
+class const DeployProgressChecklist({
+  required final List<DeployChecklistItem> items,
+}) extends StatefulWidget {
   @override
   State<DeployProgressChecklist> createState() =>
       _DeployProgressChecklistState();
 }
 
-class _DeployProgressChecklistState extends State<DeployProgressChecklist> {
+class _DeployProgressChecklistState() extends State<DeployProgressChecklist> {
   Timer? _ticker;
 
   @override

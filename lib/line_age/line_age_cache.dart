@@ -8,20 +8,13 @@ import 'package:path/path.dart' as path;
 import 'line_age_analyzer.dart';
 import 'line_age_cache_persistence.dart';
 
-class _LineAgeCacheEntry {
-  const _LineAgeCacheEntry({
-    required this.fingerprint,
-    required this.report,
-  });
-
-  final String fingerprint;
-  final LineAgeReport report;
-}
+class const _LineAgeCacheEntry({
+  required final String fingerprint,
+  required final LineAgeReport report,
+});
 
 /// Line age reports keyed by git root, persisted across app restarts.
-class LineAgeCache extends ChangeNotifier {
-  LineAgeCache._();
-
+class LineAgeCache._() extends ChangeNotifier {
   static final LineAgeCache instance = LineAgeCache._();
 
   final Map<String, _LineAgeCacheEntry> _entries = {};
@@ -43,7 +36,9 @@ class LineAgeCache extends ChangeNotifier {
       return;
     }
     _persistToDisk = true;
-    _persistence = LineAgeCachePersistence(directory: persistenceDirectory);
+    _persistence = LineAgeCachePersistence(
+      directoryOverride: persistenceDirectory,
+    );
   }
 
   Future<void> _loadFromDisk() async {
@@ -148,9 +143,8 @@ class LineAgeCache extends ChangeNotifier {
       return existing.report;
     }
 
-    final report = await LineAgeAnalyzer(repoPath: repoPath).analyze(
-      onProgress: onProgress,
-    );
+    final report = await LineAgeAnalyzer(repoPath: repoPath)
+        .analyze(onProgress: onProgress);
     put(gitRoot: normalizedRoot, fingerprint: fingerprint, report: report);
     return report;
   }

@@ -18,9 +18,8 @@ void main() {
     final sampleAppDirectory = Directory(
       path.join(fixtureRoot.path, 'sample_app'),
     )..createSync();
-    File(
-      path.join(sampleAppDirectory.path, 'pubspec.yaml'),
-    ).writeAsStringSync('name: sample_app\n');
+    File(path.join(sampleAppDirectory.path, 'pubspec.yaml'))
+        .writeAsStringSync('name: sample_app\n');
     Directory(path.join(sampleAppDirectory.path, 'ios')).createSync();
 
     final deployRbPath = path.join(fixtureRoot.path, 'deploy.rb');
@@ -74,9 +73,9 @@ DEPLOY_RB=$deployRbPath
       ),
     );
     expect(projectsResponse.statusCode, 200);
-    final payload =
-        jsonDecode(await projectsResponse.readAsString())
-            as Map<String, dynamic>;
+    final payload = jsonDecode(
+      await projectsResponse.readAsString(),
+    ) as Map<String, dynamic>;
     final projects = payload['projects'] as List<dynamic>;
     expect(
       projects.any((project) => project['projectId'] == 'sample_app'),
@@ -121,7 +120,8 @@ DEPLOY_RB=$deployRbPath
       ),
     );
     expect(response.statusCode, 401);
-    final body = jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+    final body =
+        jsonDecode(await response.readAsString()) as Map<String, dynamic>;
     expect(body['error'], contains('SERVER_PASSWORD'));
   });
 }

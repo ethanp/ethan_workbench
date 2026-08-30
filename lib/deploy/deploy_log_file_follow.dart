@@ -4,19 +4,13 @@ import 'dart:io';
 import 'dart:typed_data';
 
 /// Appends unseen bytes from a growing deploy log file (survives reclaim).
-class DeployLogFileFollow {
-  DeployLogFileFollow({
-    required this.logPath,
-    required this.onChunk,
-    int startOffset = 0,
-    this.pollInterval = const Duration(milliseconds: 200),
-  }) : _offset = startOffset < 0 ? 0 : startOffset;
-
-  final String logPath;
-  final void Function(String chunk) onChunk;
-  final Duration pollInterval;
-
-  int _offset;
+class DeployLogFileFollow({
+  required final String logPath,
+  required final void Function(String chunk) onChunk,
+  int startOffset = 0,
+  final Duration pollInterval = const Duration(milliseconds: 200),
+}) {
+  int _offset = startOffset < 0 ? 0 : startOffset;
   Timer? _timer;
   bool _stopped = false;
 

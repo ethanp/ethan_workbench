@@ -10,14 +10,12 @@ import 'phone_session.dart';
 import 'server_sign_in_screen.dart';
 
 /// Loads saved server password and routes to sign-in or projects.
-class PhoneHome extends StatefulWidget {
-  const PhoneHome();
-
+class const PhoneHome() extends StatefulWidget {
   @override
   State<PhoneHome> createState() => _PhoneHomeState();
 }
 
-class _PhoneHomeState extends State<PhoneHome> {
+class _PhoneHomeState() extends State<PhoneHome> {
   final _session = PhoneSession();
   bool _loading = true;
   int _tabIndex = 0;
@@ -49,9 +47,8 @@ class _PhoneHomeState extends State<PhoneHome> {
     setState(() => _tabIndex = 0);
   }
 
-  DeployTrigger get _deployTrigger => _session.deployTrigger(
-    onSessionEnded: _resetTabsAfterSessionEnded,
-  );
+  DeployTrigger get _deployTrigger =>
+      _session.deployTrigger(onSessionEnded: _resetTabsAfterSessionEnded);
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +56,10 @@ class _PhoneHomeState extends State<PhoneHome> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (!_session.isSignedIn) {
-      return ServerSignInScreen(session: _session, onSignedIn: _resetTabsAfterSignIn);
+      return ServerSignInScreen(
+        session: _session,
+        onSignedIn: _resetTabsAfterSignIn,
+      );
     }
     final trigger = _deployTrigger;
     return Scaffold(
@@ -79,14 +79,8 @@ class _PhoneHomeState extends State<PhoneHome> {
           selectedIndex: _tabIndex,
           onSelected: (index) => setState(() => _tabIndex = index),
           segments: const [
-            ESegment(
-              icon: Icons.rocket_launch_rounded,
-              label: 'Deploy',
-            ),
-            ESegment(
-              icon: Icons.history_rounded,
-              label: 'History',
-            ),
+            ESegment(icon: Icons.rocket_launch_rounded, label: 'Deploy'),
+            ESegment(icon: Icons.history_rounded, label: 'History'),
           ],
         ),
       ),

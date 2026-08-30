@@ -6,14 +6,10 @@ import '../sync/deploy_ledger.dart';
 import 'deploy_platform.dart';
 
 /// Lists deployable Flutter projects and evaluates source-change status.
-class DeployProjectDirectory {
-  DeployProjectDirectory({
-    required this.flutterRoots,
-    this._resolveProject,
-  });
-
-  final List<String> flutterRoots;
-  final Future<DeployableProject?> Function(String projectId)? _resolveProject;
+class DeployProjectDirectory({
+  required final List<String> flutterRoots,
+  final Future<DeployableProject?> Function(String projectId)? _resolveProject,
+}) {
   DeployLedger? _ledger;
 
   void attachLedger(DeployLedger? ledger) {
@@ -21,9 +17,8 @@ class DeployProjectDirectory {
   }
 
   Future<List<DeployableProject>> listDeployable() async {
-    final projects = await ProjectCatalog(
-      flutterRoots: flutterRoots,
-    ).listDeployableProjects();
+    final projects = await ProjectCatalog(flutterRoots: flutterRoots)
+        .listDeployableProjects();
     return _enrichWithLedger(projects);
   }
 

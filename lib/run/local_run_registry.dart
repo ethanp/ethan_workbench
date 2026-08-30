@@ -7,7 +7,7 @@ import 'local_run_slot.dart';
 import 'local_run_state.dart';
 
 /// Shared Mac/phone surface for concurrent local `flutter run`s.
-abstract class LocalRunRegistry {
+abstract class LocalRunRegistry() {
   LocalRunControls controlsFor(LocalRunKey runKey);
   LocalRunState stateFor(LocalRunKey runKey);
   Stream<void> get changes;
@@ -17,11 +17,9 @@ abstract class LocalRunRegistry {
 }
 
 /// Mac companion: one [LocalRunSlot] per [LocalRunKey].
-class MacLocalRunRegistry implements LocalRunRegistry {
-  MacLocalRunRegistry({LocalRunPersistence? persistence})
-    : _persistence = persistence ?? LocalRunPersistence();
-
-  final LocalRunPersistence _persistence;
+class MacLocalRunRegistry({LocalRunPersistence? persistence})
+    implements LocalRunRegistry {
+  final LocalRunPersistence _persistence = persistence ?? LocalRunPersistence();
   final Map<LocalRunKey, LocalRunSlot> _slots = {};
   final Map<LocalRunKey, StreamSubscription<LocalRunState>> _subscriptions = {};
   final _changes = StreamController<void>.broadcast();
@@ -39,8 +37,7 @@ class MacLocalRunRegistry implements LocalRunRegistry {
   ];
 
   @override
-  int get activeCount =>
-      _slots.values.where((slot) => slot.isActive).length;
+  int get activeCount => _slots.values.where((slot) => slot.isActive).length;
 
   @override
   LocalRunState stateFor(LocalRunKey runKey) =>
@@ -77,9 +74,7 @@ class MacLocalRunRegistry implements LocalRunRegistry {
       await subscription.cancel();
     }
     _subscriptions.clear();
-    await Future.wait([
-      for (final slot in _slots.values) slot.dispose(),
-    ]);
+    await Future.wait([for (final slot in _slots.values) slot.dispose()]);
     _slots.clear();
     await _changes.close();
     await _stateUpdates.close();

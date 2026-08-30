@@ -5,56 +5,39 @@ import 'deploy_platform.dart';
 import 'deploy_run_record.dart';
 
 /// Shared entry point for the projects UI — phone (remote) or Mac (in-process).
-class DeployTrigger {
-  const DeployTrigger({
-    required this.listProjects,
-    required this.evaluateSourceChanges,
-    required this.startDeploy,
-    required this.fetchJob,
-    required this.fetchActiveJob,
-    required this.listDeployHistory,
-    required this.fetchDeployQueue,
-    required this.cancelQueuedDeploy,
-    this.jobUpdates,
-    this.queueUpdates,
-    this.onUnauthorized,
-    this.onSignOut,
-    this.showSignOut = false,
-    this.showLineAgeAnalysis = false,
-    this.title = 'Deploy',
-    this.unreachableHint,
-    this.preferredPlatforms = const [DeployPlatform.ios, DeployPlatform.macos],
-  });
-
-  final Future<List<DeployableProject>> Function() listProjects;
-  final Future<List<DeployableProject>> Function({
+class const DeployTrigger({
+  required final Future<List<DeployableProject>> Function() listProjects,
+  required final Future<List<DeployableProject>> Function({
     void Function(SourceChangesProgress progress)? onProgress,
   })
-  evaluateSourceChanges;
-  final Future<DeployJob> Function({
+  evaluateSourceChanges,
+  required final Future<DeployJob> Function({
     required String projectId,
     required DeployPlatform platform,
     bool force,
   })
-  startDeploy;
-  final Future<DeployJob> Function(String jobId) fetchJob;
-  final Future<DeployJob?> Function() fetchActiveJob;
-  final Future<List<DeployRunRecord>> Function() listDeployHistory;
-  final Future<List<DeployJob>> Function() fetchDeployQueue;
-  final Future<void> Function(String jobId) cancelQueuedDeploy;
+  startDeploy,
+  required final Future<DeployJob> Function(String jobId) fetchJob,
+  required final Future<DeployJob?> Function() fetchActiveJob,
+  required final Future<List<DeployRunRecord>> Function() listDeployHistory,
+  required final Future<List<DeployJob>> Function() fetchDeployQueue,
+  required final Future<void> Function(String jobId) cancelQueuedDeploy,
 
   /// Live job updates when available (Mac in-process, phone via SSE).
   /// Otherwise the UI polls [fetchActiveJob] / [fetchJob].
-  final Stream<DeployJob>? jobUpdates;
+  final Stream<DeployJob>? jobUpdates,
 
   /// Live wait-queue snapshots when available (Mac in-process).
   /// Otherwise the UI polls [fetchDeployQueue].
-  final Stream<List<DeployJob>>? queueUpdates;
-  final Future<void> Function()? onUnauthorized;
-  final Future<void> Function()? onSignOut;
-  final bool showSignOut;
-  final bool showLineAgeAnalysis;
-  final String title;
-  final String? unreachableHint;
-  final List<DeployPlatform> preferredPlatforms;
-}
+  final Stream<List<DeployJob>>? queueUpdates,
+  final Future<void> Function()? onUnauthorized,
+  final Future<void> Function()? onSignOut,
+  final bool showSignOut = false,
+  final bool showLineAgeAnalysis = false,
+  final String title = 'Deploy',
+  final String? unreachableHint,
+  final List<DeployPlatform> preferredPlatforms = const [
+    DeployPlatform.ios,
+    DeployPlatform.macos,
+  ],
+});

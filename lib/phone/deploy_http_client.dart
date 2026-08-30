@@ -14,12 +14,10 @@ import '../run/local_run_state.dart';
 
 const _log = ELogger('DeployServerClient');
 
-class ServerRequestException implements Exception {
-  final String message;
-  final int? statusCode;
-
-  const ServerRequestException(this.message, {this.statusCode});
-
+class const ServerRequestException(
+  final String message, {
+  final int? statusCode,
+}) implements Exception {
   @override
   String toString() => message;
 
@@ -27,14 +25,16 @@ class ServerRequestException implements Exception {
 }
 
 /// HTTP client for the Mac LAN deploy server (projects, deploys, local runs).
-class DeployServerClient {
-  DeployServerClient({String? baseUrl, this._bearerToken, http.Client? httpClient})
-    : _baseUrl = (baseUrl ?? serverBaseUrl).replaceAll(RegExp(r'/+$'), ''),
-      _httpClient = httpClient ?? http.Client();
-
-  final String _baseUrl;
-  String? _bearerToken;
-  final http.Client _httpClient;
+class DeployServerClient({
+  String? baseUrl,
+  var String? _bearerToken,
+  http.Client? httpClient,
+}) {
+  final String _baseUrl = (baseUrl ?? serverBaseUrl).replaceAll(
+    RegExp(r'/+$'),
+    '',
+  );
+  final http.Client _httpClient = httpClient ?? http.Client();
   http.Client? _jobEventsClient;
   http.Client? _runEventsClient;
 
@@ -81,7 +81,6 @@ class DeployServerClient {
     );
     _throwIfFailed(response, 'Health check failed');
   }
-
 
   Future<List<DeployableProject>> listProjects() async {
     final response = await _httpClient.get(

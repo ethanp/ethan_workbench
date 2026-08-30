@@ -7,24 +7,18 @@ import 'package:path_provider/path_provider.dart';
 
 import 'line_age_analyzer.dart';
 
-class LineAgeCacheRecord {
-  const LineAgeCacheRecord({
-    required this.gitRoot,
-    required this.fingerprint,
-    required this.report,
-  });
-
-  final String gitRoot;
-  final String fingerprint;
-  final LineAgeReport report;
-
+class const LineAgeCacheRecord({
+  required final String gitRoot,
+  required final String fingerprint,
+  required final LineAgeReport report,
+}) {
   Map<String, Object?> toJson() => {
     'gitRoot': gitRoot,
     'fingerprint': fingerprint,
     'report': report.toJson(),
   };
 
-  factory LineAgeCacheRecord.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return LineAgeCacheRecord(
       gitRoot: json['gitRoot'] as String,
       fingerprint: json['fingerprint'] as String,
@@ -34,11 +28,7 @@ class LineAgeCacheRecord {
 }
 
 /// Disk store for line-age reports under application support.
-class LineAgeCachePersistence {
-  LineAgeCachePersistence({Directory? directory}) : _directoryOverride = directory;
-
-  final Directory? _directoryOverride;
-
+class LineAgeCachePersistence({final Directory? _directoryOverride}) {
   Future<Directory> _directory() async {
     final override = _directoryOverride;
     if (override != null) return override;

@@ -1,10 +1,8 @@
 /// Identity of one concurrent local `flutter run` (project + device).
-class LocalRunKey {
-  const LocalRunKey({required this.projectId, required this.deviceKey});
-
-  final String projectId;
-  final String deviceKey;
-
+class const LocalRunKey({
+  required final String projectId,
+  required final String deviceKey,
+}) {
   /// Filesystem-safe fragment for persistence and Cursor mirror names.
   String get fileName => '${_safe(projectId)}__${_safe(deviceKey)}';
 

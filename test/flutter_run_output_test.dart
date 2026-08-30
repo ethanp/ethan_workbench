@@ -4,10 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('FlutterRunOutput', () {
     test('looksReady matches flutter run banners', () {
-      expect(
-        FlutterRunOutput.looksReady('Flutter run key commands'),
-        isTrue,
-      );
+      expect(FlutterRunOutput.looksReady('Flutter run key commands'), isTrue);
       expect(FlutterRunOutput.looksReady('building…'), isFalse);
     });
 
@@ -93,7 +90,10 @@ Another exception was thrown: RenderBox was not laid out: RenderIntrinsicWidth#c
     });
 
     test('exceptionFrom returns null when log has no dump', () {
-      expect(FlutterRunOutput.exceptionFrom('Flutter run key commands'), isNull);
+      expect(
+        FlutterRunOutput.exceptionFrom('Flutter run key commands'),
+        isNull,
+      );
     });
 
     test('exceptionFrom ignores dumps before hot restart completion', () {
@@ -120,16 +120,22 @@ The relevant error-causing widget was:
       expect(exception.fileUri, 'file:///tmp/new.dart:2:2');
     });
 
-    test('exceptionFrom ignores dumps before floor even without restart banner', () {
-      const dump = '''
+    test(
+      'exceptionFrom ignores dumps before floor even without restart banner',
+      () {
+        const dump = '''
 ══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═══════════════════════════════════
 The relevant error-causing widget was:
   OldWidget
   OldWidget:file:///tmp/old.dart:1:1
 ════════════════════════════════════════════════════════════════════════════
 ''';
-      expect(FlutterRunOutput.exceptionFrom(dump, floor: dump.length), isNull);
-    });
+        expect(
+          FlutterRunOutput.exceptionFrom(dump, floor: dump.length),
+          isNull,
+        );
+      },
+    );
 
     test('exceptionScanStart advances past Restarted application banner', () {
       const log = 'before\nRestarted application in 1,035ms.\nafter\n';

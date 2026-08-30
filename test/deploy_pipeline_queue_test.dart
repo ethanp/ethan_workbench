@@ -8,7 +8,7 @@ import 'package:ethan_workbench/deploy/ruby_deploy_executor.dart';
 import 'package:ethan_workbench/projects/deployable_project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _ControllableScriptRunner extends DeployScriptRunner {
+class _ControllableScriptRunner() extends DeployScriptRunner {
   final _starts = <Completer<int>>[];
 
   int get startedCount => _starts.length;
@@ -90,15 +90,9 @@ void main() {
   });
 
   test('finish promotes next waiting job', () async {
-    await pipeline.startDeploy(
-      projectId: 'a',
-      platform: DeployPlatform.macos,
-    );
+    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
     await Future<void>.delayed(Duration.zero);
-    await pipeline.startDeploy(
-      projectId: 'b',
-      platform: DeployPlatform.ios,
-    );
+    await pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios);
     expect(pipeline.waitingQueue, hasLength(1));
 
     scriptRunner.completeLatest();
@@ -112,10 +106,7 @@ void main() {
   });
 
   test('cancel removes waiting job', () async {
-    await pipeline.startDeploy(
-      projectId: 'a',
-      platform: DeployPlatform.macos,
-    );
+    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
     await Future<void>.delayed(Duration.zero);
     final waiting = await pipeline.startDeploy(
       projectId: 'b',
@@ -127,20 +118,11 @@ void main() {
   });
 
   test('duplicate waiting throws DeployAlreadyQueued', () async {
-    await pipeline.startDeploy(
-      projectId: 'a',
-      platform: DeployPlatform.macos,
-    );
+    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
     await Future<void>.delayed(Duration.zero);
-    await pipeline.startDeploy(
-      projectId: 'b',
-      platform: DeployPlatform.ios,
-    );
+    await pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios);
     expect(
-      () => pipeline.startDeploy(
-        projectId: 'b',
-        platform: DeployPlatform.ios,
-      ),
+      () => pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios),
       throwsA(isA<DeployAlreadyQueued>()),
     );
   });

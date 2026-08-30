@@ -19,10 +19,12 @@ void main() {
     expect(_report([]).timelineMonths, isEmpty);
 
     final filled = _report(['2026-01', '2026-04']);
-    expect(
-      filled.timelineMonths.map((month) => month.month),
-      ['2026-01', '2026-02', '2026-03', '2026-04'],
-    );
+    expect(filled.timelineMonths.map((month) => month.month), [
+      '2026-01',
+      '2026-02',
+      '2026-03',
+      '2026-04',
+    ]);
     expect(filled.timelineMonths[0].isEmpty, isFalse);
     expect(filled.timelineMonths[1].isEmpty, isTrue);
     expect(filled.timelineMonths[2].isEmpty, isTrue);
@@ -30,10 +32,12 @@ void main() {
   });
 
   test('timeline months wrap across a year boundary', () {
-    expect(
-      LineAgeMonth.keysFromTo('2025-11', '2026-02'),
-      ['2025-11', '2025-12', '2026-01', '2026-02'],
-    );
+    expect(LineAgeMonth.keysFromTo('2025-11', '2026-02'), [
+      '2025-11',
+      '2025-12',
+      '2026-01',
+      '2026-02',
+    ]);
   });
 
   test('year bands group contiguous timeline months including empty slots', () {
@@ -69,11 +73,8 @@ void main() {
   });
 }
 
-LineAgeMonth _month(String month) => LineAgeMonth(
-  month: month,
-  totalLines: 1,
-  segments: const [],
-);
+LineAgeMonth _month(String month) =>
+    LineAgeMonth(month: month, totalLines: 1, segments: const []);
 
 LineAgeReport _report(List<String> months) => LineAgeReport(
   repoName: 'test',

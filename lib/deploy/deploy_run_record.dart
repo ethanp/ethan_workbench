@@ -2,36 +2,24 @@ import 'deploy_job.dart';
 import 'deploy_platform.dart';
 
 /// One persisted deploy from the ledger (history list row).
-class DeployRunRecord {
-  const DeployRunRecord({
-    required this.runId,
-    required this.projectId,
-    required this.projectName,
-    required this.platform,
-    required this.force,
-    required this.status,
-    required this.startedAt,
-    this.finishedAt,
-    this.exitCode,
-  });
-
-  final String runId;
-  final String projectId;
-  final String projectName;
-  final DeployPlatform platform;
-  final bool force;
-  final DeployJobStatus status;
-  final DateTime startedAt;
-  final DateTime? finishedAt;
-  final int? exitCode;
-
+class const DeployRunRecord({
+  required final String runId,
+  required final String projectId,
+  required final String projectName,
+  required final DeployPlatform platform,
+  required final bool force,
+  required final DeployJobStatus status,
+  required final DateTime startedAt,
+  final DateTime? finishedAt,
+  final int? exitCode,
+}) {
   /// Wall time from start to finish, or to now while still running.
   Duration get elapsed {
     final end = finishedAt ?? DateTime.now();
     return end.difference(startedAt);
   }
 
-  factory DeployRunRecord.fromLedgerRow(Map<String, Object?> row) {
+  factory fromLedgerRow(Map<String, Object?> row) {
     final finishedMillis = row['finished_at'] as int?;
     return DeployRunRecord(
       runId: row['id'] as String,
@@ -40,9 +28,7 @@ class DeployRunRecord {
       platform: DeployPlatform.fromName(row['platform'] as String),
       force: (row['force'] as int? ?? 0) != 0,
       status: DeployJobStatus.fromName(row['status'] as String),
-      startedAt: DateTime.fromMillisecondsSinceEpoch(
-        row['started_at'] as int,
-      ),
+      startedAt: DateTime.fromMillisecondsSinceEpoch(row['started_at'] as int),
       finishedAt: finishedMillis == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(finishedMillis),
@@ -50,7 +36,7 @@ class DeployRunRecord {
     );
   }
 
-  factory DeployRunRecord.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return DeployRunRecord(
       runId: json['runId'] as String,
       projectId: json['projectId'] as String,

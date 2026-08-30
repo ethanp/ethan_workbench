@@ -12,7 +12,10 @@ void main() {
     expect(mergeDeployLogWithFile('keep\n', ''), 'keep\n');
   });
 
-  test('mergeDeployLogWithFile prefers file when it already contains existing', () {
-    expect(mergeDeployLogWithFile('ab', 'abcdef'), 'abcdef');
-  });
+  test(
+    'mergeDeployLogWithFile prefers file when it already contains existing',
+    () {
+      expect(mergeDeployLogWithFile('ab', 'abcdef'), 'abcdef');
+    },
+  );
 }

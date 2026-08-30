@@ -21,9 +21,8 @@ void main() {
     expect(cache.lastStoredReport(root.path)?.totalLines, 42);
     expect(cache.isFingerprintCurrent(root.path), isTrue);
 
-    File(path.join(root.path, 'lib', 'a.dart')).writeAsStringSync(
-      'void main() { print(1); }\n',
-    );
+    File(path.join(root.path, 'lib', 'a.dart'))
+        .writeAsStringSync('void main() { print(1); }\n');
     expect(cache.isFingerprintCurrent(root.path), isFalse);
     expect(cache.lastStoredReport(root.path)?.totalLines, 42);
   });
@@ -37,25 +36,28 @@ void main() {
       report: _report(totalLines: 7),
     );
 
-    File(path.join(root.path, 'lib', 'b.dart')).writeAsStringSync('class B {}\n');
+    File(path.join(root.path, 'lib', 'b.dart'))
+        .writeAsStringSync('class B {}\n');
     expect(cache.isFingerprintCurrent(root.path), isFalse);
     expect(cache.lastStoredReport(root.path)?.totalLines, 7);
   });
 
-  test('analyzeOrCached returns the stored report when the fingerprint is current',
-      () async {
-    final root = _dartTree();
-    final cache = LineAgeCache.instance;
-    final stored = _report(totalLines: 99);
-    cache.put(
-      gitRoot: root.path,
-      fingerprint: LineAgeCache.computeFingerprint(root.path),
-      report: stored,
-    );
+  test(
+    'analyzeOrCached returns the stored report when the fingerprint is current',
+    () async {
+      final root = _dartTree();
+      final cache = LineAgeCache.instance;
+      final stored = _report(totalLines: 99);
+      cache.put(
+        gitRoot: root.path,
+        fingerprint: LineAgeCache.computeFingerprint(root.path),
+        report: stored,
+      );
 
-    final again = await cache.analyzeOrCached(root.path);
-    expect(identical(again, stored), isTrue);
-  });
+      final again = await cache.analyzeOrCached(root.path);
+      expect(identical(again, stored), isTrue);
+    },
+  );
 
   test('analyzeOrCached re-blames when the fingerprint is stale', () async {
     final root = await _committedGitTree();
@@ -66,9 +68,8 @@ void main() {
       report: _report(totalLines: 1),
     );
 
-    File(path.join(root.path, 'lib', 'a.dart')).writeAsStringSync(
-      'void main() {}\nvoid extra() {}\n',
-    );
+    File(path.join(root.path, 'lib', 'a.dart'))
+        .writeAsStringSync('void main() {}\nvoid extra() {}\n');
     await _git(root, ['add', '.']);
     await _git(root, ['commit', '-m', 'more']);
 
@@ -80,27 +81,31 @@ void main() {
     expect(cache.isFingerprintCurrent(root.path), isTrue);
   });
 
-  test('put persists to disk and ensureLoaded restores after restart', () async {
-    final persistenceRoot =
-        Directory.systemTemp.createTempSync('line_age_persist_');
-    addTearDown(() => persistenceRoot.deleteSync(recursive: true));
+  test(
+    'put persists to disk and ensureLoaded restores after restart',
+    () async {
+      final persistenceRoot = Directory.systemTemp.createTempSync(
+        'line_age_persist_',
+      );
+      addTearDown(() => persistenceRoot.deleteSync(recursive: true));
 
-    final root = _dartTree();
-    LineAgeCache.instance.resetForTest(persistenceDirectory: persistenceRoot);
-    LineAgeCache.instance.put(
-      gitRoot: root.path,
-      fingerprint: LineAgeCache.computeFingerprint(root.path),
-      report: _report(totalLines: 314),
-    );
-    await Future<void>.delayed(Duration.zero);
+      final root = _dartTree();
+      LineAgeCache.instance.resetForTest(persistenceDirectory: persistenceRoot);
+      LineAgeCache.instance.put(
+        gitRoot: root.path,
+        fingerprint: LineAgeCache.computeFingerprint(root.path),
+        report: _report(totalLines: 314),
+      );
+      await Future<void>.delayed(Duration.zero);
 
-    LineAgeCache.instance.resetForTest(persistenceDirectory: persistenceRoot);
-    await LineAgeCache.instance.ensureLoaded();
-    expect(
-      LineAgeCache.instance.lastStoredReport(root.path)?.totalLines,
-      314,
-    );
-  });
+      LineAgeCache.instance.resetForTest(persistenceDirectory: persistenceRoot);
+      await LineAgeCache.instance.ensureLoaded();
+      expect(
+        LineAgeCache.instance.lastStoredReport(root.path)?.totalLines,
+        314,
+      );
+    },
+  );
 }
 
 Directory _dartTree() {
@@ -129,11 +134,7 @@ Future<Directory> _committedGitTree() async {
 
 Future<void> _git(Directory root, List<String> args) async {
   final process = await Process.run('git', args, workingDirectory: root.path);
-  expect(
-    process.exitCode,
-    0,
-    reason: '${args.join(' ')}: ${process.stderr}',
-  );
+  expect(process.exitCode, 0, reason: '${args.join(' ')}: ${process.stderr}');
 }
 
 LineAgeReport _report({required int totalLines}) {

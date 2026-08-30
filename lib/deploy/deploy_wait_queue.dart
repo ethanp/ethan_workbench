@@ -4,10 +4,7 @@ import 'deploy_job.dart';
 import 'deploy_platform.dart';
 
 /// FIFO of deploys waiting behind the active runner.
-class DeployWaitQueue {
-  DeployWaitQueue({this.onQueueChanged});
-
-  final void Function()? onQueueChanged;
+class DeployWaitQueue({final void Function()? onQueueChanged}) {
   final List<DeployJob> _jobs = [];
   final _updates = StreamController<List<DeployJob>>.broadcast();
 

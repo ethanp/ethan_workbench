@@ -1,7 +1,13 @@
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
-enum DeployPlatform {
+enum DeployPlatform({
+  required final String label,
+  required final IconData icon,
+  required final Color accent,
+  required final Color accentSoft,
+  required final EStatusTone badgeTone,
+}) {
   ios(
     label: 'iOS',
     icon: Icons.phone_iphone_rounded,
@@ -16,20 +22,6 @@ enum DeployPlatform {
     accentSoft: EColors.platformMacosSoft,
     badgeTone: EStatusTone.muted,
   );
-
-  const DeployPlatform({
-    required this.label,
-    required this.icon,
-    required this.accent,
-    required this.accentSoft,
-    required this.badgeTone,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color accent;
-  final Color accentSoft;
-  final EStatusTone badgeTone;
 
   static DeployPlatform fromName(String name) {
     return DeployPlatform.values.firstWhere(

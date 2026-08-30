@@ -9,7 +9,7 @@ import 'package:ethan_workbench/deploy/ruby_deploy_executor.dart';
 import 'package:ethan_workbench/projects/deployable_project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _MemoryPersistence extends DeploySessionPersistence {
+class _MemoryPersistence() extends DeploySessionPersistence {
   DeploySessionRecord? record;
   final deletedExitPaths = <String>[];
 
@@ -18,8 +18,7 @@ class _MemoryPersistence extends DeploySessionPersistence {
       '/tmp/deploy_exit_$jobId.txt';
 
   @override
-  Future<String> logPathFor(String jobId) async =>
-      '/tmp/deploy_log_$jobId.txt';
+  Future<String> logPathFor(String jobId) async => '/tmp/deploy_log_$jobId.txt';
 
   @override
   Future<DeploySessionRecord?> read() async => record;
@@ -36,7 +35,7 @@ class _MemoryPersistence extends DeploySessionPersistence {
   }
 }
 
-class _ControllableScriptRunner extends DeployScriptRunner {
+class _ControllableScriptRunner() extends DeployScriptRunner {
   final _starts = <Completer<int>>[];
 
   @override
@@ -92,10 +91,7 @@ void main() {
       deployScriptExists: () async => true,
     );
 
-    await pipeline.startDeploy(
-      projectId: 'a',
-      platform: DeployPlatform.macos,
-    );
+    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
     await Future<void>.delayed(Duration.zero);
 
     expect(persistence.record, isNotNull);
@@ -110,8 +106,7 @@ void main() {
     await pipeline.dispose();
   });
 
-  test('restorePersistedSession reclaims live pid and finishes from exit file',
-      () async {
+  test('restorePersistedSession reclaims live pid and finishes from exit file', () async {
     final exitFile = File('${tempDir.path}/exit.txt');
     final persistence = _MemoryPersistence();
     final job = DeployJob(

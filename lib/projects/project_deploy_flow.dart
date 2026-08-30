@@ -12,20 +12,14 @@ import 'active_deploy_watch.dart';
 import 'deployable_project.dart';
 
 /// Confirm → start deploy → present job UI, or enqueue when busy.
-class ProjectDeployFlow {
-  ProjectDeployFlow({
-    required this.trigger,
-    required this.activeDeploy,
-    this.presentJobInline,
-  });
-
-  final DeployTrigger trigger;
-  final ActiveDeployWatch activeDeploy;
+class ProjectDeployFlow({
+  required final DeployTrigger trigger,
+  required final ActiveDeployWatch activeDeploy,
 
   /// When set (Mac wide workbench), show the job in the side rail instead of
   /// pushing [JobScreen].
-  final void Function(DeployJob job)? presentJobInline;
-
+  final void Function(DeployJob job)? presentJobInline,
+}) {
   Future<void> showJobScreen(
     BuildContext context,
     DeployJob job, {

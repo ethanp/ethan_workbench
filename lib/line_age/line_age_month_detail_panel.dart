@@ -6,40 +6,23 @@ import '../ui/workbench_action_accents.dart';
 import 'line_age_analyzer.dart';
 import 'line_age_directory_groups.dart';
 
-class LineAgeMonthDirectoryGroup {
-  const LineAgeMonthDirectoryGroup({
-    required this.directory,
-    required this.color,
-    required this.files,
-  });
-
-  final String directory;
-  final Color color;
-  final List<LineAgeSegment> files;
-}
+class const LineAgeMonthDirectoryGroup({
+  required final String directory,
+  required final Color color,
+  required final List<LineAgeSegment> files,
+});
 
 /// Scrollable per-file breakdown for a selected month — used in the header popover.
-class LineAgeMonthFileList extends StatelessWidget {
-  const LineAgeMonthFileList({
-    required this.report,
-    required this.legend,
-    required this.month,
-    required this.focusedFile,
-    required this.emphasizedDirectory,
-    required this.onFocusFile,
-    required this.onHoverDirectory,
-    required this.maxHeight,
-  });
-
-  final LineAgeReport report;
-  final LineAgeDirectoryLegend legend;
-  final LineAgeMonth month;
-  final String? focusedFile;
-  final String? emphasizedDirectory;
-  final ValueChanged<String?> onFocusFile;
-  final ValueChanged<String?> onHoverDirectory;
-  final double maxHeight;
-
+class const LineAgeMonthFileList({
+  required final LineAgeReport report,
+  required final LineAgeDirectoryLegend legend,
+  required final LineAgeMonth month,
+  required final String? focusedFile,
+  required final String? emphasizedDirectory,
+  required final ValueChanged<String?> onFocusFile,
+  required final ValueChanged<String?> onHoverDirectory,
+  required final double maxHeight,
+}) extends StatelessWidget {
   static const width = 440.0;
 
   @override

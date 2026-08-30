@@ -13,12 +13,10 @@ import 'local_run_state.dart';
 const _log = ELogger('RemoteLocalRun');
 
 /// Phone-side proxy: drives Mac [MacLocalRunRegistry] over the LAN server.
-class RemoteLocalRunRegistry implements LocalRunRegistry {
-  RemoteLocalRunRegistry({required this.server, this.onUnauthorized});
-
-  final DeployServerClient server;
-  Future<void> Function()? onUnauthorized;
-
+class RemoteLocalRunRegistry({
+  required final DeployServerClient server,
+  var Future<void> Function()? onUnauthorized,
+}) implements LocalRunRegistry {
   final Map<LocalRunKey, LocalRunState> _states = {};
   final Map<LocalRunKey, RemoteLocalRunSlot> _slots = {};
   final _changes = StreamController<void>.broadcast();
@@ -181,15 +179,10 @@ class RemoteLocalRunRegistry implements LocalRunRegistry {
   }
 }
 
-class RemoteLocalRunSlot implements LocalRunControls {
-  RemoteLocalRunSlot({
-    required this.remoteRunRegistry,
-    required this.runKey,
-  });
-
-  final RemoteLocalRunRegistry remoteRunRegistry;
-  final LocalRunKey runKey;
-
+class RemoteLocalRunSlot({
+  required final RemoteLocalRunRegistry remoteRunRegistry,
+  required final LocalRunKey runKey,
+}) implements LocalRunControls {
   @override
   LocalRunState get state => remoteRunRegistry.stateFor(runKey);
 

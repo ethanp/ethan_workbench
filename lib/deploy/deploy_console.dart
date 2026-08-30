@@ -7,11 +7,9 @@ import 'deploy_cursor_mirror.dart';
 import 'deploy_job.dart';
 
 /// Live deploy console: line buffer, checklist phases, Cursor mirror, ledger.
-class DeployConsole {
-  DeployConsole({required this.onJobUpdated});
-
-  final void Function(DeployJob job) onJobUpdated;
-
+class DeployConsole({
+  required final void Function(DeployJob job) onJobUpdated,
+}) {
   DeployJob? _job;
   String? _projectPath;
   String _lineBuffer = '';
@@ -184,10 +182,7 @@ class DeployConsole {
     _job = updatedJob;
     onJobUpdated(updatedJob);
     unawaited(DeployCursorMirror.appendLog(chunk));
-    DeployCursorMirror.scheduleStatus(
-      updatedJob,
-      projectPath: _projectPath,
-    );
+    DeployCursorMirror.scheduleStatus(updatedJob, projectPath: _projectPath);
     scheduleLedgerFlush();
     final listeners = _logListeners[currentJob.jobId];
     if (listeners == null) return;

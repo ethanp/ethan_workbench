@@ -6,18 +6,15 @@ import 'package:ethan_utils/ethan_utils.dart';
 import 'deploy_checklist.dart';
 import 'deploy_platform.dart';
 
-enum DeployJobStatus {
+enum DeployJobStatus({required final EStatusTone statusTone}) {
   /// Waiting in the FIFO behind the active deploy.
   waiting(statusTone: EStatusTone.muted),
+
   /// Accepted; deploy script is about to start.
   queued(statusTone: EStatusTone.warning),
   running(statusTone: EStatusTone.accent),
   succeeded(statusTone: EStatusTone.success),
   failed(statusTone: EStatusTone.danger);
-
-  const DeployJobStatus({required this.statusTone});
-
-  final EStatusTone statusTone;
 
   String get pillLabel => nameAsCapitalizedWords;
 
@@ -40,33 +37,19 @@ enum DeployJobStatus {
       this == DeployJobStatus.queued || this == DeployJobStatus.running;
 }
 
-class DeployJob {
-  final String jobId;
-  final String projectId;
-  final String projectName;
-  final DeployPlatform platform;
-  final bool force;
-  final DeployJobStatus status;
-  final String log;
-  final DateTime createdAt;
-  final DateTime? finishedAt;
-  final int? exitCode;
-  final List<DeployChecklistItem> checklist;
-
-  const DeployJob({
-    required this.jobId,
-    required this.projectId,
-    required this.projectName,
-    required this.platform,
-    required this.force,
-    required this.status,
-    required this.log,
-    required this.createdAt,
-    this.finishedAt,
-    this.exitCode,
-    this.checklist = const [],
-  });
-
+class const DeployJob({
+  required final String jobId,
+  required final String projectId,
+  required final String projectName,
+  required final DeployPlatform platform,
+  required final bool force,
+  required final DeployJobStatus status,
+  required final String log,
+  required final DateTime createdAt,
+  final DateTime? finishedAt,
+  final int? exitCode,
+  final List<DeployChecklistItem> checklist = const [],
+}) {
   /// Timestamp + short hex suffix, unique enough for local deploy runs.
   static String newId() {
     final random = Random();
@@ -77,7 +60,7 @@ class DeployJob {
     return '${DateTime.now().millisecondsSinceEpoch}-$suffix';
   }
 
-  factory DeployJob.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final checklistJson = json['checklist'] as List<dynamic>?;
     return DeployJob(
       jobId: json['jobId'] as String,

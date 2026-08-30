@@ -9,9 +9,7 @@ import '../run/local_run_screen.dart';
 import 'deployable_project.dart';
 
 /// Start / stop a Mac-side local run and open [LocalRunScreen].
-class ProjectLocalRunFlow {
-  const ProjectLocalRunFlow();
-
+class const ProjectLocalRunFlow() {
   Future<void> open(
     BuildContext context, {
     required LocalRunRegistry registry,

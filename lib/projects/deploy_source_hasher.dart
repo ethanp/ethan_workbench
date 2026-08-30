@@ -8,7 +8,7 @@ import '../deploy/deploy_platform.dart';
 import 'deployable_project.dart';
 
 /// Mirrors `deploy.rb` source hashing so change detection matches deploy skips.
-abstract final class DeploySourceHasher {
+abstract final class DeploySourceHasher() {
   static const _volatilePathSegments = {
     '.dart_tool',
     '.git',

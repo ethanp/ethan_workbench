@@ -4,7 +4,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 /// Shared on-disk mirror roots for Cursor (workspace `.workbench` + app support).
-abstract final class WorkbenchCursorDirs {
+abstract final class WorkbenchCursorDirs() {
   static final List<Directory> _directories = [];
   static Future<void>? _resolveFuture;
 

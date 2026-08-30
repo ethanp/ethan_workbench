@@ -47,16 +47,14 @@ DeployJob _succeededJob({
 DeployTrigger _unusedTrigger() {
   return DeployTrigger(
     listProjects: () async => const [],
-    evaluateSourceChanges:
-        ({void Function(SourceChangesProgress progress)? onProgress}) async =>
-            const [],
-    startDeploy:
-        ({
-          required String projectId,
-          required DeployPlatform platform,
-          bool force = false,
-        }) async =>
-            throw UnimplementedError(),
+    evaluateSourceChanges: ({
+      void Function(SourceChangesProgress progress)? onProgress,
+    }) async => const [],
+    startDeploy: ({
+      required String projectId,
+      required DeployPlatform platform,
+      bool force = false,
+    }) async => throw UnimplementedError(),
     fetchJob: (jobId) async => throw UnimplementedError(),
     fetchActiveJob: () async => null,
     listDeployHistory: () async => const <DeployRunRecord>[],
@@ -69,13 +67,11 @@ void main() {
   test('withSuccessfulDeploy marks that platform current at finished time', () {
     final previousDeploy = DateTime(2026, 8, 24);
     final justFinished = DateTime(2026, 8, 29, 13, 20);
-    final updated = _project(
-      'health_notes',
-      iosDeployedAt: previousDeploy,
-    ).withSuccessfulDeploy(
-      platform: DeployPlatform.ios,
-      deployedAt: justFinished,
-    );
+    final updated = _project('health_notes', iosDeployedAt: previousDeploy)
+        .withSuccessfulDeploy(
+          platform: DeployPlatform.ios,
+          deployedAt: justFinished,
+        );
 
     expect(
       updated.sourceStatusFor(DeployPlatform.ios),
@@ -90,10 +86,7 @@ void main() {
 
   test('applySuccessfulDeploy updates the matching project and re-sorts', () {
     final catalog = ProjectsCatalog(trigger: _unusedTrigger());
-    catalog.projects = [
-      _project('health_notes'),
-      _project('tagger_fl'),
-    ];
+    catalog.projects = [_project('health_notes'), _project('tagger_fl')];
     final finishedAt = DateTime(2026, 8, 29, 13, 20);
 
     catalog.applySuccessfulDeploy(

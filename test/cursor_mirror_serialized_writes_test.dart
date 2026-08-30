@@ -11,9 +11,8 @@ void main() {
   setUp(() async {
     originalWorkingDirectory = Directory.current;
     fakePackageRoot = await Directory.systemTemp.createTemp('cursor_mirror_');
-    File(
-      path.join(fakePackageRoot.path, 'pubspec.yaml'),
-    ).writeAsStringSync('name: ethan_workbench\n');
+    File(path.join(fakePackageRoot.path, 'pubspec.yaml'))
+        .writeAsStringSync('name: ethan_workbench\n');
     Directory.current = fakePackageRoot;
     WorkbenchCursorDirs.resetForTest();
   });

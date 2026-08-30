@@ -2,11 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 /// A Unix process and its descendants, addressed by pid.
-class OsProcessTree {
-  const OsProcessTree(this.pid);
-
-  final int pid;
-
+class const OsProcessTree(final int pid) {
   Future<bool> get isAlive async {
     if (pid <= 0) return false;
     final result = await Process.run('kill', ['-0', '$pid']);
@@ -42,7 +38,7 @@ extension AsOsProcessTree on int {
 }
 
 /// Polls a pid until it dies (reattach-without-process fallback).
-class PidLivenessWatch {
+class PidLivenessWatch() {
   Timer? _timer;
 
   void watch(int pid, {required Future<void> Function() onDead}) {

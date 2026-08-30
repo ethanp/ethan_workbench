@@ -44,21 +44,20 @@ EActionClusterCell deployActionCell({
     subtitle: lastDeployedAt != null
         ? lastDeployedAt.relativeTimeAgo()
         : 'Never',
-    condensedLabel:
-        lastDeployedAt != null ? lastDeployedAt.relativeTimeShort() : '—',
+    condensedLabel: lastDeployedAt != null
+        ? lastDeployedAt.relativeTimeShort()
+        : '—',
     statusLabel: isQueuedBehind ? 'queued' : sourceStatus.chipLabel,
-    statusTone:
-        isQueuedBehind ? EStatusTone.accent : sourceStatus.chipTone,
+    statusTone: isQueuedBehind ? EStatusTone.accent : sourceStatus.chipTone,
     onActivated: onSelected,
   );
 }
 
 /// Compact platform identity for status headers and job summaries.
-class DeployPlatformBadge extends StatelessWidget {
-  const DeployPlatformBadge({super.key, required this.platform});
-
-  final DeployPlatform platform;
-
+class const DeployPlatformBadge({
+  super.key,
+  required final DeployPlatform platform,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return EStatusChip(

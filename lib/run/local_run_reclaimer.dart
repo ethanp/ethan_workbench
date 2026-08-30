@@ -9,26 +9,16 @@ import 'local_run_state.dart';
 import 'os_process_tree.dart';
 
 /// Reclaims a `flutter run` left alive across workbench hot restart.
-class LocalRunReclaimer {
-  LocalRunReclaimer({
-    required this._runKey,
-    required this._runProgress,
-    required this._flutterRunBinding,
-    required this._persistence,
-    required this._checkpoint,
-    required this._console,
-    required this._adoptFlutterRun,
-    required this._isDisposed,
-  });
-
-  final LocalRunKey _runKey;
-  final LocalRunProgress _runProgress;
-  final LocalFlutterRunBinding _flutterRunBinding;
-  final LocalRunPersistence _persistence;
-  final LocalRunCheckpoint _checkpoint;
-  final LocalRunConsole _console;
-  final void Function(LocalFlutterRun flutterRun) _adoptFlutterRun;
-  final bool Function() _isDisposed;
+class LocalRunReclaimer({
+  required final LocalRunKey _runKey,
+  required final LocalRunProgress _runProgress,
+  required final LocalFlutterRunBinding _flutterRunBinding,
+  required final LocalRunPersistence _persistence,
+  required final LocalRunCheckpoint _checkpoint,
+  required final LocalRunConsole _console,
+  required final void Function(LocalFlutterRun flutterRun) _adoptFlutterRun,
+  required final bool Function() _isDisposed,
+}) {
   final _liveness = PidLivenessWatch();
 
   void cancelLiveness() => _liveness.cancel();

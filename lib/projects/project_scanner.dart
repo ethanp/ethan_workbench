@@ -7,7 +7,7 @@ import 'deployable_project.dart';
 import 'project_app_icon.dart';
 
 /// Discovers Flutter apps under configured roots that can deploy to iOS and/or macOS.
-class ProjectCatalog {
+class const ProjectCatalog({required final List<String> flutterRoots}) {
   static const _skipDirectoryNames = {
     '.',
     '..',
@@ -27,10 +27,6 @@ class ProjectCatalog {
   };
 
   static const _skipPackageNames = {'ethan_utils', 'ethan_sync', 'viant_core'};
-
-  final List<String> flutterRoots;
-
-  const ProjectCatalog({required this.flutterRoots});
 
   Future<List<DeployableProject>> listDeployableProjects() async {
     final discoveredProjects = <DeployableProject>[];

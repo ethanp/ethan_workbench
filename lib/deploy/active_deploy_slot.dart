@@ -12,26 +12,16 @@ import 'deploy_wait_queue.dart';
 import 'ruby_deploy_executor.dart';
 
 /// One active deploy run: script process, session checkpoint, finish/fail.
-class ActiveDeploySlot {
-  ActiveDeploySlot({
-    required this.deployRbPath,
-    required this._scriptRunner,
-    required this._console,
-    required this._waitQueue,
-    required this.onJobUpdated,
-    required this.onPromoteNext,
-    this._persistence,
-    this._isPidAlive,
-  });
-
-  final String deployRbPath;
-  final DeployScriptRunner _scriptRunner;
-  final DeployConsole _console;
-  final DeployWaitQueue _waitQueue;
-  final void Function(DeployJob job) onJobUpdated;
-  final Future<void> Function() onPromoteNext;
-  final DeploySessionPersistence? _persistence;
-  final Future<bool> Function(int pid)? _isPidAlive;
+class ActiveDeploySlot({
+  required final String deployRbPath,
+  required final DeployScriptRunner _scriptRunner,
+  required final DeployConsole _console,
+  required final DeployWaitQueue _waitQueue,
+  required final void Function(DeployJob job) onJobUpdated,
+  required final Future<void> Function() onPromoteNext,
+  final DeploySessionPersistence? _persistence,
+  final Future<bool> Function(int pid)? _isPidAlive,
+}) {
   final _pidWatch = PidLivenessWatch();
 
   int? _pid;

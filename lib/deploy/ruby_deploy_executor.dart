@@ -5,7 +5,7 @@ import '../tooling/flutter_tool_environment.dart';
 import 'deploy_platform.dart';
 
 /// Runs `deploy.rb <ios|macos>` for a project and streams build output.
-class DeployScriptRunner {
+class DeployScriptRunner() {
   /// When [exitCodePath] is set, wraps ruby in bash so the exit code (and a
   /// durable [logPath] tee) survive workbench hot restart when the Dart
   /// [Process] handle is lost.
@@ -23,11 +23,7 @@ class DeployScriptRunner {
     if (exitCodePath == null) {
       process = await Process.start(
         'ruby',
-        [
-          deployRbPath,
-          platform.scriptArgument,
-          if (force) '--force',
-        ],
+        [deployRbPath, platform.scriptArgument, if (force) '--force'],
         workingDirectory: projectPath,
         environment: flutterToolEnvironment()..['PYTHONUNBUFFERED'] = '1',
         runInShell: false,

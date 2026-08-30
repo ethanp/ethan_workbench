@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 /// Boots and resolves the personal iPhone Simulator named [simulatorName].
-abstract final class MeSimIphoneSimulator {
+abstract final class MeSimIphoneSimulator() {
   static const simulatorName = 'meSim';
 
   /// Ensures meSim is Booted and returns its UDID for `flutter run -d`.
@@ -70,9 +70,7 @@ abstract final class MeSimIphoneSimulator {
   }
 }
 
-class _SimDevice {
-  const _SimDevice({required this.udid, required this.state});
-
-  final String udid;
-  final String state;
-}
+class const _SimDevice({
+  required final String udid,
+  required final String state,
+});

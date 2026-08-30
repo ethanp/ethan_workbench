@@ -1,25 +1,15 @@
 /// High-signal bits from a Flutter framework EXCEPTION CAUGHT dump.
-class FlutterRunException {
-  const FlutterRunException({
-    this.library,
-    this.widget,
-    this.fileUri,
-    this.creatorChain,
-    this.constraints,
-    this.size,
-    this.followOn,
-  });
-
-  final String? library;
-  final String? widget;
+class const FlutterRunException({
+  final String? library,
+  final String? widget,
 
   /// Full `file:///…dart:line:col` when present.
-  final String? fileUri;
-  final String? creatorChain;
-  final String? constraints;
-  final String? size;
-  final String? followOn;
-
+  final String? fileUri,
+  final String? creatorChain,
+  final String? constraints,
+  final String? size,
+  final String? followOn,
+}) {
   bool get hasSignal =>
       library != null ||
       widget != null ||
@@ -102,7 +92,7 @@ class FlutterRunException {
     return richness > other.richness;
   }
 
-  factory FlutterRunException.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return FlutterRunException(
       library: json['library'] as String?,
       widget: json['widget'] as String?,

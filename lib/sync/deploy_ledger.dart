@@ -7,13 +7,9 @@ import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_run_record.dart';
 
 /// Persists deploy runs/state into the synced PowerSync ledger.
-class DeployLedger {
-  DeployLedger(this._powerSync);
-
+class DeployLedger(final PowerSyncDatabase _powerSync) {
   /// Keep synced logs bounded — Cursor should prefer the on-disk mirror.
   static const maxSyncedLogChars = 150000;
-
-  final PowerSyncDatabase _powerSync;
 
   Future<void> recordRunStarted(DeployJob job) async {
     await _powerSync.upsert('deploy_runs', {
@@ -95,9 +91,7 @@ class DeployLedger {
       'FROM deploy_runs ORDER BY started_at DESC LIMIT ?',
       [limit],
     );
-    return [
-      for (final row in rows) DeployRunRecord.fromLedgerRow(row),
-    ];
+    return [for (final row in rows) DeployRunRecord.fromLedgerRow(row)];
   }
 
   /// Finished (or mid-run) job with persisted log, for history / HTTP fetch.
@@ -118,9 +112,7 @@ class DeployLedger {
       force: (row['force'] as int? ?? 0) != 0,
       status: DeployJobStatus.fromName(row['status'] as String),
       log: row['log'] as String? ?? '',
-      createdAt: DateTime.fromMillisecondsSinceEpoch(
-        row['started_at'] as int,
-      ),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(row['started_at'] as int),
       finishedAt: finishedMillis == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(finishedMillis),

@@ -4,18 +4,13 @@ import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
 /// Rounded launcher icon for project / history list rows.
-class ProjectAppIconTile extends StatelessWidget {
-  const ProjectAppIconTile({
-    super.key,
-    this.iconPngBytes,
-    this.size,
-  });
-
-  final Uint8List? iconPngBytes;
+class const ProjectAppIconTile({
+  super.key,
+  final Uint8List? iconPngBytes,
 
   /// Defaults to [ELayout.iconTile]; list rows should pass [ELayout.listRowIcon].
-  final double? size;
-
+  final double? size,
+}) extends StatelessWidget {
   /// iOS app-icon corner radius ≈ 22.37% of the icon edge (not a fixed theme radius).
   static double iosCornerRadius(double edge) => edge * 0.2237;
 

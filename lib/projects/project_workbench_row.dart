@@ -13,7 +13,7 @@ import 'deployable_project.dart';
 import 'project_app_icon_tile.dart';
 
 /// Row-only width policy for [ProjectWorkbenchRow] — not shared chrome tokens.
-abstract final class _WorkbenchRowLayout {
+abstract final class _WorkbenchRowLayout() {
   static const clusterWidth = 320.0;
   static const clusterGap = 10.0;
   static const compactClusterGap = 6.0;
@@ -41,38 +41,22 @@ abstract final class _WorkbenchRowLayout {
 }
 
 /// One project in the workbench list: identity + Line age + platform Run/Deploy.
-class ProjectWorkbenchRow extends StatelessWidget {
-  const ProjectWorkbenchRow({
-    super.key,
-    required this.project,
-    required this.platforms,
-    required this.runStateFor,
-    required this.canRunLocally,
-    required this.showLineAge,
-    this.lineAgeSubtitle = '…',
-    this.ongoingDeploy,
-    this.waitingDeploys = const [],
-    required this.onLineAge,
-    required this.onDeploy,
-    required this.onRun,
-    required this.onStopRun,
-    required this.onOpenOngoingDeploy,
-  });
-
-  final DeployableProject project;
-  final List<DeployPlatform> platforms;
-  final LocalRunState Function(FlutterRunDevice device) runStateFor;
-  final bool canRunLocally;
-  final bool showLineAge;
-  final String lineAgeSubtitle;
-  final DeployJob? ongoingDeploy;
-  final List<DeployJob> waitingDeploys;
-  final VoidCallback onLineAge;
-  final ValueChanged<DeployPlatform> onDeploy;
-  final ValueChanged<FlutterRunDevice> onRun;
-  final ValueChanged<FlutterRunDevice> onStopRun;
-  final VoidCallback onOpenOngoingDeploy;
-
+class const ProjectWorkbenchRow({
+  super.key,
+  required final DeployableProject project,
+  required final List<DeployPlatform> platforms,
+  required final LocalRunState Function(FlutterRunDevice device) runStateFor,
+  required final bool canRunLocally,
+  required final bool showLineAge,
+  final String lineAgeSubtitle = '…',
+  final DeployJob? ongoingDeploy,
+  final List<DeployJob> waitingDeploys = const [],
+  required final VoidCallback onLineAge,
+  required final ValueChanged<DeployPlatform> onDeploy,
+  required final ValueChanged<FlutterRunDevice> onRun,
+  required final ValueChanged<FlutterRunDevice> onStopRun,
+  required final VoidCallback onOpenOngoingDeploy,
+}) extends StatelessWidget {
   /// Width at which identity / Line age / clusters sit at preferred maxima.
   /// Further width is unused blank inside the row (list padding is not included).
   static double saturatedWidth({
@@ -89,8 +73,9 @@ class ProjectWorkbenchRow extends StatelessWidget {
     final identity = compact
         ? _WorkbenchRowLayout.compactIdentityMaxWidth
         : _WorkbenchRowLayout.identityMaxWidth;
-    final lineAge =
-        showLineAge ? _WorkbenchRowLayout.secondaryActionWidth : 0.0;
+    final lineAge = showLineAge
+        ? _WorkbenchRowLayout.secondaryActionWidth
+        : 0.0;
     final platforms = math.max(0, platformCount);
     final clusters = platforms * _WorkbenchRowLayout.clusterWidth;
     final clusterGaps = math.max(0, platforms - 1) * clusterGap;
@@ -120,7 +105,8 @@ class ProjectWorkbenchRow extends StatelessWidget {
         : _WorkbenchRowLayout.rowPadH;
     return ESurface(
       kind: ESurfaceKind.row,
-      attention: project.hasChangedSources ||
+      attention:
+          project.hasChangedSources ||
           macosRunStatus != null ||
           meSimRunStatus != null ||
           ongoingDeploy != null,
@@ -141,17 +127,14 @@ class ProjectWorkbenchRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               if (widths.identity > 0) ...[
-                SizedBox(
-                  width: widths.identity,
-                  child: _identity(),
-                ),
+                SizedBox(width: widths.identity, child: _identity()),
                 const SizedBox(width: ELayout.spaceMd),
               ],
               if (widths.lineAge > 0) ...[
                 SizedBox(
                   width: widths.lineAge,
-                  child: widths.lineAge >=
-                          _WorkbenchRowLayout.secondaryActionWidth
+                  child:
+                      widths.lineAge >= _WorkbenchRowLayout.secondaryActionWidth
                       ? ETintedAction.compact(
                           accent: WorkbenchActionAccents.lineAge,
                           icon: Icons.bar_chart_rounded,
@@ -300,8 +283,9 @@ class ProjectWorkbenchRow extends StatelessWidget {
     final canRun = canRunLocally && runDevice != null;
     final runStatus = canRun ? _activeRunStatus(runDevice) : null;
     final runHasException = canRun && _runHasException(runDevice);
-    final idleSubtitle =
-        platform == DeployPlatform.macos ? 'Debug' : 'Simulator';
+    final idleSubtitle = platform == DeployPlatform.macos
+        ? 'Debug'
+        : 'Simulator';
 
     return EActionCluster(
       accent: platform.accent,

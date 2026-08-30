@@ -15,37 +15,28 @@ import 'deploy_trigger.dart';
 const _log = ELogger('DeployJobDetail');
 
 /// Live job status + build log. Full-screen ([JobScreen]) or Mac side rail.
-class DeployJobDetail extends StatefulWidget {
-  const DeployJobDetail({
-    super.key,
-    required this.trigger,
-    required this.initialJob,
-    this.onDismiss,
-    this.onBecameTerminal,
-    this.onRetryStarted,
-    this.embedded = false,
-  });
-
-  final DeployTrigger trigger;
-  final DeployJob initialJob;
+class const DeployJobDetail({
+  super.key,
+  required final DeployTrigger trigger,
+  required final DeployJob initialJob,
 
   /// Shown in the embedded header; omitted in full-screen (AppBar back).
-  final VoidCallback? onDismiss;
+  final VoidCallback? onDismiss,
 
   /// Fired once when the job first reaches a terminal status.
-  final VoidCallback? onBecameTerminal;
+  final VoidCallback? onBecameTerminal,
 
   /// Fired when Retry starts an active deploy (not a wait-queue enqueue).
-  final void Function(DeployJob job)? onRetryStarted;
+  final void Function(DeployJob job)? onRetryStarted,
 
   /// Compact chrome for the side rail (no scaffold).
-  final bool embedded;
-
+  final bool embedded = false,
+}) extends StatefulWidget {
   @override
   State<DeployJobDetail> createState() => _DeployJobDetailState();
 }
 
-class _DeployJobDetailState extends State<DeployJobDetail> {
+class _DeployJobDetailState() extends State<DeployJobDetail> {
   late DeployJob _job;
   Timer? _pollTimer;
   StreamSubscription<DeployJob>? _jobUpdatesSubscription;
@@ -113,7 +104,9 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
     }
     final statusChanged = job.status != _job.status;
     final logGrew = job.log.length != _job.log.length;
-    if (statusChanged || _streamEventCount == 1 || _streamEventCount % 25 == 0) {
+    if (statusChanged ||
+        _streamEventCount == 1 ||
+        _streamEventCount % 25 == 0) {
       _log.log(
         'apply stream #$_streamEventCount ${job.debugSummary}'
         '${logGrew ? ' (log delta)' : ''}',
@@ -342,9 +335,7 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
             // let the status panel scroll within half the height instead of
             // overflowing and starving the log console.
             ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: constraints.maxHeight / 2,
-              ),
+              constraints: BoxConstraints(maxHeight: constraints.maxHeight / 2),
               child: SingleChildScrollView(child: _statusHeader()),
             ),
             if (_errorMessage != null) ...[
@@ -428,10 +419,7 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
           ? SizedBox(
               width: 14,
               height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: accent,
-              ),
+              child: CircularProgressIndicator(strokeWidth: 2, color: accent),
             )
           : null,
     );
@@ -439,17 +427,12 @@ class _DeployJobDetailState extends State<DeployJobDetail> {
 }
 
 /// Full-screen job route (phone / compact).
-class JobScreen extends StatelessWidget {
-  const JobScreen({required this.trigger, required this.initialJob});
-
-  final DeployTrigger trigger;
-  final DeployJob initialJob;
-
+class const JobScreen({
+  required final DeployTrigger trigger,
+  required final DeployJob initialJob,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return DeployJobDetail(
-      trigger: trigger,
-      initialJob: initialJob,
-    );
+    return DeployJobDetail(trigger: trigger, initialJob: initialJob);
   }
 }

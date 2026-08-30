@@ -26,17 +26,15 @@ import 'project_local_run_flow.dart';
 import 'project_workbench_row.dart';
 import 'projects_catalog.dart';
 
-class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({required this.trigger, this.localRunRegistry});
-
-  final DeployTrigger trigger;
-  final LocalRunRegistry? localRunRegistry;
-
+class const ProjectsScreen({
+  required final DeployTrigger trigger,
+  final LocalRunRegistry? localRunRegistry,
+}) extends StatefulWidget {
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
 }
 
-class _ProjectsScreenState extends State<ProjectsScreen> {
+class _ProjectsScreenState() extends State<ProjectsScreen> {
   late final ProjectsCatalog _catalog;
   late final ActiveDeployWatch _activeDeploy;
   late final ProjectDeployFlow _deployFlow;
@@ -139,8 +137,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final warmedRoots = <String>{};
     final analyzePaths = <String>[];
     for (final project in _catalog.projects) {
-      final gitRoot =
-          LineAgeCache.gitRootFor(project.path) ?? project.path;
+      final gitRoot = LineAgeCache.gitRootFor(project.path) ?? project.path;
       if (!warmedRoots.add(gitRoot)) continue;
       analyzePaths.add(project.path);
     }
@@ -190,10 +187,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   Future<void> _pushJobScreen(DeployJob job) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => JobScreen(
-          trigger: widget.trigger,
-          initialJob: job,
-        ),
+        builder: (context) =>
+            JobScreen(trigger: widget.trigger, initialJob: job),
       ),
     );
     await _afterJobScreen();
@@ -214,10 +209,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  Future<void> _deploy(
-    DeployableProject project,
-    DeployPlatform platform,
-  ) {
+  Future<void> _deploy(DeployableProject project, DeployPlatform platform) {
     return _deployFlow.confirmAndStart(
       context,
       project: project,
@@ -226,10 +218,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  Future<void> _run(
-    DeployableProject project,
-    FlutterRunDevice device,
-  ) async {
+  Future<void> _run(DeployableProject project, FlutterRunDevice device) async {
     final registry = widget.localRunRegistry;
     if (registry == null) return;
     await _localRunFlow.open(
@@ -255,8 +244,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   void _openLineAge(DeployableProject project) {
-    final gitRoot =
-        LineAgeAnalyzer.findGitRoot(project.path) ?? project.path;
+    final gitRoot = LineAgeAnalyzer.findGitRoot(project.path) ?? project.path;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => LineAgeScreen(
@@ -275,12 +263,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
     final showSideRail =
-        !compact &&
-        (_activeDeploy.hasQueuePanelContent || _inlineJob != null);
+        !compact && (_activeDeploy.hasQueuePanelContent || _inlineJob != null);
 
     return EScaffoldShell(
-      contentMaxWidth:
-          showSideRail ? double.infinity : ELayout.contentMaxWidth,
+      contentMaxWidth: showSideRail ? double.infinity : ELayout.contentMaxWidth,
       appBar: EAppHeader(
         eyebrow: AppIdentity.displayName,
         title: widget.trigger.title,
@@ -294,9 +280,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ),
         ],
       ),
-      body: showSideRail
-          ? _bodyWithQueueRail(compact: compact)
-          : _body(),
+      body: showSideRail ? _bodyWithQueueRail(compact: compact) : _body(),
     );
   }
 
@@ -331,8 +315,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     )
                   : null,
               onOpenOngoing: () => unawaited(_openOngoingDeploy()),
-              onCancelWaiting: (jobId) =>
-                  _activeDeploy.cancelWaiting(jobId),
+              onCancelWaiting: (jobId) => _activeDeploy.cancelWaiting(jobId),
             ),
           ],
         );
@@ -345,10 +328,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     required bool showJobDetail,
     required bool compact,
   }) {
-    final minRailWidth =
-        showJobDetail ? _queueWithJobWidth : _queueOnlyWidth;
+    final minRailWidth = showJobDetail ? _queueWithJobWidth : _queueOnlyWidth;
     final listPadH = compact ? 6.0 : ELayout.spaceXl;
-    final maxUsefulMainWidth = listPadH * 2 +
+    final maxUsefulMainWidth =
+        listPadH * 2 +
         ProjectWorkbenchRow.saturatedWidth(
           platformCount: widget.trigger.preferredPlatforms.length,
           showLineAge: widget.trigger.showLineAgeAnalysis,
@@ -490,8 +473,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       },
       canRunLocally: widget.localRunRegistry != null,
       showLineAge: widget.trigger.showLineAgeAnalysis,
-      lineAgeSubtitle:
-          LineAgeCache.instance.slocSubtitleForRepoPath(project.path),
+      lineAgeSubtitle: LineAgeCache.instance.slocSubtitleForRepoPath(
+        project.path,
+      ),
       ongoingDeploy: _activeDeploy.forProject(project.projectId),
       waitingDeploys: _activeDeploy.waiting,
       onLineAge: () => _openLineAge(project),

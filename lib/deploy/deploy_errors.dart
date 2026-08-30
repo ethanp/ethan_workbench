@@ -1,70 +1,43 @@
 import 'deploy_job.dart';
 
-class DeployAlreadyRunning implements Exception {
-  final String projectName;
-  final String jobId;
-  final String statusName;
-  final DeployJob? job;
-
-  const DeployAlreadyRunning({
-    required this.projectName,
-    required this.jobId,
-    required this.statusName,
-    this.job,
-  });
-
+class const DeployAlreadyRunning({
+  required final String projectName,
+  required final String jobId,
+  required final String statusName,
+  final DeployJob? job,
+}) implements Exception {
   @override
   String toString() =>
       'A deploy is already running: $projectName ($statusName, $jobId)';
 }
 
 /// Same project+platform is already sitting in the wait queue.
-class DeployAlreadyQueued implements Exception {
-  final DeployJob job;
-
-  const DeployAlreadyQueued(this.job);
-
+class const DeployAlreadyQueued(final DeployJob job) implements Exception {
   @override
   String toString() =>
       'A deploy is already queued: ${job.projectName} (${job.platform.label})';
 }
 
-class UnknownProject implements Exception {
-  final String projectId;
-
-  const UnknownProject(this.projectId);
-
+class const UnknownProject(final String projectId) implements Exception {
   @override
   String toString() => 'Unknown project: $projectId';
 }
 
-class DeployScriptMissing implements Exception {
-  final String deployRbPath;
-
-  const DeployScriptMissing(this.deployRbPath);
-
+class const DeployScriptMissing(final String deployRbPath)
+    implements Exception {
   @override
   String toString() => 'deploy.rb not found at $deployRbPath';
 }
 
-class UnsupportedDeployPlatform implements Exception {
-  final String projectName;
-  final String platformLabel;
-
-  const UnsupportedDeployPlatform({
-    required this.projectName,
-    required this.platformLabel,
-  });
-
+class const UnsupportedDeployPlatform({
+  required final String projectName,
+  required final String platformLabel,
+}) implements Exception {
   @override
   String toString() => '$projectName cannot deploy to $platformLabel';
 }
 
-class DeployJobNotFound implements Exception {
-  final String jobId;
-
-  const DeployJobNotFound(this.jobId);
-
+class const DeployJobNotFound(final String jobId) implements Exception {
   @override
   String toString() => 'Job not found: $jobId';
 }

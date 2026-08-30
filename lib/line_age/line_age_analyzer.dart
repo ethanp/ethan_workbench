@@ -5,34 +5,22 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 
 /// Progress while blaming files in a repo.
-class LineAgeProgress {
-  const LineAgeProgress({
-    required this.completedFiles,
-    required this.totalFiles,
-    required this.currentRelativePath,
-  });
-
-  final int completedFiles;
-  final int totalFiles;
-  final String currentRelativePath;
-
-  double get fraction =>
-      totalFiles == 0 ? 0 : completedFiles / totalFiles;
+class const LineAgeProgress({
+  required final int completedFiles,
+  required final int totalFiles,
+  required final String currentRelativePath,
+}) {
+  double get fraction => totalFiles == 0 ? 0 : completedFiles / totalFiles;
 }
 
 /// One file's contribution within a month bar.
-class LineAgeSegment {
-  const LineAgeSegment({required this.file, required this.lineCount});
+class const LineAgeSegment({
+  required final String file,
+  required final int lineCount,
+}) {
+  Map<String, Object?> toJson() => {'file': file, 'lineCount': lineCount};
 
-  final String file;
-  final int lineCount;
-
-  Map<String, Object?> toJson() => {
-    'file': file,
-    'lineCount': lineCount,
-  };
-
-  factory LineAgeSegment.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return LineAgeSegment(
       file: json['file'] as String,
       lineCount: json['lineCount'] as int,
@@ -41,13 +29,11 @@ class LineAgeSegment {
 }
 
 /// All file segments for a single YYYY-MM bucket.
-class LineAgeMonth {
-  const LineAgeMonth({
-    required this.month,
-    required this.totalLines,
-    required this.segments,
-  });
-
+class const LineAgeMonth({
+  required final String month,
+  required final int totalLines,
+  required final List<LineAgeSegment> segments,
+}) {
   static const _shortMonthNames = [
     'Jan',
     'Feb',
@@ -62,10 +48,6 @@ class LineAgeMonth {
     'Nov',
     'Dec',
   ];
-
-  final String month;
-  final int totalLines;
-  final List<LineAgeSegment> segments;
 
   int? get year => _yearMonthPart(0, 4);
 
@@ -85,11 +67,8 @@ class LineAgeMonth {
 
   bool get isEmpty => totalLines == 0;
 
-  factory LineAgeMonth.empty(String month) => LineAgeMonth(
-    month: month,
-    totalLines: 0,
-    segments: const [],
-  );
+  factory empty(String month) =>
+      LineAgeMonth(month: month, totalLines: 0, segments: const []);
 
   /// Inclusive YYYY-MM keys from [start] to [end]. Malformed keys stay as given.
   static List<String> keysFromTo(String start, String end) {
@@ -120,7 +99,7 @@ class LineAgeMonth {
     'segments': [for (final segment in segments) segment.toJson()],
   };
 
-  factory LineAgeMonth.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return LineAgeMonth(
       month: json['month'] as String,
       totalLines: json['totalLines'] as int,
@@ -133,36 +112,22 @@ class LineAgeMonth {
 }
 
 /// Contiguous months that share a calendar year — one x-axis year section.
-class LineAgeYearBand {
-  const LineAgeYearBand({
-    required this.year,
-    required this.firstMonthIndex,
-    required this.lastMonthIndex,
-  });
-
-  final int year;
-  final int firstMonthIndex;
-  final int lastMonthIndex;
-}
+class const LineAgeYearBand({
+  required final int year,
+  required final int firstMonthIndex,
+  required final int lastMonthIndex,
+});
 
 /// Full stacked histogram for a repo.
-class LineAgeReport {
-  const LineAgeReport({
-    required this.repoName,
-    required this.months,
-    required this.totalLinesByFile,
-    required this.totalLines,
-    required this.fileCount,
-  });
-
-  final String repoName;
-  final List<LineAgeMonth> months;
+class const LineAgeReport({
+  required final String repoName,
+  required final List<LineAgeMonth> months,
 
   /// Relative path → current line count, ordered largest-first.
-  final Map<String, int> totalLinesByFile;
-  final int totalLines;
-  final int fileCount;
-
+  required final Map<String, int> totalLinesByFile,
+  required final int totalLines,
+  required final int fileCount,
+}) {
   List<String> get filesByTotalLines => totalLinesByFile.keys.toList();
 
   /// First-to-last months with empty slots so gaps stay on the x-axis.
@@ -171,7 +136,10 @@ class LineAgeReport {
     final byKey = {for (final month in months) month.month: month};
     final sortedKeys = months.map((month) => month.month).toList()..sort();
     return [
-      for (final key in LineAgeMonth.keysFromTo(sortedKeys.first, sortedKeys.last))
+      for (final key in LineAgeMonth.keysFromTo(
+        sortedKeys.first,
+        sortedKeys.last,
+      ))
         byKey[key] ?? LineAgeMonth.empty(key),
     ];
   }
@@ -218,7 +186,7 @@ class LineAgeReport {
     'months': [for (final month in months) month.toJson()],
   };
 
-  factory LineAgeReport.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return LineAgeReport(
       repoName: json['repoName'] as String,
       totalLines: json['totalLines'] as int,
@@ -240,7 +208,11 @@ class LineAgeReport {
 ///
 /// [repoPath] may be any directory inside a git checkout (e.g. a Flutter app
 /// under a monorepo). Analysis always covers the whole git root once found.
-class LineAgeAnalyzer {
+class LineAgeAnalyzer({
+  /// Directory used to locate the git root (not necessarily the root itself).
+  required final String repoPath,
+  final List<String> extraExcludeSuffixes = const [],
+}) {
   static const generatedSuffixes = [
     '.g.dart',
     '.freezed.dart',
@@ -250,15 +222,6 @@ class LineAgeAnalyzer {
   ];
 
   static const skipDirectoryNames = {'.dart_tool', 'build', '.symlinks'};
-
-  LineAgeAnalyzer({
-    required this.repoPath,
-    this.extraExcludeSuffixes = const [],
-  });
-
-  /// Directory used to locate the git root (not necessarily the root itself).
-  final String repoPath;
-  final List<String> extraExcludeSuffixes;
 
   bool _cancelled = false;
 
@@ -451,4 +414,3 @@ class LineAgeAnalyzer {
     return counts;
   }
 }
-

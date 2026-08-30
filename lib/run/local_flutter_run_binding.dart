@@ -7,7 +7,7 @@ import 'os_process_tree.dart';
 ///
 /// Tracks that process, the pid used for Stop (may predate attach), and the
 /// VM service URI. Output/exit from a superseded generation are ignored.
-class LocalFlutterRunBinding {
+class LocalFlutterRunBinding() {
   LocalFlutterRun? _flutterRun;
   StreamSubscription<String>? _outputSubscription;
   int? trackedPid;
@@ -27,10 +27,7 @@ class LocalFlutterRunBinding {
     required String projectPath,
     required String deviceId,
   }) {
-    return LocalFlutterRun.start(
-      projectPath: projectPath,
-      deviceId: deviceId,
-    );
+    return LocalFlutterRun.start(projectPath: projectPath, deviceId: deviceId);
   }
 
   Future<LocalFlutterRun> attachToRunning({
@@ -130,4 +127,3 @@ class LocalFlutterRunBinding {
     await outputSubscription?.cancel();
   }
 }
-

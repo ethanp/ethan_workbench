@@ -7,7 +7,7 @@ import 'flutter_run_exception.dart';
 import 'os_process_tree.dart';
 
 /// Interprets `flutter run` / `flutter attach` log text.
-abstract final class FlutterRunOutput {
+abstract final class FlutterRunOutput() {
   static final _vmServiceUriPattern = RegExp(
     r'(?:A Dart VM Service|The Dart VM service is available|'
     r'An Observatory debugger and profiler).*?(https?://\S+)',
@@ -103,7 +103,9 @@ abstract final class FlutterRunOutput {
         : scannable.substring(scannable.length - exceptionScanWindowChars);
 
     final libraryMatch = _exceptionLibraryPattern.allMatches(window).lastOrNull;
-    final widgetMatch = _errorCausingWidgetPattern.allMatches(window).lastOrNull;
+    final widgetMatch = _errorCausingWidgetPattern
+        .allMatches(window)
+        .lastOrNull;
     final creatorMatch = _creatorBlockPattern.allMatches(window).lastOrNull;
     final constraintsMatch = _constraintsPattern.allMatches(window).lastOrNull;
     final sizeMatch = _sizePattern.allMatches(window).lastOrNull;
@@ -166,17 +168,11 @@ abstract final class FlutterRunOutput {
 }
 
 /// One `flutter run` / `flutter attach` process (stdin, merged output, quit).
-class LocalFlutterRun {
-  LocalFlutterRun._(this._process)
-    : pid = _process.pid,
-      output = _mergeOutput(_process);
-
-  final Process _process;
-
-  final int pid;
+class LocalFlutterRun._(final Process _process) {
+  final int pid = _process.pid;
 
   /// Merged stdout + stderr as text chunks.
-  final Stream<String> output;
+  final Stream<String> output = _mergeOutput(_process);
 
   static Future<LocalFlutterRun> start({
     required String projectPath,

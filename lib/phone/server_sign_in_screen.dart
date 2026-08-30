@@ -5,19 +5,18 @@ import 'package:flutter/material.dart';
 import '../server/server_endpoint.dart';
 import 'deploy_http_client.dart';
 import 'phone_session.dart';
+
 import 'package:ethan_ui/ethan_ui.dart';
 
-class ServerSignInScreen extends StatefulWidget {
-  const ServerSignInScreen({required this.session, required this.onSignedIn});
-
-  final PhoneSession session;
-  final VoidCallback onSignedIn;
-
+class const ServerSignInScreen({
+  required final PhoneSession session,
+  required final VoidCallback onSignedIn,
+}) extends StatefulWidget {
   @override
   State<ServerSignInScreen> createState() => _ServerSignInScreenState();
 }
 
-class _ServerSignInScreenState extends State<ServerSignInScreen> {
+class _ServerSignInScreenState() extends State<ServerSignInScreen> {
   final _passwordController = TextEditingController();
   bool _busy = false;
   bool _obscurePassword = true;
@@ -32,7 +31,9 @@ class _ServerSignInScreenState extends State<ServerSignInScreen> {
   Future<void> _signIn() async {
     final password = _passwordController.text.trim();
     if (password.isEmpty) {
-      setState(() => _errorMessage = 'Enter the shared password from the Mac .env');
+      setState(
+        () => _errorMessage = 'Enter the shared password from the Mac .env',
+      );
       return;
     }
 

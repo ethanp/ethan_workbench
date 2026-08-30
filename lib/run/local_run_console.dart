@@ -11,17 +11,11 @@ import 'local_run_state.dart';
 const _log = ELogger('LocalRunConsole');
 
 /// Interprets `flutter run` console chunks into progress + binding updates.
-class LocalRunConsole {
-  LocalRunConsole({
-    required this._runProgress,
-    required this._flutterRunBinding,
-    required this._checkpoint,
-  });
-
-  final LocalRunProgress _runProgress;
-  final LocalFlutterRunBinding _flutterRunBinding;
-  final LocalRunCheckpoint _checkpoint;
-
+class LocalRunConsole({
+  required final LocalRunProgress _runProgress,
+  required final LocalFlutterRunBinding _flutterRunBinding,
+  required final LocalRunCheckpoint _checkpoint,
+}) {
   /// Ignore EXCEPTION CAUGHT dumps at or before this log offset (hot reload /
   /// restart clear). Combined with restart banners inside [FlutterRunOutput].
   int _exceptionLogFloor = 0;
@@ -97,8 +91,9 @@ class LocalRunConsole {
     }
     _log.warn(
       'Flutter exception '
-      '${parsedException.widget ?? parsedException.library ?? 'unknown'} '
-      '${parsedException.displayLocation ?? ''}'.trim(),
+              '${parsedException.widget ?? parsedException.library ?? 'unknown'} '
+              '${parsedException.displayLocation ?? ''}'
+          .trim(),
     );
     _runProgress.emit(
       _runProgress.current.copyWith(flutterException: parsedException),

@@ -10,16 +10,13 @@ import 'local_flutter_run.dart';
 import 'local_run_controls.dart';
 import 'local_run_state.dart';
 
-class LocalRunScreen extends StatefulWidget {
-  const LocalRunScreen({required this.session});
-
-  final LocalRunControls session;
-
+class const LocalRunScreen({required final LocalRunControls session})
+    extends StatefulWidget {
   @override
   State<LocalRunScreen> createState() => _LocalRunScreenState();
 }
 
-class _LocalRunScreenState extends State<LocalRunScreen> {
+class _LocalRunScreenState() extends State<LocalRunScreen> {
   late LocalRunState _state;
   StreamSubscription<LocalRunState>? _subscription;
 
@@ -130,9 +127,9 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
             Text(
               _state.readyForKeyCommands
                   ? 'Workbench restarted while this app was running — '
-                      'reattached; hot reload is available.'
+                        'reattached; hot reload is available.'
                   : 'Workbench restarted while this app was running. '
-                      'Attaching… if hot reload stays disabled, use Full restart.',
+                        'Attaching… if hot reload stays disabled, use Full restart.',
               style: EText.caption,
             ),
           ],
@@ -183,9 +180,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
                     if (flutterException.library != null)
                       Text(
                         flutterException.library!,
-                        style: EText.caption.copyWith(
-                          color: EColors.textMuted,
-                        ),
+                        style: EText.caption.copyWith(color: EColors.textMuted),
                       ),
                   ],
                 ),
@@ -212,10 +207,7 @@ class _LocalRunScreenState extends State<LocalRunScreen> {
         if (constraints != null || size != null) ...[
           const SizedBox(height: 4),
           Text(
-            [
-              ?constraints,
-              if (size != null) 'size: $size',
-            ].join(' · '),
+            [?constraints, if (size != null) 'size: $size'].join(' · '),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: EText.caption.copyWith(color: EColors.textMuted),

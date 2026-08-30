@@ -8,7 +8,7 @@ import 'line_age_analyzer.dart';
 /// Uses the file's parent path, capped at two segments so monorepo layouts
 /// stay readable (`lib/screens`, `apps/music_listen`) without exploding into
 /// one color per leaf folder.
-abstract final class LineAgeDirectoryGroups {
+abstract final class LineAgeDirectoryGroups() {
   static const otherKey = 'other directories';
   static const maxDistinctDirectories = 10;
 
@@ -62,10 +62,7 @@ abstract final class LineAgeDirectoryGroups {
       }
     }
 
-    final orderedKeys = [
-      ...distinct,
-      if (otherTotal > 0) otherKey,
-    ];
+    final orderedKeys = [...distinct, if (otherTotal > 0) otherKey];
 
     final colors = <String, Color>{
       for (var index = 0; index < distinct.length; index++)
@@ -91,20 +88,13 @@ abstract final class LineAgeDirectoryGroups {
   }
 }
 
-class LineAgeDirectoryLegend {
-  const LineAgeDirectoryLegend({
-    required this.orderedKeys,
-    required this.colors,
-    required this.totalLinesByKey,
-    required this.resolveKey,
-  });
-
+class const LineAgeDirectoryLegend({
   /// Largest directories first; [LineAgeDirectoryGroups.otherKey] last when used.
-  final List<String> orderedKeys;
-  final Map<String, Color> colors;
-  final Map<String, int> totalLinesByKey;
-  final String Function(String relativeFilePath) resolveKey;
-
+  required final List<String> orderedKeys,
+  required final Map<String, Color> colors,
+  required final Map<String, int> totalLinesByKey,
+  required final String Function(String relativeFilePath) resolveKey,
+}) {
   Color colorForKey(String key) =>
       colors[key] ?? LineAgeDirectoryGroups.otherColor;
 
@@ -113,9 +103,7 @@ class LineAgeDirectoryLegend {
 
   /// Directory → lines in [month], keys in [orderedKeys] order.
   List<({String key, int lineCount})> stacksForMonth(LineAgeMonth month) {
-    final counts = <String, int>{
-      for (final key in orderedKeys) key: 0,
-    };
+    final counts = <String, int>{for (final key in orderedKeys) key: 0};
     for (final segment in month.segments) {
       final key = resolveKey(segment.file);
       counts[key] = (counts[key] ?? 0) + segment.lineCount;

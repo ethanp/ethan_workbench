@@ -3,7 +3,7 @@ import 'flutter_run_device.dart';
 import 'local_run_state.dart';
 
 /// Shared surface for Mac in-process and phone-remote local `flutter run`.
-abstract class LocalRunControls {
+abstract class LocalRunControls() {
   LocalRunState get state;
   Stream<LocalRunState> get updates;
   bool get isActive;

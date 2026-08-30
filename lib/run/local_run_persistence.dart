@@ -7,29 +7,17 @@ import 'package:path_provider/path_provider.dart';
 import 'local_run_key.dart';
 
 /// On-disk record of an active `flutter run` so workbench hot restart can reclaim it.
-class LocalRunRecord {
-  const LocalRunRecord({
-    required this.pid,
-    required this.projectId,
-    required this.projectName,
-    required this.projectPath,
-    required this.readyForKeyCommands,
-    required this.deviceKey,
-    required this.deviceLabel,
-    required this.flutterDeviceId,
-    this.vmServiceUri,
-  });
-
-  final int pid;
-  final String projectId;
-  final String projectName;
-  final String projectPath;
-  final bool readyForKeyCommands;
-  final String deviceKey;
-  final String deviceLabel;
-  final String flutterDeviceId;
-  final String? vmServiceUri;
-
+class const LocalRunRecord({
+  required final int pid,
+  required final String projectId,
+  required final String projectName,
+  required final String projectPath,
+  required final bool readyForKeyCommands,
+  required final String deviceKey,
+  required final String deviceLabel,
+  required final String flutterDeviceId,
+  final String? vmServiceUri,
+}) {
   LocalRunKey get runKey =>
       LocalRunKey(projectId: projectId, deviceKey: deviceKey);
 
@@ -45,7 +33,7 @@ class LocalRunRecord {
     if (vmServiceUri != null) 'vmServiceUri': vmServiceUri,
   };
 
-  factory LocalRunRecord.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     return LocalRunRecord(
       pid: json['pid'] as int,
       projectId: json['projectId'] as String,
@@ -60,7 +48,7 @@ class LocalRunRecord {
   }
 }
 
-class LocalRunPersistence {
+class LocalRunPersistence() {
   Future<Directory> _directory() async {
     final supportDirectory = await getApplicationSupportDirectory();
     return Directory(path.join(supportDirectory.path, 'active_local_runs'));

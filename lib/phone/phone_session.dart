@@ -17,17 +17,17 @@ import 'server_password_store.dart';
 const _log = ELogger('PhoneJobEvents');
 
 /// iOS client session: restore shared password, talk to the Mac server.
-class PhoneSession {
-  PhoneSession({
-    DeployServerClient? serverClient,
-    ServerPasswordStore? passwordStore,
-  }) : _server = serverClient ?? DeployServerClient(),
-       _passwordStore = passwordStore ?? ServerPasswordStore() {
+class PhoneSession({
+  DeployServerClient? serverClient,
+  ServerPasswordStore? passwordStore,
+}) {
+  this {
     _localRunRegistry = RemoteLocalRunRegistry(server: _server);
   }
 
-  final DeployServerClient _server;
-  final ServerPasswordStore _passwordStore;
+  final DeployServerClient _server = serverClient ?? DeployServerClient();
+  final ServerPasswordStore _passwordStore =
+      passwordStore ?? ServerPasswordStore();
   final _jobUpdatesController = StreamController<DeployJob>.broadcast();
   late final RemoteLocalRunRegistry _localRunRegistry;
 

@@ -7,16 +7,12 @@ import 'line_age_analyzer.dart';
 import 'line_age_directory_groups.dart';
 
 /// Plot layout and stack hit-testing for the line-age histogram.
-class LineAgeHistogramGeometry {
-  LineAgeHistogramGeometry(this.size)
-    : margin = const EdgeInsets.fromLTRB(56, 36, 16, 72),
-      innerWidth = math.max(0.0, size.width - 72),
-      innerHeight = math.max(0.0, size.height - 108);
+class LineAgeHistogramGeometry(final Size size) {
+  this : margin = const EdgeInsets.fromLTRB(56, 36, 16, 72);
 
-  final Size size;
   final EdgeInsets margin;
-  final double innerWidth;
-  final double innerHeight;
+  final double innerWidth = math.max(0.0, size.width - 72);
+  final double innerHeight = math.max(0.0, size.height - 108);
 
   double bandWidth(int monthCount) {
     if (monthCount <= 0) return 0;
@@ -85,9 +81,7 @@ class LineAgeHistogramGeometry {
             ? 0.0
             : barHeight * (stack.lineCount / month.totalLines);
         final yTop = yBottom - height;
-        if (height >= 0.5 &&
-            position.dy >= yTop &&
-            position.dy <= yBottom) {
+        if (height >= 0.5 && position.dy >= yTop && position.dy <= yBottom) {
           return LineAgeStackHit(month: month, directory: stack.key);
         }
         yBottom = yTop;
@@ -100,9 +94,7 @@ class LineAgeHistogramGeometry {
 }
 
 /// Result of probing the histogram at a pointer position.
-class LineAgeStackHit {
-  const LineAgeStackHit({required this.month, required this.directory});
-
-  final LineAgeMonth month;
-  final String? directory;
-}
+class const LineAgeStackHit({
+  required final LineAgeMonth month,
+  required final String? directory,
+});

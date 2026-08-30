@@ -11,35 +11,25 @@ import 'deploy_job.dart';
 /// With a job detail open, the queue section is content-sized by default
 /// (and again whenever a new wait-queue job is enqueued). The queue/detail
 /// split can still be resized by dragging the handle between them.
-class DeployQueuePanel extends StatefulWidget {
-  const DeployQueuePanel({
-    super.key,
-    required this.ongoing,
-    required this.waiting,
-    required this.onOpenOngoing,
-    required this.onCancelWaiting,
-    this.ongoingRemaining,
-    this.jobDetail,
-    this.width = 260,
-  });
-
-  final DeployJob? ongoing;
-  final List<DeployJob> waiting;
-  final VoidCallback onOpenOngoing;
-  final Future<void> Function(String jobId) onCancelWaiting;
+class const DeployQueuePanel({
+  super.key,
+  required final DeployJob? ongoing,
+  required final List<DeployJob> waiting,
+  required final VoidCallback onOpenOngoing,
+  required final Future<void> Function(String jobId) onCancelWaiting,
 
   /// Estimated time left for [ongoing] vs typical successful runs.
-  final Duration? ongoingRemaining;
+  final Duration? ongoingRemaining,
 
   /// Live deploy detail shown under the queue (Mac workbench).
-  final Widget? jobDetail;
-  final double width;
-
+  final Widget? jobDetail,
+  final double width = 260,
+}) extends StatefulWidget {
   @override
   State<DeployQueuePanel> createState() => _DeployQueuePanelState();
 }
 
-class _DeployQueuePanelState extends State<DeployQueuePanel> {
+class _DeployQueuePanelState() extends State<DeployQueuePanel> {
   static const _queueMinHeight = 48.0;
   static const _jobDetailMinHeight = 160.0;
 
@@ -106,9 +96,7 @@ class _DeployQueuePanelState extends State<DeployQueuePanel> {
     List<DeployJob> previousWaiting,
     List<DeployJob> nextWaiting,
   ) {
-    final previousJobIds = {
-      for (final job in previousWaiting) job.jobId,
-    };
+    final previousJobIds = {for (final job in previousWaiting) job.jobId};
     for (final job in nextWaiting) {
       if (!previousJobIds.contains(job.jobId)) return true;
     }
@@ -185,10 +173,7 @@ class _DeployQueuePanelState extends State<DeployQueuePanel> {
         Text('Up next', style: EText.label.small),
         const SizedBox(height: ELayout.spaceSm),
         if (widget.waiting.isEmpty)
-          Text(
-            'Nothing queued',
-            style: EText.caption,
-          )
+          Text('Nothing queued', style: EText.caption)
         else
           for (var index = 0; index < widget.waiting.length; index++) ...[
             if (index > 0) const SizedBox(height: ELayout.spaceSm),
@@ -204,23 +189,14 @@ class _DeployQueuePanelState extends State<DeployQueuePanel> {
   }
 }
 
-class _QueueJobTile extends StatelessWidget {
-  const _QueueJobTile({
-    required this.job,
-    this.position,
-    this.onActivated,
-    this.onCancel,
-    this.stageLabel,
-    this.remaining,
-  });
-
-  final DeployJob job;
-  final int? position;
-  final VoidCallback? onActivated;
-  final VoidCallback? onCancel;
-  final String? stageLabel;
-  final Duration? remaining;
-
+class const _QueueJobTile({
+  required final DeployJob job,
+  final int? position,
+  final VoidCallback? onActivated,
+  final VoidCallback? onCancel,
+  final String? stageLabel,
+  final Duration? remaining,
+}) extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ESurface(
@@ -284,11 +260,7 @@ class _QueueJobTile extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Icon(
-          job.platform.icon,
-          size: 12,
-          color: job.platform.accent,
-        ),
+        Icon(job.platform.icon, size: 12, color: job.platform.accent),
         const SizedBox(width: 4),
         Text(
           job.force ? '${job.platform.label} · force' : job.platform.label,

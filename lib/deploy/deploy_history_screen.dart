@@ -15,16 +15,15 @@ import '../phone/deploy_http_client.dart';
 import '../projects/project_app_icon_tile.dart';
 
 /// Activity list of past (and in-progress) deploys from the ledger / server.
-class DeployHistoryScreen extends StatefulWidget {
-  const DeployHistoryScreen({super.key, required this.trigger});
-
-  final DeployTrigger trigger;
-
+class const DeployHistoryScreen({
+  super.key,
+  required final DeployTrigger trigger,
+}) extends StatefulWidget {
   @override
   State<DeployHistoryScreen> createState() => _DeployHistoryScreenState();
 }
 
-class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
+class _DeployHistoryScreenState() extends State<DeployHistoryScreen> {
   static const _jobDetailRailWidth = 440.0;
 
   List<DeployRunRecord> _runs = const [];
@@ -121,10 +120,8 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
       if (MediaQuery.sizeOf(context).shortestSide < 600) {
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (context) => JobScreen(
-              trigger: widget.trigger,
-              initialJob: job,
-            ),
+            builder: (context) =>
+                JobScreen(trigger: widget.trigger, initialJob: job),
           ),
         );
         return;
@@ -142,18 +139,15 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final selectedRunJob = _selectedRunJob;
-    final showJobRail = selectedRunJob != null &&
+    final showJobRail =
+        selectedRunJob != null &&
         MediaQuery.sizeOf(context).shortestSide >= 600;
     return EScaffoldShell(
-      contentMaxWidth:
-          showJobRail ? double.infinity : ELayout.feedContentMaxWidth,
-      appBar: EAppHeader(
-        eyebrow: AppIdentity.displayName,
-        title: 'History',
-      ),
-      body: showJobRail
-          ? _bodyWithJobRail(selectedRunJob)
-          : _body(),
+      contentMaxWidth: showJobRail
+          ? double.infinity
+          : ELayout.feedContentMaxWidth,
+      appBar: EAppHeader(eyebrow: AppIdentity.displayName, title: 'History'),
+      body: showJobRail ? _bodyWithJobRail(selectedRunJob) : _body(),
     );
   }
 
@@ -237,9 +231,7 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
         children: [
-          ProjectAppIconTile(
-            iconPngBytes: _iconsByProjectId[run.projectId],
-          ),
+          ProjectAppIconTile(iconPngBytes: _iconsByProjectId[run.projectId]),
           const SizedBox(width: ELayout.spaceLg),
           Expanded(
             child: Column(
@@ -280,10 +272,7 @@ class _DeployHistoryScreenState extends State<DeployHistoryScreen> {
                 tone: run.status.statusTone,
               ),
               const SizedBox(height: 6),
-              Text(
-                run.elapsed.formattedElapsed,
-                style: EText.caption,
-              ),
+              Text(run.elapsed.formattedElapsed, style: EText.caption),
             ],
           ),
         ],

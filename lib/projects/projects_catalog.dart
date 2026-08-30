@@ -5,15 +5,17 @@ import '../phone/deploy_http_client.dart';
 import 'deployable_project.dart';
 import 'source_changes_progress.dart';
 
-enum ProjectsCatalogLoadOutcome { succeeded, unauthorized, failed }
+enum ProjectsCatalogLoadOutcome() {
+  succeeded,
+  unauthorized,
+  failed,
+}
 
 /// Loads and refreshes the deployable project list (with optional change eval).
-class ProjectsCatalog {
-  ProjectsCatalog({required this.trigger, this.onCatalogChanged});
-
-  final DeployTrigger trigger;
-  final void Function()? onCatalogChanged;
-
+class ProjectsCatalog({
+  required final DeployTrigger trigger,
+  final void Function()? onCatalogChanged,
+}) {
   List<DeployableProject> projects = const [];
   bool loading = true;
   bool evaluatingChanges = false;

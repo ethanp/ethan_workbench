@@ -1,5 +1,5 @@
 /// Pulls Cursor-friendly failure hints from a deploy console log.
-abstract final class DeployLogErrorSummary {
+abstract final class DeployLogErrorSummary() {
   static final _errorLine = RegExp(
     r'(✗|error:|exception|failed|fatal|BUILD FAILED|Command failed|'
     r'Error \(Xcode\)|The following build commands failed|'

@@ -10,21 +10,13 @@ import 'line_age_directory_groups.dart';
 import 'line_age_histogram_geometry.dart';
 
 /// Paints month totals stacked by directory with selection emphasis.
-class LineAgeHistogramPainter extends CustomPainter {
-  LineAgeHistogramPainter({
-    required this.report,
-    required this.legend,
-    required this.hoveredMonth,
-    required this.selectedMonth,
-    required this.emphasizedDirectory,
-  });
-
-  final LineAgeReport report;
-  final LineAgeDirectoryLegend legend;
-  final String? hoveredMonth;
-  final String? selectedMonth;
-  final String? emphasizedDirectory;
-
+class LineAgeHistogramPainter({
+  required final LineAgeReport report,
+  required final LineAgeDirectoryLegend legend,
+  required final String? hoveredMonth,
+  required final String? selectedMonth,
+  required final String? emphasizedDirectory,
+}) extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (report.timelineMonths.isEmpty) return;
@@ -95,12 +87,15 @@ class LineAgeHistogramPainter extends CustomPainter {
         Paint()
           ..color = legend
               .colorForKey(stacks.first.key)
-              .withValues(alpha: _stackAlpha(
-                isEmphasized: emphasizedDirectory == null ||
-                    emphasizedDirectory == stacks.first.key,
-                isSelected: isSelected,
-                isHovered: isHovered,
-              )),
+              .withValues(
+                alpha: _stackAlpha(
+                  isEmphasized:
+                      emphasizedDirectory == null ||
+                      emphasizedDirectory == stacks.first.key,
+                  isSelected: isSelected,
+                  isHovered: isHovered,
+                ),
+              ),
       );
       canvas.restore();
       _paintBarChrome(
@@ -124,18 +119,20 @@ class LineAgeHistogramPainter extends CustomPainter {
         continue;
       }
       final yTop = yBottom - height;
-      final isEmphasized = emphasizedDirectory == null ||
-          emphasizedDirectory == stack.key;
+      final isEmphasized =
+          emphasizedDirectory == null || emphasizedDirectory == stack.key;
       canvas.drawRect(
         Rect.fromLTWH(x, yTop, width, height),
         Paint()
-          ..color = legend.colorForKey(stack.key).withValues(
-            alpha: _stackAlpha(
-              isEmphasized: isEmphasized,
-              isSelected: isSelected,
-              isHovered: isHovered,
-            ),
-          ),
+          ..color = legend
+              .colorForKey(stack.key)
+              .withValues(
+                alpha: _stackAlpha(
+                  isEmphasized: isEmphasized,
+                  isSelected: isSelected,
+                  isHovered: isHovered,
+                ),
+              ),
       );
       if (height > 2.5 && isEmphasized) {
         canvas.drawLine(
@@ -327,7 +324,11 @@ class LineAgeHistogramPainter extends CustomPainter {
     double originX,
     double baselineY,
   ) {
-    for (var monthIndex = 0; monthIndex < report.timelineMonths.length; monthIndex++) {
+    for (
+      var monthIndex = 0;
+      monthIndex < report.timelineMonths.length;
+      monthIndex++
+    ) {
       final month = report.timelineMonths[monthIndex];
       final x = originX + monthIndex * (width + gap);
       final isSelected = selectedMonth == month.month;
@@ -339,8 +340,8 @@ class LineAgeHistogramPainter extends CustomPainter {
             color: isSelected || isHovered
                 ? EColors.textPrimary
                 : month.isEmpty
-                    ? EColors.textMuted.withValues(alpha: 0.55)
-                    : EColors.textMuted,
+                ? EColors.textMuted.withValues(alpha: 0.55)
+                : EColors.textMuted,
             fontSize: 11,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),
