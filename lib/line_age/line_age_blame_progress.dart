@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../ui/workbench_action_accents.dart';
-import 'line_age_analyzer.dart';
+import 'line_age_report.dart';
 
 /// Blame loading UI — spinner until the first tick, then a 12px capsule track.
 class const LineAgeBlameProgress({final LineAgeProgress? progress})
@@ -198,7 +198,7 @@ class const _LineAgeBlameStarting() extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Text(
-          'Starting git blame…',
+          'Measuring last-touched months…',
           style: EText.caption.copyWith(color: EColors.textMuted),
         ),
       ],

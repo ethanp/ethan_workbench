@@ -46,13 +46,13 @@ class ActiveDeployWatch({
     final jobUpdates = trigger.jobUpdates;
     if (jobUpdates != null) {
       _log.log('listening to jobUpdates + poll fallback');
-      _jobSubscription = jobUpdates.listen(_applyJobUpdate);
+      _jobSubscription = jobUpdates.listen(_setNowJobFromStream);
     } else {
       _log.log('no jobUpdates — polling fetchActiveJob every 2s');
     }
     final queueUpdates = trigger.queueUpdates;
     if (queueUpdates != null) {
-      _queueSubscription = queueUpdates.listen(_applyQueueUpdate);
+      _queueSubscription = queueUpdates.listen(_replaceWaitingFromStream);
     }
     // Always poll: phone SSE can stall even when a stream is wired.
     _poll ??= Timer.periodic(
@@ -62,7 +62,7 @@ class ActiveDeployWatch({
     unawaited(refresh());
   }
 
-  void _applyJobUpdate(DeployJob job) {
+  void _setNowJobFromStream(DeployJob job) {
     if (job.status.isWaiting) return;
     final was = ongoing?.debugSummary ?? 'none';
     ongoing = job.status.isTerminal ? null : job;
@@ -94,7 +94,7 @@ class ActiveDeployWatch({
     }
   }
 
-  void _applyQueueUpdate(List<DeployJob> jobs) {
+  void _replaceWaitingFromStream(List<DeployJob> jobs) {
     waiting = List.unmodifiable(jobs);
     onActiveDeployChanged();
   }

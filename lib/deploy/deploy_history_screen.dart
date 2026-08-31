@@ -171,7 +171,7 @@ class _DeployHistoryScreenState() extends State<DeployHistoryScreen> {
                 key: ValueKey(selectedRunJob.jobId),
                 trigger: widget.trigger,
                 initialJob: selectedRunJob,
-                embedded: true,
+                inSideRail: true,
                 onDismiss: () => setState(() => _selectedRunJob = null),
                 onRetryStarted: (job) => setState(() => _selectedRunJob = job),
               ),

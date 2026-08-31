@@ -45,7 +45,7 @@ class const EthanWorkbenchApp({required final ProviderContainer container})
     return MaterialApp(
       title: AppIdentity.displayName,
       debugShowCheckedModeBanner: false,
-      theme: ETheme.build(),
+      theme: ETheme.material3Dark,
       home: Platform.isMacOS
           ? MacosCompanionScreen(syncContainer: container)
           : const PhoneHome(),

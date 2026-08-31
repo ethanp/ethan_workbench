@@ -1,13 +1,14 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:ethan_workbench/line_age/line_age_analyzer.dart';
+import 'package:ethan_workbench/line_age/project_source.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 
 void main() {
-  test('generated suffixes match the Python tool defaults', () {
+  test('generated Dart suffixes stay on project source', () {
     expect(
-      LineAgeAnalyzer.generatedSuffixes,
+      ProjectSource.generatedDartSuffixes,
       containsAll([
         '.g.dart',
         '.freezed.dart',
@@ -18,10 +19,10 @@ void main() {
     );
   });
 
-  test('skip directories match the Python tool defaults', () {
+  test('skipped directories include Pods and the former Dart-only skips', () {
     expect(
-      LineAgeAnalyzer.skipDirectoryNames,
-      containsAll({'.dart_tool', 'build', '.symlinks'}),
+      ProjectSource.skipDirectoryNames,
+      containsAll({'.dart_tool', 'build', '.symlinks', 'Pods'}),
     );
   });
 

@@ -45,7 +45,7 @@ class ActiveDeploySlot({
   Future<void> start(DeployJob job, DeployableProject project) async {
     _projectPath = project.path;
     final startedAt = DateTime.now();
-    _console.applyJob(
+    _console.updateStatusWithoutNewLog(
       job.copyWith(
         status: DeployJobStatus.running,
         checklist: DeployChecklist.activateFirst(job.checklist, at: startedAt),
@@ -158,7 +158,7 @@ class ActiveDeploySlot({
           '$mergedLog\n'
           'Workbench restarted after deploy process exited.\n',
     );
-    _console.applyJob(resumed);
+    _console.updateStatusWithoutNewLog(resumed);
     onJobUpdated(resumed);
     await finish(exitCode: exitCode);
   }
@@ -175,13 +175,13 @@ class ActiveDeploySlot({
       finishedAt: finishedAt,
       exitCode: -1,
       log: '${job.log}\n$message',
-      checklist: DeployChecklist.applyPhase(
+      checklist: DeployChecklist.advanceToPhase(
         job.checklist,
         'failed',
         at: finishedAt,
       ),
     );
-    _console.applyJob(failed);
+    _console.updateStatusWithoutNewLog(failed);
     await clearSession();
     unawaited(_console.finalize(failed));
     await _console.recordFinished(failed, projectPath: projectPath);
@@ -309,13 +309,13 @@ class ActiveDeploySlot({
       status: succeeded ? DeployJobStatus.succeeded : DeployJobStatus.failed,
       finishedAt: finishedAt,
       exitCode: exitCode,
-      checklist: DeployChecklist.applyPhase(
+      checklist: DeployChecklist.advanceToPhase(
         currentJob.checklist,
         succeeded ? 'done' : 'failed',
         at: finishedAt,
       ),
     );
-    _console.applyJob(finishedJob);
+    _console.updateStatusWithoutNewLog(finishedJob);
     await clearSession();
     unawaited(_console.finalize(finishedJob));
     await _console.recordFinished(finishedJob, projectPath: projectPath);

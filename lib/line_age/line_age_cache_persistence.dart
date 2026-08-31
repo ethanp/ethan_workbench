@@ -5,7 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
-import 'line_age_analyzer.dart';
+import 'line_age_report.dart';
 
 class const LineAgeCacheRecord({
   required final String gitRoot,

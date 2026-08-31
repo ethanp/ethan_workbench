@@ -40,7 +40,7 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_bootstrap());
+    unawaited(_startServerBeforeLedgerAttach());
   }
 
   @override
@@ -50,7 +50,7 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
     super.dispose();
   }
 
-  Future<void> _bootstrap() async {
+  Future<void> _startServerBeforeLedgerAttach() async {
     final lanAddress = await firstLanIpv4Address();
     setState(() => _lanAddress = lanAddress);
     await _server.restoreLocalRun();

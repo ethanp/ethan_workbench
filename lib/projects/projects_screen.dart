@@ -62,14 +62,14 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       trigger: widget.trigger,
       onActiveDeployChanged: () {
         if (!mounted) return;
-        setState(_followCurrentDeploy);
+        setState(_keepBuildLogOnNowJob);
       },
       onDeployFinished: _refreshAfterDeployFinished,
     );
     _deployFlow = ProjectDeployFlow(
       trigger: widget.trigger,
       activeDeploy: _activeDeploy,
-      presentJobInline: _presentJobInline,
+      showJobInSideRailOrJobScreen: _showJobInSideRailOrJobScreen,
     );
 
     _lastCheckedTicker = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -87,11 +87,11 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
 
     _activeDeploy.start();
     LineAgeCache.instance.addListener(_onLineAgeCacheChanged);
-    unawaited(_bootstrapLineAgeCache());
+    unawaited(_loadPersistedLineAgeCache());
     unawaited(_reload(evaluateChanges: true));
   }
 
-  Future<void> _bootstrapLineAgeCache() async {
+  Future<void> _loadPersistedLineAgeCache() async {
     await LineAgeCache.instance.ensureLoaded();
     if (mounted) setState(() {});
   }
@@ -128,31 +128,30 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     setState(() {});
     if (outcome == ProjectsCatalogLoadOutcome.succeeded &&
         widget.trigger.showLineAgeAnalysis) {
-      unawaited(_warmLineAgeCaches());
+      unawaited(_blameDistinctGitRootsAfterRefresh());
     }
   }
 
-  /// Blames each distinct git root in parallel after Refresh; skips fresh cache hits.
-  Future<void> _warmLineAgeCaches() async {
-    final warmedRoots = <String>{};
+  Future<void> _blameDistinctGitRootsAfterRefresh() async {
+    final blamedRoots = <String>{};
     final analyzePaths = <String>[];
     for (final project in _catalog.projects) {
       final gitRoot = LineAgeCache.gitRootFor(project.path) ?? project.path;
-      if (!warmedRoots.add(gitRoot)) continue;
+      if (!blamedRoots.add(gitRoot)) continue;
       analyzePaths.add(project.path);
     }
-    await Future.wait(analyzePaths.map(_warmOneLineAgeCache));
+    await Future.wait(analyzePaths.map(_analyzeOrCachedOneGitRoot));
   }
 
-  Future<void> _warmOneLineAgeCache(String repoPath) async {
+  Future<void> _analyzeOrCachedOneGitRoot(String repoPath) async {
     try {
       await LineAgeCache.instance.analyzeOrCached(repoPath);
     } catch (_) {
-      // Keep other projects warming; button stays "…" on failure.
+      // Keep other projects blaming; Line age subtitle stays "…" on failure.
     }
   }
 
-  Future<void> _afterJobScreen() async {
+  Future<void> _afterJobScreenClosed() async {
     await _activeDeploy.refresh();
     await _reload(evaluateChanges: true);
   }
@@ -160,11 +159,11 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   void _refreshAfterDeployFinished(DeployJob job) {
     if (!mounted) return;
     if (job.status != DeployJobStatus.succeeded) return;
-    _catalog.applySuccessfulDeploy(job);
+    _catalog.markPlatformCurrentAfterDeploy(job);
     unawaited(_reload(evaluateChanges: true));
   }
 
-  void _presentJobInline(DeployJob job) {
+  void _showJobInSideRailOrJobScreen(DeployJob job) {
     if (!mounted) return;
     // Phone / compact still uses the full-screen route.
     if (MediaQuery.sizeOf(context).shortestSide < 600) {
@@ -174,9 +173,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     setState(() => _inlineJob = job);
   }
 
-  /// When the rail is open, keep the build log on the Now job as the
-  /// queue advances. Leave a finished job up if nothing is running.
-  void _followCurrentDeploy() {
+  void _keepBuildLogOnNowJob() {
     if (_inlineJob == null) return;
     final ongoing = _activeDeploy.ongoing;
     if (ongoing == null) return;
@@ -191,21 +188,21 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
             JobScreen(trigger: widget.trigger, initialJob: job),
       ),
     );
-    await _afterJobScreen();
+    await _afterJobScreenClosed();
   }
 
   void _closeInlineJob() {
     setState(() => _inlineJob = null);
-    unawaited(_afterJobScreen());
+    unawaited(_afterJobScreenClosed());
   }
 
-  Future<void> _openOngoingDeploy() async {
+  Future<void> _showOngoingJobScreen() async {
     final job = _activeDeploy.ongoing;
     if (job == null) return;
     await _deployFlow.showJobScreen(
       context,
       job,
-      afterJobScreenClosed: _afterJobScreen,
+      afterJobScreenClosed: _afterJobScreenClosed,
     );
   }
 
@@ -214,14 +211,14 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       context,
       project: project,
       platform: platform,
-      afterJobScreenClosed: _afterJobScreen,
+      afterJobScreenClosed: _afterJobScreenClosed,
     );
   }
 
   Future<void> _run(DeployableProject project, FlutterRunDevice device) async {
     final registry = widget.localRunRegistry;
     if (registry == null) return;
-    await _localRunFlow.open(
+    await _localRunFlow.startOrShowLocalRunScreen(
       context,
       registry: registry,
       project: project,
@@ -243,7 +240,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
-  void _openLineAge(DeployableProject project) {
+  void _showLineAgeScreen(DeployableProject project) {
     final gitRoot = LineAgeAnalyzer.findGitRoot(project.path) ?? project.path;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -290,7 +287,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     final showJobDetail = _inlineJob != null;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final railWidth = _queueRailWidth(
+        final railWidth = _railTakesSurplusPastSaturatedRows(
           totalWidth: constraints.maxWidth,
           showJobDetail: showJobDetail,
           compact: compact,
@@ -309,12 +306,12 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
                       key: ValueKey(_inlineJob!.jobId),
                       trigger: widget.trigger,
                       initialJob: _inlineJob!,
-                      embedded: true,
+                      inSideRail: true,
                       onDismiss: _closeInlineJob,
-                      onRetryStarted: _presentJobInline,
+                      onRetryStarted: _showJobInSideRailOrJobScreen,
                     )
                   : null,
-              onOpenOngoing: () => unawaited(_openOngoingDeploy()),
+              onOpenOngoing: () => unawaited(_showOngoingJobScreen()),
               onCancelWaiting: (jobId) => _activeDeploy.cancelWaiting(jobId),
             ),
           ],
@@ -323,7 +320,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
-  double _queueRailWidth({
+  double _railTakesSurplusPastSaturatedRows({
     required double totalWidth,
     required bool showJobDetail,
     required bool compact,
@@ -478,11 +475,11 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       ),
       ongoingDeploy: _activeDeploy.forProject(project.projectId),
       waitingDeploys: _activeDeploy.waiting,
-      onLineAge: () => _openLineAge(project),
+      onLineAge: () => _showLineAgeScreen(project),
       onDeploy: (platform) => unawaited(_deploy(project, platform)),
       onRun: (device) => unawaited(_run(project, device)),
       onStopRun: (device) => unawaited(_stopRun(project, device)),
-      onOpenOngoingDeploy: () => unawaited(_openOngoingDeploy()),
+      onOpenOngoingDeploy: () => unawaited(_showOngoingJobScreen()),
     );
   }
 }

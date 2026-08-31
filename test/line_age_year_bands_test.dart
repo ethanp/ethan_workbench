@@ -1,4 +1,5 @@
-import 'package:ethan_workbench/line_age/line_age_analyzer.dart';
+import 'package:ethan_utils/ethan_utils.dart';
+import 'package:ethan_workbench/line_age/line_age_report.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -15,16 +16,17 @@ void main() {
     expect(malformed.shortMonthName, 'sometime');
   });
 
-  test('timeline months fill empty slots between first and last', () {
+  test('timeline months fill empty slots through the current month', () {
     expect(_report([]).timelineMonths, isEmpty);
 
     final filled = _report(['2026-01', '2026-04']);
-    expect(filled.timelineMonths.map((month) => month.month), [
-      '2026-01',
-      '2026-02',
-      '2026-03',
-      '2026-04',
-    ]);
+    final keys = filled.timelineMonths.map((month) => month.month).toList();
+    expect(keys.first, '2026-01');
+    expect(keys, containsAll(['2026-02', '2026-03', '2026-04']));
+    expect(
+      keys.last,
+      LineAgeMonth.laterYearMonth('2026-04', DateTime.now().yearMonthKey),
+    );
     expect(filled.timelineMonths[0].isEmpty, isFalse);
     expect(filled.timelineMonths[1].isEmpty, isTrue);
     expect(filled.timelineMonths[2].isEmpty, isTrue);
@@ -44,10 +46,17 @@ void main() {
     expect(_report([]).yearBands, isEmpty);
 
     final singleYear = _report(['2026-01', '2026-08']);
+    final singleLast = LineAgeMonth.laterYearMonth(
+      '2026-08',
+      DateTime.now().yearMonthKey,
+    );
     expect(singleYear.yearBands, hasLength(1));
     expect(singleYear.yearBands.single.year, 2026);
     expect(singleYear.yearBands.single.firstMonthIndex, 0);
-    expect(singleYear.yearBands.single.lastMonthIndex, 7);
+    expect(
+      singleYear.yearBands.single.lastMonthIndex,
+      LineAgeMonth.keysFromTo('2026-01', singleLast).length - 1,
+    );
 
     final multiYear = _report([
       '2021-02',
@@ -56,6 +65,10 @@ void main() {
       '2026-07',
       '2026-08',
     ]);
+    final multiLast = LineAgeMonth.laterYearMonth(
+      '2026-08',
+      DateTime.now().yearMonthKey,
+    );
     expect(multiYear.yearBands.map((band) => band.year), [
       2021,
       2022,
@@ -69,7 +82,10 @@ void main() {
     expect(multiYear.yearBands[1].firstMonthIndex, 11);
     expect(multiYear.yearBands[1].lastMonthIndex, 22);
     expect(multiYear.yearBands[5].firstMonthIndex, 59);
-    expect(multiYear.yearBands[5].lastMonthIndex, 66);
+    expect(
+      multiYear.yearBands[5].lastMonthIndex,
+      LineAgeMonth.keysFromTo('2021-02', multiLast).length - 1,
+    );
   });
 }
 

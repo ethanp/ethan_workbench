@@ -23,7 +23,7 @@ class _PhoneHomeState() extends State<PhoneHome> {
   @override
   void initState() {
     super.initState();
-    unawaited(_bootstrap());
+    unawaited(_restorePhoneSession());
   }
 
   @override
@@ -32,7 +32,7 @@ class _PhoneHomeState() extends State<PhoneHome> {
     super.dispose();
   }
 
-  Future<void> _bootstrap() async {
+  Future<void> _restorePhoneSession() async {
     await _session.restore();
     if (!mounted) return;
     setState(() => _loading = false);

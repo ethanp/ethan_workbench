@@ -25,10 +25,10 @@ abstract final class DeployLogErrorSummary() {
         genericCloser ??= line;
         continue;
       }
-      return _clip(_xcodebuildFailureReason(line), 240);
+      return _ellipsisAt(_xcodebuildFailureReason(line), 240);
     }
-    if (genericCloser != null) return _clip(genericCloser, 240);
-    return _clip(lines.last, 240);
+    if (genericCloser != null) return _ellipsisAt(genericCloser, 240);
+    return _ellipsisAt(lines.last, 240);
   }
 
   /// Trailing high-signal slice — prefer this over the full log first.
@@ -67,7 +67,7 @@ abstract final class DeployLogErrorSummary() {
     return reason.isEmpty ? line : reason;
   }
 
-  static String _clip(String text, int maxChars) {
+  static String _ellipsisAt(String text, int maxChars) {
     if (text.length <= maxChars) return text;
     return '${text.substring(0, maxChars - 1)}…';
   }

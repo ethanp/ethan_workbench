@@ -53,7 +53,7 @@ class DeployConsole({
   }
 
   /// Status / checklist update without new log text.
-  void applyJob(DeployJob job) {
+  void updateStatusWithoutNewLog(DeployJob job) {
     _job = job;
     onJobUpdated(job);
     DeployCursorMirror.scheduleStatus(job, projectPath: _projectPath);
@@ -161,9 +161,9 @@ class DeployConsole({
       if (phaseId.isEmpty) return;
       final currentJob = _job;
       if (currentJob == null) return;
-      applyJob(
+      updateStatusWithoutNewLog(
         currentJob.copyWith(
-          checklist: DeployChecklist.applyPhase(
+          checklist: DeployChecklist.advanceToPhase(
             currentJob.checklist,
             phaseId,
             at: DateTime.now(),

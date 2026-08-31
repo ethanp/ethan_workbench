@@ -2,7 +2,7 @@ import 'package:ethan_ui/ethan_ui.dart';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
-import 'line_age_analyzer.dart';
+import 'line_age_report.dart';
 import 'line_age_directory_groups.dart';
 import 'line_age_month_detail_panel.dart';
 
@@ -32,16 +32,16 @@ class _LineAgeMonthDetailHeaderActionState()
   @override
   void initState() {
     super.initState();
-    _syncPortalAfterFrame();
+    _showFileBreakdownWhenMonthSelected();
   }
 
   @override
   void didUpdateWidget(covariant LineAgeMonthDetailHeaderAction oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _syncPortalAfterFrame();
+    _showFileBreakdownWhenMonthSelected();
   }
 
-  void _syncPortalAfterFrame() {
+  void _showFileBreakdownWhenMonthSelected() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final shouldShow = widget.month != null;
@@ -61,7 +61,7 @@ class _LineAgeMonthDetailHeaderActionState()
       ),
       child: OverlayPortal(
         controller: _portal,
-        overlayChildBuilder: _fileListOverlay,
+        overlayChildBuilder: _fileBreakdownPopover,
         child: CompositedTransformTarget(
           link: _layerLink,
           child: widget.month == null
@@ -71,16 +71,14 @@ class _LineAgeMonthDetailHeaderActionState()
                 )
               : _titleCaption(
                   title: widget.month!.month,
-                  caption:
-                      '${widget.month!.totalLines.asCompactCount} lines · '
-                      '${widget.month!.segments.length} files',
+                  caption: _selectedMonthCaption(widget.month!),
                 ),
         ),
       ),
     );
   }
 
-  Widget _fileListOverlay(BuildContext context) {
+  Widget _fileBreakdownPopover(BuildContext context) {
     final month = widget.month;
     if (month == null) return const SizedBox.shrink();
     final maxHeight = (MediaQuery.sizeOf(context).height * 0.55).clamp(
@@ -120,6 +118,15 @@ class _LineAgeMonthDetailHeaderActionState()
         ],
       ),
     );
+  }
+
+  String _selectedMonthCaption(LineAgeMonth month) {
+    final projectSize = widget.report.projectSizeByMonth.at(month.month);
+    final lastTouched =
+        '${month.totalLines.asCompactCount} last-touched · '
+        '${month.segments.length} files';
+    if (projectSize == null) return lastTouched;
+    return '$lastTouched · ${projectSize.asCompactCount} project size';
   }
 
   Widget _titleCaption({required String title, required String caption}) {

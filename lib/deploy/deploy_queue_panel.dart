@@ -224,7 +224,7 @@ class const _QueueJobTile({
   }
 
   Widget _titleAndStatus() {
-    final String? remainingCaption = _remainingCaption(remaining);
+    final String? remainingCaption = _wrappingUpOrOverdueCaption(remaining);
     final String? statusCaption = remainingCaption ?? stageLabel;
     if (statusCaption == null) return _titleAndPlatform();
     return Column(
@@ -285,7 +285,7 @@ class const _QueueJobTile({
     );
   }
 
-  String? _remainingCaption(Duration? remaining) {
+  String? _wrappingUpOrOverdueCaption(Duration? remaining) {
     if (remaining == null) return null;
     if (remaining > Duration.zero) {
       return '~${DeployChecklist.formatElapsed(remaining)} left';

@@ -4,9 +4,10 @@ class const LocalRunKey({
   required final String deviceKey,
 }) {
   /// Filesystem-safe fragment for persistence and Cursor mirror names.
-  String get fileName => '${_safe(projectId)}__${_safe(deviceKey)}';
+  String get fileName =>
+      '${_asFilesystemSafe(projectId)}__${_asFilesystemSafe(deviceKey)}';
 
-  static String _safe(String value) =>
+  static String _asFilesystemSafe(String value) =>
       value.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
 
   @override

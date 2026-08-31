@@ -32,7 +32,7 @@ class ProjectsCatalog({
   bool get hasProjects => projects.isNotEmpty;
 
   /// Instant left-panel update: this platform is current as of [job.finishedAt].
-  void applySuccessfulDeploy(DeployJob job) {
+  void markPlatformCurrentAfterDeploy(DeployJob job) {
     if (job.status != DeployJobStatus.succeeded) return;
     final deployedAt = job.finishedAt ?? DateTime.now();
     projects = [

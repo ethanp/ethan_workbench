@@ -1,7 +1,7 @@
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
-import 'line_age_analyzer.dart';
+import 'line_age_report.dart';
 import 'line_age_directory_groups.dart';
 import 'line_age_directory_legend_bar.dart';
 import 'line_age_histogram_geometry.dart';
@@ -15,7 +15,7 @@ class const LineAgeChart({
   required final String? selectedDirectory,
   required final String? emphasizedDirectory,
   required final void Function(LineAgeMonth? month, String? directory)
-  onStackSelected,
+  onMonthAndDirectorySelected,
 }) extends StatefulWidget {
   @override
   State<LineAgeChart> createState() => _LineAgeChartState();
@@ -80,7 +80,7 @@ class _LineAgeChartState() extends State<LineAgeChart> {
                 legend: widget.legend,
                 position: details.localPosition,
               );
-              widget.onStackSelected(hit?.month, hit?.directory);
+              widget.onMonthAndDirectorySelected(hit?.month, hit?.directory);
             },
             child: CustomPaint(
               painter: LineAgeHistogramPainter(

@@ -385,31 +385,31 @@ class DeployHttpServer({
   }
 
   Future<Response> _stopLocalRun(Request request) async {
-    return _mutateLocalRun(request, (controls) => controls.stop());
+    return _invokeLocalRunCommand(request, (controls) => controls.stop());
   }
 
   Future<Response> _hotReloadLocalRun(Request request) async {
-    return _mutateLocalRun(request, (controls) => controls.hotReload());
+    return _invokeLocalRunCommand(request, (controls) => controls.hotReload());
   }
 
   Future<Response> _hotRestartLocalRun(Request request) async {
-    return _mutateLocalRun(request, (controls) => controls.hotRestart());
+    return _invokeLocalRunCommand(request, (controls) => controls.hotRestart());
   }
 
   Future<Response> _fullRestartLocalRun(Request request) async {
-    return _mutateLocalRun(request, (controls) => controls.fullRestart());
+    return _invokeLocalRunCommand(request, (controls) => controls.fullRestart());
   }
 
-  Future<Response> _mutateLocalRun(
+  Future<Response> _invokeLocalRunCommand(
     Request request,
-    Future<void> Function(LocalRunControls controls) mutate,
+    Future<void> Function(LocalRunControls controls) invoke,
   ) async {
     try {
       final body =
           jsonDecode(await request.readAsString()) as Map<String, dynamic>;
       final target = _localRunTargetFromBody(body);
       final controls = localRunRegistry.controlsFor(target.runKey);
-      await mutate(controls);
+      await invoke(controls);
       return jsonOk(controls.state.toJson());
     } on FormatException catch (error) {
       return jsonError(error.message, status: 400);

@@ -139,7 +139,7 @@ abstract final class DeployChecklist() {
     return [items.first.asActive(at: at), ...items.skip(1)];
   }
 
-  static List<DeployChecklistItem> applyPhase(
+  static List<DeployChecklistItem> advanceToPhase(
     List<DeployChecklistItem> items,
     String phaseId, {
     required DateTime at,

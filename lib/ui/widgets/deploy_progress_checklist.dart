@@ -21,13 +21,13 @@ class _DeployProgressChecklistState() extends State<DeployProgressChecklist> {
   @override
   void initState() {
     super.initState();
-    _syncTicker();
+    _tickElapsedWhileStepActive();
   }
 
   @override
   void didUpdateWidget(covariant DeployProgressChecklist oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _syncTicker();
+    _tickElapsedWhileStepActive();
   }
 
   @override
@@ -40,7 +40,7 @@ class _DeployProgressChecklistState() extends State<DeployProgressChecklist> {
     (item) => item.status == DeployChecklistItemStatus.active,
   );
 
-  void _syncTicker() {
+  void _tickElapsedWhileStepActive() {
     if (!_hasActiveStep) {
       _ticker?.cancel();
       _ticker = null;

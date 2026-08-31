@@ -11,14 +11,14 @@ import '../phone/deploy_http_client.dart';
 import 'active_deploy_watch.dart';
 import 'deployable_project.dart';
 
-/// Confirm → start deploy → present job UI, or enqueue when busy.
+/// Confirm → start deploy → show job UI, or enqueue when busy.
 class ProjectDeployFlow({
   required final DeployTrigger trigger,
   required final ActiveDeployWatch activeDeploy,
 
   /// When set (Mac wide workbench), show the job in the side rail instead of
   /// pushing [JobScreen].
-  final void Function(DeployJob job)? presentJobInline,
+  final void Function(DeployJob job)? showJobInSideRailOrJobScreen,
 }) {
   Future<void> showJobScreen(
     BuildContext context,
@@ -26,9 +26,9 @@ class ProjectDeployFlow({
     required Future<void> Function() afterJobScreenClosed,
   }) async {
     activeDeploy.remember(job);
-    final presentInline = presentJobInline;
-    if (presentInline != null) {
-      presentInline(job);
+    final showInRailOrJobScreen = showJobInSideRailOrJobScreen;
+    if (showInRailOrJobScreen != null) {
+      showInRailOrJobScreen(job);
       return;
     }
     await Navigator.of(context).push(
@@ -73,7 +73,7 @@ class ProjectDeployFlow({
     final sourceStatus = project.sourceStatusFor(platform);
     final force = sourceStatus == DeploySourceStatus.unchanged
         ? await _confirmForceUnchanged(context, project, platform)
-        : await _confirmNormal(context, project, platform);
+        : await _confirmIncrementalDeploy(context, project, platform);
     if (force == null || !context.mounted) return;
 
     try {
@@ -169,7 +169,7 @@ class ProjectDeployFlow({
     }
   }
 
-  Future<bool?> _confirmNormal(
+  Future<bool?> _confirmIncrementalDeploy(
     BuildContext context,
     DeployableProject project,
     DeployPlatform platform,

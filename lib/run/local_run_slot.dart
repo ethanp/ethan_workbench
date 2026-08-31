@@ -231,7 +231,11 @@ class LocalRunSlot({
       final flutterRun = _flutterRunBinding.flutterRun;
       final exitCode = await _flutterRunBinding.quit();
       if (flutterRun != null) {
-        await _settleExit(flutterRun, exitCode, stoppedIntentionally: true);
+        await _recordExitAsFailedOrExited(
+          flutterRun,
+          exitCode,
+          stoppedIntentionally: true,
+        );
       }
       await _runProgress.waitUntilNotStopping();
       return;
@@ -265,13 +269,17 @@ class LocalRunSlot({
       flutterRun,
       onExit: (exitCode) {
         unawaited(
-          _settleExit(flutterRun, exitCode, stoppedIntentionally: false),
+          _recordExitAsFailedOrExited(
+            flutterRun,
+            exitCode,
+            stoppedIntentionally: false,
+          ),
         );
       },
     );
   }
 
-  Future<void> _settleExit(
+  Future<void> _recordExitAsFailedOrExited(
     LocalFlutterRun flutterRun,
     int exitCode, {
     required bool stoppedIntentionally,

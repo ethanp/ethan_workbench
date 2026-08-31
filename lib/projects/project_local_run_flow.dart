@@ -8,9 +8,9 @@ import '../run/local_run_registry.dart';
 import '../run/local_run_screen.dart';
 import 'deployable_project.dart';
 
-/// Start / stop a Mac-side local run and open [LocalRunScreen].
+/// Start / stop a Mac-side local run and show [LocalRunScreen].
 class const ProjectLocalRunFlow() {
-  Future<void> open(
+  Future<void> startOrShowLocalRunScreen(
     BuildContext context, {
     required LocalRunRegistry registry,
     required DeployableProject project,
@@ -22,7 +22,7 @@ class const ProjectLocalRunFlow() {
     final slotState = controls.state;
 
     if (slotState.status.isActive) {
-      await _openConsole(context, controls);
+      await _showLocalRunScreen(context, controls);
       return;
     }
 
@@ -34,7 +34,7 @@ class const ProjectLocalRunFlow() {
       return;
     }
     if (!context.mounted) return;
-    await _openConsole(context, controls);
+    await _showLocalRunScreen(context, controls);
   }
 
   Future<void> stop(
@@ -55,7 +55,10 @@ class const ProjectLocalRunFlow() {
     }
   }
 
-  Future<void> _openConsole(BuildContext context, LocalRunControls controls) {
+  Future<void> _showLocalRunScreen(
+    BuildContext context,
+    LocalRunControls controls,
+  ) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => LocalRunScreen(session: controls),

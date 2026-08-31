@@ -7,6 +7,8 @@ import 'package:path/path.dart' as path;
 
 import 'line_age_analyzer.dart';
 import 'line_age_cache_persistence.dart';
+import 'line_age_report.dart';
+import 'project_source.dart';
 
 class const _LineAgeCacheEntry({
   required final String fingerprint,
@@ -64,24 +66,9 @@ class LineAgeCache._() extends ChangeNotifier {
   static String? gitRootFor(String repoPath) =>
       LineAgeAnalyzer.findGitRoot(repoPath);
 
-  /// Fingerprint of non-generated Dart files: count + path/size/mtime/ctime.
-  static String computeFingerprint(String gitRoot) {
-    final dartFiles = LineAgeAnalyzer.listDartFiles(gitRoot);
-    final parts = <String>[
-      dartFiles.length.toString(),
-      for (final file in dartFiles)
-        '${path.relative(file.path, from: gitRoot)}:'
-            '${_fileFingerprint(file)}',
-    ];
-    return Object.hashAll(parts).toString();
-  }
-
-  static String _fileFingerprint(File file) {
-    final stat = file.statSync();
-    return '${stat.size}:'
-        '${stat.modified.millisecondsSinceEpoch}:'
-        '${stat.changed.millisecondsSinceEpoch}';
-  }
+  /// Fingerprint of project source: count + path/size/mtime/ctime.
+  static String computeFingerprint(String gitRoot) =>
+      ProjectSource.at(gitRoot).fingerprint;
 
   /// Last stored report for [gitRoot], even if the dart tree has changed.
   LineAgeReport? lastStoredReport(String gitRoot) =>

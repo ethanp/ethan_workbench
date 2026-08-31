@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../ui/workbench_action_accents.dart';
-import 'line_age_analyzer.dart';
+import 'line_age_report.dart';
 
 /// Maps files into directory buckets for stacked bars.
 ///

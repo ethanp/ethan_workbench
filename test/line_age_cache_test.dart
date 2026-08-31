@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:ethan_workbench/line_age/line_age_analyzer.dart';
+import 'package:ethan_workbench/line_age/line_age_report.dart';
 import 'package:ethan_workbench/line_age/line_age_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
@@ -25,6 +25,21 @@ void main() {
         .writeAsStringSync('void main() { print(1); }\n');
     expect(cache.isFingerprintCurrent(root.path), isFalse);
     expect(cache.lastStoredReport(root.path)?.totalLines, 42);
+  });
+
+  test('fingerprint changes when a Swift file is added', () {
+    final root = _dartTree();
+    final cache = LineAgeCache.instance;
+    cache.put(
+      gitRoot: root.path,
+      fingerprint: LineAgeCache.computeFingerprint(root.path),
+      report: _report(totalLines: 7),
+    );
+
+    File(path.join(root.path, 'macos', 'Runner', 'AppDelegate.swift'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('import Cocoa\n');
+    expect(cache.isFingerprintCurrent(root.path), isFalse);
   });
 
   test('fingerprint changes when file count changes', () {

@@ -15,7 +15,7 @@ void main() {
     });
   });
 
-  group('DeployChecklist.applyPhase', () {
+  group('DeployChecklist.advanceToPhase', () {
     final planned = DeployChecklist.planned(
       platform: DeployPlatform.ios,
       force: false,
@@ -23,14 +23,14 @@ void main() {
     final at = DateTime(2026, 7, 31, 12);
 
     test('checks off completed steps and activates the current one', () {
-      final afterChecking = DeployChecklist.applyPhase(
+      final afterChecking = DeployChecklist.advanceToPhase(
         planned,
         'checking',
         at: at,
       );
       expect(afterChecking[0].status, DeployChecklistItemStatus.active);
 
-      final afterResolving = DeployChecklist.applyPhase(
+      final afterResolving = DeployChecklist.advanceToPhase(
         afterChecking,
         'resolving',
         at: at.add(const Duration(seconds: 2)),
@@ -38,7 +38,7 @@ void main() {
       expect(afterResolving[0].status, DeployChecklistItemStatus.done);
       expect(afterResolving[1].status, DeployChecklistItemStatus.active);
 
-      final afterBuilding = DeployChecklist.applyPhase(
+      final afterBuilding = DeployChecklist.advanceToPhase(
         afterResolving,
         'building',
         at: at.add(const Duration(seconds: 5)),
@@ -50,12 +50,12 @@ void main() {
     });
 
     test('skips remaining steps when unchanged', () {
-      final afterChecking = DeployChecklist.applyPhase(
+      final afterChecking = DeployChecklist.advanceToPhase(
         planned,
         'checking',
         at: at,
       );
-      final skipped = DeployChecklist.applyPhase(
+      final skipped = DeployChecklist.advanceToPhase(
         afterChecking,
         'skipped',
         at: at.add(const Duration(seconds: 1)),
@@ -68,12 +68,12 @@ void main() {
     });
 
     test('marks active step failed and skips the rest', () {
-      final afterResolving = DeployChecklist.applyPhase(
-        DeployChecklist.applyPhase(planned, 'checking', at: at),
+      final afterResolving = DeployChecklist.advanceToPhase(
+        DeployChecklist.advanceToPhase(planned, 'checking', at: at),
         'resolving',
         at: at.add(const Duration(seconds: 2)),
       );
-      final failed = DeployChecklist.applyPhase(
+      final failed = DeployChecklist.advanceToPhase(
         afterResolving,
         'failed',
         at: at.add(const Duration(seconds: 10)),

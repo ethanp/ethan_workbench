@@ -20,7 +20,7 @@ class const DeployJobDetail({
   required final DeployTrigger trigger,
   required final DeployJob initialJob,
 
-  /// Shown in the embedded header; omitted in full-screen (AppBar back).
+  /// Shown in the side-rail header; omitted in full-screen (AppBar back).
   final VoidCallback? onDismiss,
 
   /// Fired once when the job first reaches a terminal status.
@@ -29,8 +29,8 @@ class const DeployJobDetail({
   /// Fired when Retry starts an active deploy (not a wait-queue enqueue).
   final void Function(DeployJob job)? onRetryStarted,
 
-  /// Compact chrome for the side rail (no scaffold).
-  final bool embedded = false,
+  /// Side-rail job detail (no scaffold).
+  final bool inSideRail = false,
 }) extends StatefulWidget {
   @override
   State<DeployJobDetail> createState() => _DeployJobDetailState();
@@ -53,14 +53,14 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
     _reportedTerminal = _job.status.isTerminal;
     _log.log(
       'open initial=${_job.debugSummary} '
-      'embedded=${widget.embedded} '
+      'inSideRail=${widget.inSideRail} '
       'jobUpdates=${widget.trigger.jobUpdates != null}',
     );
     if (_job.status.isTerminal) return;
 
     final jobUpdates = widget.trigger.jobUpdates;
     if (jobUpdates != null) {
-      _jobUpdatesSubscription = jobUpdates.listen(_applyStreamedJob);
+      _jobUpdatesSubscription = jobUpdates.listen(_showStreamedJobIfThisJob);
       _log.log('subscribed to jobUpdates + poll fallback');
     } else {
       _log.log('no jobUpdates stream — polling fetchJob every 2s');
@@ -77,7 +77,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
   void didUpdateWidget(covariant DeployJobDetail oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialJob.jobId == widget.initialJob.jobId) return;
-    unawaited(_adoptJob(widget.initialJob));
+    unawaited(_watchThisJob(widget.initialJob));
   }
 
   @override
@@ -92,7 +92,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
     super.dispose();
   }
 
-  void _applyStreamedJob(DeployJob job) {
+  void _showStreamedJobIfThisJob(DeployJob job) {
     if (!mounted) return;
     _streamEventCount += 1;
     if (job.jobId != _job.jobId) {
@@ -112,7 +112,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
         '${logGrew ? ' (log delta)' : ''}',
       );
     }
-    _applyJob(job);
+    _showJobAndStickLogToBottom(job);
     if (job.status.isTerminal) {
       unawaited(_jobUpdatesSubscription?.cancel());
       _jobUpdatesSubscription = null;
@@ -126,7 +126,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
       if (job.status != _job.status || job.log.length != _job.log.length) {
         _log.log('poll refresh ${job.debugSummary}');
       }
-      _applyJob(job);
+      _showJobAndStickLogToBottom(job);
       if (job.status.isTerminal) {
         _pollTimer?.cancel();
       }
@@ -139,7 +139,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
         final onUnauthorized = widget.trigger.onUnauthorized;
         if (onUnauthorized != null) {
           await onUnauthorized();
-          if (mounted && !widget.embedded) {
+          if (mounted && !widget.inSideRail) {
             Navigator.of(context).pop();
           }
         }
@@ -153,7 +153,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
     }
   }
 
-  void _applyJob(DeployJob job) {
+  void _showJobAndStickLogToBottom(DeployJob job) {
     final shouldStickToBottom =
         !_logScrollController.hasClients ||
         _logScrollController.position.pixels >=
@@ -201,7 +201,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
         onRetryStarted(job);
         return;
       }
-      await _adoptJob(job);
+      await _watchThisJob(job);
     } on DeployAlreadyQueued catch (error) {
       if (!mounted) return;
       setState(() => _retrying = false);
@@ -222,7 +222,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
     }
   }
 
-  Future<void> _adoptJob(DeployJob job) async {
+  Future<void> _watchThisJob(DeployJob job) async {
     _pollTimer?.cancel();
     await _jobUpdatesSubscription?.cancel();
     _jobUpdatesSubscription = null;
@@ -237,7 +237,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
 
     final jobUpdates = widget.trigger.jobUpdates;
     if (jobUpdates != null) {
-      _jobUpdatesSubscription = jobUpdates.listen(_applyStreamedJob);
+      _jobUpdatesSubscription = jobUpdates.listen(_showStreamedJobIfThisJob);
     }
     _pollTimer = Timer.periodic(
       const Duration(seconds: 2),
@@ -248,7 +248,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.embedded) return _embeddedBody();
+    if (widget.inSideRail) return _sideRailBody();
     return EScaffoldShell(
       appBar: AppBar(
         title: Text(_job.projectName, style: EText.title),
@@ -267,11 +267,11 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
     );
   }
 
-  Widget _embeddedBody() {
+  Widget _sideRailBody() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _embeddedHeader(),
+        _sideRailHeader(),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -287,7 +287,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
     );
   }
 
-  Widget _embeddedHeader() {
+  Widget _sideRailHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         ELayout.spaceMd,

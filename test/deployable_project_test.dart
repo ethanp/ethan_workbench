@@ -84,12 +84,12 @@ void main() {
     );
   });
 
-  test('applySuccessfulDeploy updates the matching project and re-sorts', () {
+  test('markPlatformCurrentAfterDeploy updates the matching project and re-sorts', () {
     final catalog = ProjectsCatalog(trigger: _unusedTrigger());
     catalog.projects = [_project('health_notes'), _project('tagger_fl')];
     final finishedAt = DateTime(2026, 8, 29, 13, 20);
 
-    catalog.applySuccessfulDeploy(
+    catalog.markPlatformCurrentAfterDeploy(
       _succeededJob(projectId: 'health_notes', finishedAt: finishedAt),
     );
 

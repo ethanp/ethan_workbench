@@ -12,8 +12,8 @@ import '../ui/widgets/deploy_platform_controls.dart';
 import 'deployable_project.dart';
 import 'project_app_icon_tile.dart';
 
-/// Row-only width policy for [ProjectWorkbenchRow] — not shared chrome tokens.
-abstract final class _WorkbenchRowLayout() {
+/// Preferred maxima for identity, then Line age, then equal platform clusters.
+abstract final class _IdentityLineAgeClusterWidths() {
   static const clusterWidth = 320.0;
   static const clusterGap = 10.0;
   static const compactClusterGap = 6.0;
@@ -40,6 +40,13 @@ abstract final class _WorkbenchRowLayout() {
   static const rowPadV = 12.0;
 }
 
+/// Identity first (up to max), then Line age, then clusters share the rest.
+class const _IdentityThenLineAgeThenClusters({
+  required final double identity,
+  required final double lineAge,
+  required final double cluster,
+});
+
 /// One project in the workbench list: identity + Line age + platform Run/Deploy.
 class const ProjectWorkbenchRow({
   super.key,
@@ -65,19 +72,19 @@ class const ProjectWorkbenchRow({
     required bool compact,
   }) {
     final rowPadH = compact
-        ? _WorkbenchRowLayout.compactRowPadH
-        : _WorkbenchRowLayout.rowPadH;
+        ? _IdentityLineAgeClusterWidths.compactRowPadH
+        : _IdentityLineAgeClusterWidths.rowPadH;
     final clusterGap = compact
-        ? _WorkbenchRowLayout.compactClusterGap
-        : _WorkbenchRowLayout.clusterGap;
+        ? _IdentityLineAgeClusterWidths.compactClusterGap
+        : _IdentityLineAgeClusterWidths.clusterGap;
     final identity = compact
-        ? _WorkbenchRowLayout.compactIdentityMaxWidth
-        : _WorkbenchRowLayout.identityMaxWidth;
+        ? _IdentityLineAgeClusterWidths.compactIdentityMaxWidth
+        : _IdentityLineAgeClusterWidths.identityMaxWidth;
     final lineAge = showLineAge
-        ? _WorkbenchRowLayout.secondaryActionWidth
+        ? _IdentityLineAgeClusterWidths.secondaryActionWidth
         : 0.0;
     final platforms = math.max(0, platformCount);
-    final clusters = platforms * _WorkbenchRowLayout.clusterWidth;
+    final clusters = platforms * _IdentityLineAgeClusterWidths.clusterWidth;
     final clusterGaps = math.max(0, platforms - 1) * clusterGap;
     final afterIdentityGap = platforms > 0 || lineAge > 0
         ? ELayout.spaceMd
@@ -98,11 +105,11 @@ class const ProjectWorkbenchRow({
     final meSimRunStatus = _activeRunStatus(FlutterRunDevice.meSim);
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
     final clusterGap = compact
-        ? _WorkbenchRowLayout.compactClusterGap
-        : _WorkbenchRowLayout.clusterGap;
+        ? _IdentityLineAgeClusterWidths.compactClusterGap
+        : _IdentityLineAgeClusterWidths.clusterGap;
     final rowPadH = compact
-        ? _WorkbenchRowLayout.compactRowPadH
-        : _WorkbenchRowLayout.rowPadH;
+        ? _IdentityLineAgeClusterWidths.compactRowPadH
+        : _IdentityLineAgeClusterWidths.rowPadH;
     return ESurface(
       kind: ESurfaceKind.row,
       attention:
@@ -112,13 +119,13 @@ class const ProjectWorkbenchRow({
           ongoingDeploy != null,
       padding: EdgeInsets.fromLTRB(
         rowPadH,
-        _WorkbenchRowLayout.rowPadV,
+        _IdentityLineAgeClusterWidths.rowPadV,
         rowPadH,
-        _WorkbenchRowLayout.rowPadV,
+        _IdentityLineAgeClusterWidths.rowPadV,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final widths = _rowWidths(
+          final widths = _identityThenLineAgeThenClusterWidths(
             constraints.maxWidth,
             compact: compact,
             clusterGap: clusterGap,
@@ -134,7 +141,8 @@ class const ProjectWorkbenchRow({
                 SizedBox(
                   width: widths.lineAge,
                   child:
-                      widths.lineAge >= _WorkbenchRowLayout.secondaryActionWidth
+                      widths.lineAge >=
+                          _IdentityLineAgeClusterWidths.secondaryActionWidth
                       ? ETintedAction.compact(
                           accent: WorkbenchActionAccents.lineAge,
                           icon: Icons.bar_chart_rounded,
@@ -166,22 +174,25 @@ class const ProjectWorkbenchRow({
     );
   }
 
-  /// Identity first (up to max), then Line age, then clusters share the rest.
-  /// Line age steps down labeled (hug title) → icon-only → hidden rather than
-  /// squeeze the identity column below [_WorkbenchRowLayout.identityMinWidth];
-  /// clusters never steal identity to satisfy a large minimum.
-  ({double identity, double lineAge, double cluster}) _rowWidths(
+  /// Line age steps down labeled → icon-only → hidden rather than squeeze
+  /// identity below [_IdentityLineAgeClusterWidths.identityMinWidth]; clusters
+  /// never steal identity to satisfy a large minimum.
+  _IdentityThenLineAgeThenClusters _identityThenLineAgeThenClusterWidths(
     double maxWidth, {
     required bool compact,
     required double clusterGap,
   }) {
     if (!maxWidth.isFinite || maxWidth <= 0) {
-      return (identity: 0, lineAge: 0, cluster: 0);
+      return const _IdentityThenLineAgeThenClusters(
+        identity: 0,
+        lineAge: 0,
+        cluster: 0,
+      );
     }
 
     final identityMax = compact
-        ? _WorkbenchRowLayout.compactIdentityMaxWidth
-        : _WorkbenchRowLayout.identityMaxWidth;
+        ? _IdentityLineAgeClusterWidths.compactIdentityMaxWidth
+        : _IdentityLineAgeClusterWidths.identityMaxWidth;
 
     if (platforms.isEmpty) {
       final lineAge = _lineAgeWidthLeavingIdentityFloor(
@@ -190,12 +201,16 @@ class const ProjectWorkbenchRow({
       );
       final identity = (maxWidth - (lineAge > 0 ? lineAge + clusterGap : 0))
           .clamp(0.0, identityMax);
-      return (identity: identity, lineAge: lineAge, cluster: 0);
+      return _IdentityThenLineAgeThenClusters(
+        identity: identity,
+        lineAge: lineAge,
+        cluster: 0,
+      );
     }
 
     final clusterGaps = math.max(0, platforms.length - 1) * clusterGap;
     final clusterFloorTotal =
-        platforms.length * _WorkbenchRowLayout.clusterAbsoluteFloor;
+        platforms.length * _IdentityLineAgeClusterWidths.clusterAbsoluteFloor;
     final afterIdentityGap = ELayout.spaceMd;
 
     // What identity may spend once clusters hold their floor.
@@ -209,12 +224,12 @@ class const ProjectWorkbenchRow({
       identityBudget -= lineAge + clusterGap;
     }
     if (identityBudget <= 0) {
-      return (
+      return _IdentityThenLineAgeThenClusters(
         identity: 0,
         lineAge: 0,
         cluster: ((maxWidth - clusterGaps) / platforms.length)
             .floorToDouble()
-            .clamp(0.0, _WorkbenchRowLayout.clusterWidth),
+            .clamp(0.0, _IdentityLineAgeClusterWidths.clusterWidth),
       );
     }
 
@@ -223,9 +238,13 @@ class const ProjectWorkbenchRow({
     final cluster =
         (((clusterFloorTotal + identityBudget - identity) / platforms.length)
                 .floorToDouble())
-            .clamp(0.0, _WorkbenchRowLayout.clusterWidth);
+            .clamp(0.0, _IdentityLineAgeClusterWidths.clusterWidth);
 
-    return (identity: identity, lineAge: lineAge, cluster: cluster);
+    return _IdentityThenLineAgeThenClusters(
+      identity: identity,
+      lineAge: lineAge,
+      cluster: cluster,
+    );
   }
 
   /// Widest Line age tier (labeled → icon-only → 0) whose gap-inclusive
@@ -236,11 +255,11 @@ class const ProjectWorkbenchRow({
   }) {
     if (!showLineAge) return 0;
     for (final tierWidth in [
-      _WorkbenchRowLayout.secondaryActionWidth,
-      _WorkbenchRowLayout.secondaryActionIconOnlyWidth,
+      _IdentityLineAgeClusterWidths.secondaryActionWidth,
+      _IdentityLineAgeClusterWidths.secondaryActionIconOnlyWidth,
     ]) {
       if (budget - tierWidth - clusterGap >=
-          _WorkbenchRowLayout.identityMinWidth) {
+          _IdentityLineAgeClusterWidths.identityMinWidth) {
         return tierWidth;
       }
     }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../ui/workbench_action_accents.dart';
 import 'line_age_analyzer.dart';
+import 'line_age_report.dart';
 import 'line_age_blame_progress.dart';
 import 'line_age_cache.dart';
 import 'line_age_chart.dart';
@@ -36,7 +37,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
   void initState() {
     super.initState();
     _analyzer = LineAgeAnalyzer(repoPath: widget.repoPath);
-    unawaited(_run());
+    unawaited(_analyzeOrShowCached());
   }
 
   @override
@@ -45,7 +46,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
     super.dispose();
   }
 
-  Future<void> _run() async {
+  Future<void> _analyzeOrShowCached() async {
     setState(() {
       _running = true;
       _errorMessage = null;
@@ -83,7 +84,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
       }
       if (!mounted) return;
       setState(() {
-        _adoptReport(report);
+        _keepSelectedMonthIfStillPresent(report);
         _running = false;
       });
     } catch (error) {
@@ -95,7 +96,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
     }
   }
 
-  void _adoptReport(LineAgeReport report) {
+  void _keepSelectedMonthIfStillPresent(LineAgeReport report) {
     final selectedKey = _selectedMonth?.month;
     LineAgeMonth? nextMonth;
     if (selectedKey != null) {
@@ -115,7 +116,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
     }
   }
 
-  void _selectStack(LineAgeMonth? month, String? directory) {
+  void _selectMonthAndDirectory(LineAgeMonth? month, String? directory) {
     setState(() {
       _selectedMonth = month;
       _selectedDirectory = directory;
@@ -133,14 +134,21 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
   String? get _headerSubtitle {
     final report = _report;
     if (report != null) {
-      return '${report.totalLines.asCompactCount} Dart lines · '
-          '${report.fileCount} files · last-touched months';
+      final projectSizeToday = report.projectSizeByMonth.at(
+        DateTime.now().yearMonthKey,
+      );
+      final projectSizeCaption = projectSizeToday == null
+          ? ''
+          : ' · ${projectSizeToday.asCompactCount} project size';
+      return '${report.totalLines.asCompactCount} last-touched · '
+          '${report.fileCount} files$projectSizeCaption';
     }
     if (_errorMessage != null) return 'Analysis failed';
     if (_running) {
       final progress = _progress;
-      if (progress == null) return 'Starting git blame…';
-      return 'Blaming ${progress.completedFiles}/${progress.totalFiles} files';
+      if (progress == null) return 'Measuring last-touched months…';
+      return 'Last-touched ${progress.completedFiles}/'
+          '${progress.totalFiles} files';
     }
     return null;
   }
@@ -177,7 +185,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
                 _hoveredDirectory = directory;
                 if (directory != null) _focusedFile = null;
               }),
-              onDismissed: () => _selectStack(null, null),
+              onDismissed: () => _selectMonthAndDirectory(null, null),
             ),
         ],
       ),
@@ -215,7 +223,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
             ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () => unawaited(_run()),
+              onPressed: () => unawaited(_analyzeOrShowCached()),
               child: const Text('Retry'),
             ),
           ],
@@ -241,7 +249,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
               selectedMonth: _selectedMonth,
               selectedDirectory: _selectedDirectory,
               emphasizedDirectory: _emphasizedFromPopover(legend),
-              onStackSelected: _selectStack,
+              onMonthAndDirectorySelected: _selectMonthAndDirectory,
             ),
           ),
         ),

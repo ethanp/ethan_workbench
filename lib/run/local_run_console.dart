@@ -40,16 +40,16 @@ class LocalRunConsole({
   }) {
     binding.adopt(
       flutterRun,
-      onOutput: _ingestFlutterRunOutput,
+      onOutput: _interpretConsoleChunk,
       onExit: onExit,
     );
   }
 
-  void _ingestFlutterRunOutput(String chunk) {
+  void _interpretConsoleChunk(String chunk) {
     _runProgress.appendLog(chunk);
     _captureVmServiceUri(chunk);
     _captureFlutterException();
-    _promoteToReadyIfNeeded(chunk);
+    _markReadyWhenKeyCommandsAppear(chunk);
   }
 
   void _captureVmServiceUri(String chunk) {
@@ -100,7 +100,7 @@ class LocalRunConsole({
     );
   }
 
-  void _promoteToReadyIfNeeded(String chunk) {
+  void _markReadyWhenKeyCommandsAppear(String chunk) {
     if (_runProgress.current.readyForKeyCommands) return;
     final status = _runProgress.current.status;
     if (status == LocalRunStatus.stopping ||
