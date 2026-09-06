@@ -13,6 +13,7 @@ import 'project_source.dart';
 /// whole git root once found.
 class LineAgeAnalyzer({
   required final String repoPath,
+  final ProjectSource? projectSource,
 }) {
   bool _cancelled = false;
   LastTouchedMonths? _lastTouchedMonths;
@@ -52,9 +53,9 @@ class LineAgeAnalyzer({
       throw StateError('Line age analysis cancelled.');
     }
 
-    final projectSource = ProjectSource.at(gitRoot);
-    final lastTouchedMonths = LastTouchedMonths(projectSource);
-    final projectSizeThroughMonths = ProjectSizeThroughMonths(projectSource);
+    final analyzedSource = projectSource ?? ProjectSource.at(gitRoot);
+    final lastTouchedMonths = LastTouchedMonths(analyzedSource);
+    final projectSizeThroughMonths = ProjectSizeThroughMonths(analyzedSource);
     _lastTouchedMonths = lastTouchedMonths;
     _projectSizeThroughMonths = projectSizeThroughMonths;
 

@@ -20,6 +20,7 @@ class LineAgeCache._() extends ChangeNotifier {
   static final LineAgeCache instance = LineAgeCache._();
 
   final Map<String, _LineAgeCacheEntry> _entries = {};
+  final Map<String, LineAgeAnalyzer> _inFlight = {};
   LineAgeCachePersistence _persistence = LineAgeCachePersistence();
   bool _persistToDisk = true;
   Future<void>? _loadFuture;
@@ -32,6 +33,7 @@ class LineAgeCache._() extends ChangeNotifier {
   /// Test hook — clears memory state and optionally swaps the persistence root.
   void resetForTest({Directory? persistenceDirectory}) {
     _entries.clear();
+    _inFlight.clear();
     _loadFuture = null;
     if (persistenceDirectory == null) {
       _persistToDisk = false;
@@ -124,15 +126,30 @@ class LineAgeCache._() extends ChangeNotifier {
       throw StateError('Not inside a git repository: $repoPath');
     }
     final normalizedRoot = path.normalize(gitRoot);
-    final fingerprint = computeFingerprint(normalizedRoot);
+    final projectSource = ProjectSource.at(normalizedRoot);
+    final fingerprint = projectSource.fingerprint;
     final existing = _entries[normalizedRoot];
     if (existing != null && existing.fingerprint == fingerprint) {
       return existing.report;
     }
 
-    final report = await LineAgeAnalyzer(repoPath: repoPath)
-        .analyze(onProgress: onProgress);
-    put(gitRoot: normalizedRoot, fingerprint: fingerprint, report: report);
-    return report;
+    final analyzer = LineAgeAnalyzer(
+      repoPath: repoPath,
+      projectSource: projectSource,
+    );
+    _inFlight[normalizedRoot] = analyzer;
+    try {
+      final report = await analyzer.analyze(onProgress: onProgress);
+      put(gitRoot: normalizedRoot, fingerprint: fingerprint, report: report);
+      return report;
+    } finally {
+      _inFlight.remove(normalizedRoot);
+    }
+  }
+
+  void cancelAnalyze(String repoPath) {
+    final gitRoot = gitRootFor(repoPath);
+    if (gitRoot == null) return;
+    _inFlight[path.normalize(gitRoot)]?.cancel();
   }
 }

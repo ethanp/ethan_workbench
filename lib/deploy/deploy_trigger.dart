@@ -34,6 +34,9 @@ class const DeployTrigger({
   final Future<void> Function()? onSignOut,
   final bool showSignOut = false,
   final bool showLineAgeAnalysis = false,
+
+  /// Local Flutter checkout roots for fleet Line age (Mac only).
+  final List<String> flutterRoots = const [],
   final String title = 'Deploy',
   final String? unreachableHint,
   final List<DeployPlatform> preferredPlatforms = const [

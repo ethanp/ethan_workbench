@@ -50,6 +50,7 @@ class DeployServer({ServerConfig? config}) {
   DeployTrigger get localDeployTrigger => DeployTrigger(
     title: 'Deploy',
     showLineAgeAnalysis: true,
+    flutterRoots: _config.flutterRoots,
     preferredPlatforms: const [DeployPlatform.macos, DeployPlatform.ios],
     listProjects: listProjects,
     evaluateSourceChanges: evaluateSourceChanges,

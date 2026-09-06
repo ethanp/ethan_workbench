@@ -243,4 +243,87 @@ class const LineAgeReport({
       ),
     );
   }
+
+  static const flutterFleetName = 'Flutter';
+
+  /// One report for a Flutter fleet: files prefixed with each [repoName].
+  factory acrossRepos(List<LineAgeReport> reports) {
+    if (reports.isEmpty) {
+      return const LineAgeReport(
+        repoName: flutterFleetName,
+        months: [],
+        totalLinesByFile: {},
+        totalLines: 0,
+        fileCount: 0,
+      );
+    }
+    return LineAgeReport(
+      repoName: flutterFleetName,
+      months: _monthsAcrossRepos(reports),
+      totalLinesByFile: _prefixedTotalsByFile(reports),
+      totalLines: reports.fold(0, (sum, report) => sum + report.totalLines),
+      fileCount: reports.fold(0, (sum, report) => sum + report.fileCount),
+      projectSizeByMonth: _summedProjectSize(reports),
+    );
+  }
+
+  static String _prefixedFile(String repoName, String relativeFilePath) =>
+      '$repoName/$relativeFilePath';
+
+  static List<LineAgeMonth> _monthsAcrossRepos(List<LineAgeReport> reports) {
+    final segmentsByMonth = <String, List<LineAgeSegment>>{};
+    final totalsByMonth = <String, int>{};
+    for (final report in reports) {
+      for (final month in report.months) {
+        totalsByMonth.update(
+          month.month,
+          (count) => count + month.totalLines,
+          ifAbsent: () => month.totalLines,
+        );
+        segmentsByMonth
+            .putIfAbsent(month.month, () => [])
+            .addAll([
+              for (final segment in month.segments)
+                LineAgeSegment(
+                  file: _prefixedFile(report.repoName, segment.file),
+                  lineCount: segment.lineCount,
+                ),
+            ]);
+      }
+    }
+    final monthKeys = totalsByMonth.keys.toList()..sort();
+    return [
+      for (final month in monthKeys)
+        LineAgeMonth(
+          month: month,
+          totalLines: totalsByMonth[month]!,
+          segments: segmentsByMonth[month]!,
+        ),
+    ];
+  }
+
+  static Map<String, int> _prefixedTotalsByFile(List<LineAgeReport> reports) {
+    final totals = <String, int>{
+      for (final report in reports)
+        for (final entry in report.totalLinesByFile.entries)
+          _prefixedFile(report.repoName, entry.key): entry.value,
+    };
+    final ranked = totals.entries.toList()
+      ..sort((left, right) => right.value.compareTo(left.value));
+    return {for (final entry in ranked) entry.key: entry.value};
+  }
+
+  static ProjectSizeByMonth _summedProjectSize(List<LineAgeReport> reports) {
+    final linesByYearMonth = <String, int>{};
+    for (final report in reports) {
+      for (final entry in report.projectSizeByMonth.linesByYearMonth.entries) {
+        linesByYearMonth.update(
+          entry.key,
+          (count) => count + entry.value,
+          ifAbsent: () => entry.value,
+        );
+      }
+    }
+    return ProjectSizeByMonth(linesByYearMonth: linesByYearMonth);
+  }
 }

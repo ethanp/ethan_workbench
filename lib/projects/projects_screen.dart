@@ -12,9 +12,12 @@ import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_queue_panel.dart';
 import '../deploy/deploy_trigger.dart';
 import '../deploy/job_screen.dart';
+import '../line_age/flutter_git_repos.dart';
+import '../line_age/flutter_line_age.dart';
 import '../line_age/line_age_analyzer.dart';
 import '../line_age/line_age_cache.dart';
 import '../line_age/line_age_screen.dart';
+import '../ui/workbench_action_accents.dart';
 import '../run/flutter_run_device.dart';
 import '../run/local_run_key.dart';
 import '../run/local_run_registry.dart';
@@ -133,13 +136,9 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   }
 
   Future<void> _blameDistinctGitRootsAfterRefresh() async {
-    final blamedRoots = <String>{};
-    final analyzePaths = <String>[];
-    for (final project in _catalog.projects) {
-      final gitRoot = LineAgeCache.gitRootFor(project.path) ?? project.path;
-      if (!blamedRoots.add(gitRoot)) continue;
-      analyzePaths.add(project.path);
-    }
+    final analyzePaths = FlutterGitRepos(
+      flutterRoots: widget.trigger.flutterRoots,
+    ).gitRoots;
     await Future.wait(analyzePaths.map(_analyzeOrCachedOneGitRoot));
   }
 
@@ -240,11 +239,45 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
+  void _showFlutterLineAgeScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => LineAgeScreen.flutterFleet(
+          flutterRoots: widget.trigger.flutterRoots,
+        ),
+      ),
+    );
+  }
+
+  Widget _flutterLineAgeAction() {
+    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final subtitle = FlutterLineAge(
+      flutterRoots: widget.trigger.flutterRoots,
+    ).cachedSlocSubtitle();
+    if (compact) {
+      return IconButton(
+        tooltip: 'Line age · $subtitle',
+        onPressed: _showFlutterLineAgeScreen,
+        icon: const Icon(Icons.bar_chart_rounded),
+      );
+    }
+    return SizedBox(
+      width: 140,
+      child: ETintedAction.compact(
+        accent: WorkbenchActionAccents.lineAge,
+        icon: Icons.bar_chart_rounded,
+        title: 'Line age',
+        subtitle: subtitle,
+        onActivated: _showFlutterLineAgeScreen,
+      ),
+    );
+  }
+
   void _showLineAgeScreen(DeployableProject project) {
     final gitRoot = LineAgeAnalyzer.findGitRoot(project.path) ?? project.path;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => LineAgeScreen(
+        builder: (context) => LineAgeScreen.repo(
           repoPath: project.path,
           repoName: path.basename(gitRoot),
         ),
@@ -268,6 +301,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
         eyebrow: AppIdentity.displayName,
         title: widget.trigger.title,
         actions: [
+          if (widget.trigger.showLineAgeAnalysis) _flutterLineAgeAction(),
           _checkForChangesAction(),
           if (widget.trigger.showSignOut)
             IconButton(

@@ -5,28 +5,40 @@ import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
 import '../ui/workbench_action_accents.dart';
-import 'line_age_analyzer.dart';
-import 'line_age_report.dart';
+import 'flutter_line_age.dart';
+import 'line_age_analysis.dart';
 import 'line_age_blame_progress.dart';
-import 'line_age_cache.dart';
 import 'line_age_chart.dart';
 import 'line_age_directory_groups.dart';
 import 'line_age_month_detail_header.dart';
+import 'line_age_report.dart';
 
-class const LineAgeScreen({
-  required final String repoPath,
-  required final String repoName,
-}) extends StatefulWidget {
+class const LineAgeScreen({required final LineAgeAnalysis analysis})
+    extends StatefulWidget {
+  factory repo({required String repoPath, required String repoName}) {
+    return LineAgeScreen(
+      analysis: RepoLineAge(repoPath: repoPath, repoName: repoName),
+    );
+  }
+
+  factory flutterFleet({required List<String> flutterRoots}) {
+    return LineAgeScreen(
+      analysis: FlutterLineAge(flutterRoots: flutterRoots),
+    );
+  }
+
   @override
   State<LineAgeScreen> createState() => _LineAgeScreenState();
 }
 
 class _LineAgeScreenState() extends State<LineAgeScreen> {
-  late final LineAgeAnalyzer _analyzer;
+  static const _progressPaintInterval = Duration(milliseconds: 80);
+
   LineAgeProgress? _progress;
   LineAgeReport? _report;
   String? _errorMessage;
   bool _running = true;
+  DateTime? _lastProgressPaintedAt;
 
   LineAgeMonth? _selectedMonth;
   String? _selectedDirectory;
@@ -36,13 +48,12 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
   @override
   void initState() {
     super.initState();
-    _analyzer = LineAgeAnalyzer(repoPath: widget.repoPath);
     unawaited(_analyzeOrShowCached());
   }
 
   @override
   void dispose() {
-    _analyzer.cancel();
+    widget.analysis.cancel();
     super.dispose();
   }
 
@@ -51,37 +62,16 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
       _running = true;
       _errorMessage = null;
       _progress = null;
+      _lastProgressPaintedAt = null;
     });
     try {
-      await LineAgeCache.instance.ensureLoaded();
-      final gitRoot = LineAgeCache.gitRootFor(widget.repoPath);
-      final stored = gitRoot == null
-          ? null
-          : LineAgeCache.instance.lastStoredReport(gitRoot);
-      if (stored != null && mounted) {
-        setState(() => _report = stored);
-      }
-      if (stored != null &&
-          gitRoot != null &&
-          LineAgeCache.instance.isFingerprintCurrent(gitRoot)) {
-        if (!mounted) return;
-        setState(() => _running = false);
-        return;
-      }
-
-      final report = await _analyzer.analyze(
-        onProgress: (progress) {
+      final report = await widget.analysis.analyzeOrCached(
+        onProgress: _onProgress,
+        onPartialReport: (partial) {
           if (!mounted) return;
-          setState(() => _progress = progress);
+          setState(() => _keepSelectedMonthIfStillPresent(partial));
         },
       );
-      if (gitRoot != null) {
-        LineAgeCache.instance.put(
-          gitRoot: gitRoot,
-          fingerprint: LineAgeCache.computeFingerprint(gitRoot),
-          report: report,
-        );
-      }
       if (!mounted) return;
       setState(() {
         _keepSelectedMonthIfStillPresent(report);
@@ -94,6 +84,19 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
         _running = false;
       });
     }
+  }
+
+  void _onProgress(LineAgeProgress progress) {
+    if (!mounted) return;
+    _progress = progress;
+    final now = DateTime.now();
+    final lastPaintedAt = _lastProgressPaintedAt;
+    if (lastPaintedAt != null &&
+        now.difference(lastPaintedAt) < _progressPaintInterval) {
+      return;
+    }
+    _lastProgressPaintedAt = now;
+    setState(() {});
   }
 
   void _keepSelectedMonthIfStillPresent(LineAgeReport report) {
@@ -134,6 +137,8 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
   String? get _headerSubtitle {
     final report = _report;
     if (report != null) {
+      final extra = widget.analysis.extraCaption(report);
+      final extraPart = extra == null ? '' : '$extra · ';
       final projectSizeToday = report.projectSizeByMonth.at(
         DateTime.now().yearMonthKey,
       );
@@ -141,7 +146,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
           ? ''
           : ' · ${projectSizeToday.asCompactCount} project size';
       return '${report.totalLines.asCompactCount} last-touched · '
-          '${report.fileCount} files$projectSizeCaption';
+          '$extraPart${report.fileCount} files$projectSizeCaption';
     }
     if (_errorMessage != null) return 'Analysis failed';
     if (_running) {
@@ -156,14 +161,12 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
   @override
   Widget build(BuildContext context) {
     final report = _report;
-    final legend = report == null
-        ? null
-        : LineAgeDirectoryGroups.legendFor(report);
+    final legend = report == null ? null : widget.analysis.legendFor(report);
     return EScaffoldShell(
       contentMaxWidth: double.infinity,
       appBar: EAppHeader(
         eyebrow: 'LINE AGE',
-        title: widget.repoName,
+        title: widget.analysis.title,
         subtitle: _headerSubtitle,
         accent: WorkbenchActionAccents.lineAge,
         actions: [
@@ -197,7 +200,7 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
     required LineAgeReport? report,
     required LineAgeDirectoryLegend? legend,
   }) {
-    if (_errorMessage != null) return _failedAnalysis();
+    if (_errorMessage != null && report == null) return _failedAnalysis();
     if (report != null && legend != null) {
       return _chartWithRefresh(report, legend);
     }

@@ -5,6 +5,8 @@ import 'package:path/path.dart' as path;
 
 /// Dart and Swift lines that count toward line age and project size.
 class ProjectSource.at(final String gitRoot) {
+  List<File>? _countedFiles;
+  String? _fingerprint;
 
   static const generatedDartSuffixes = [
     '.g.dart',
@@ -21,7 +23,9 @@ class ProjectSource.at(final String gitRoot) {
     'Pods',
   };
 
-  List<File> get countedFiles {
+  List<File> get countedFiles => _countedFiles ??= _collectCountedFiles();
+
+  List<File> _collectCountedFiles() {
     final counted = <File>[];
     final queue = Queue<Directory>()..add(Directory(gitRoot));
     while (queue.isNotEmpty) {
@@ -84,7 +88,9 @@ class ProjectSource.at(final String gitRoot) {
     }
   }
 
-  String get fingerprint {
+  String get fingerprint => _fingerprint ??= _computeFingerprint();
+
+  String _computeFingerprint() {
     final files = countedFiles;
     final parts = <String>[
       files.length.toString(),

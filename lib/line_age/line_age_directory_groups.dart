@@ -12,7 +12,7 @@ abstract final class LineAgeDirectoryGroups() {
   static const otherKey = 'other directories';
   static const maxDistinctDirectories = 10;
 
-  static const _palette = <Color>[
+  static const palette = <Color>[
     WorkbenchActionAccents.lineAge,
     Color(0xFF60A5FA),
     Color(0xFF2DD4BF),
@@ -66,7 +66,7 @@ abstract final class LineAgeDirectoryGroups() {
 
     final colors = <String, Color>{
       for (var index = 0; index < distinct.length; index++)
-        distinct[index]: _palette[index % _palette.length],
+        distinct[index]: palette[index % palette.length],
       if (otherTotal > 0) otherKey: otherColor,
     };
 
