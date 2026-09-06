@@ -21,6 +21,46 @@ void main() {
     expect(report.months, isNotEmpty);
     expect(report.months.first.month, DateTime.utc(2025, 1, 15).yearMonthKey);
   });
+
+  test('uncommitted extra lines on a tracked file count in this month', () async {
+    final root = await _committedProjectSource();
+    File(path.join(root.path, 'lib', 'a.dart')).writeAsStringSync(
+      'class A {}\nclass B {}\n',
+    );
+
+    final report = await LastTouchedMonths(ProjectSource.at(root.path)).measure();
+    final thisMonth = report.months.singleWhere(
+      (month) => month.month == DateTime.now().toUtc().yearMonthKey,
+    );
+    expect(report.totalLines, 4);
+    expect(
+      report.months.singleWhere((month) => month.month == '2025-01').totalLines,
+      3,
+    );
+    expect(thisMonth.totalLines, 1);
+    expect(thisMonth.segments.single.file, 'lib/a.dart');
+  });
+
+  test('untracked project-source files count as last-touched this month', () async {
+    final root = await _committedProjectSource();
+    File(path.join(root.path, 'lib', 'extra.dart')).writeAsStringSync(
+      'class Extra {}\nclass ExtraTwo {}\n',
+    );
+
+    final report = await LastTouchedMonths(ProjectSource.at(root.path)).measure();
+    final thisMonth = DateTime.now().toUtc().yearMonthKey;
+    expect(report.fileCount, 3);
+    expect(report.totalLines, 5);
+    expect(report.totalLinesByFile['lib/extra.dart'], 2);
+    expect(
+      report.months.singleWhere((month) => month.month == '2025-01').totalLines,
+      3,
+    );
+    expect(
+      report.months.singleWhere((month) => month.month == thisMonth).totalLines,
+      2,
+    );
+  });
 }
 
 Future<Directory> _committedProjectSource() async {

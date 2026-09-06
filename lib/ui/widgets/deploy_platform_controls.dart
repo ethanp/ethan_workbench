@@ -35,8 +35,15 @@ EActionClusterCell deployActionCell({
     );
   }
 
-  final isQueuedBehind =
-      waitingDeploy != null && waitingDeploy.platform == platform;
+  final String? statusLabel;
+  final EStatusTone? statusTone;
+  if (waitingDeploy != null && waitingDeploy.platform == platform) {
+    statusLabel = 'queued';
+    statusTone = waitingDeploy.status.statusTone;
+  } else {
+    statusLabel = sourceStatus.chipLabel;
+    statusTone = sourceStatus.chipTone;
+  }
 
   return EActionClusterCell(
     icon: Icons.rocket_launch_rounded,
@@ -47,8 +54,8 @@ EActionClusterCell deployActionCell({
     condensedLabel: lastDeployedAt != null
         ? lastDeployedAt.relativeTimeShort()
         : '—',
-    statusLabel: isQueuedBehind ? 'queued' : sourceStatus.chipLabel,
-    statusTone: isQueuedBehind ? EStatusTone.accent : sourceStatus.chipTone,
+    statusLabel: statusLabel,
+    statusTone: statusTone,
     onActivated: onSelected,
   );
 }

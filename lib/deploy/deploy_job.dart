@@ -8,10 +8,10 @@ import 'deploy_platform.dart';
 
 enum DeployJobStatus({required final EStatusTone statusTone}) {
   /// Waiting in the FIFO behind the active deploy.
-  waiting(statusTone: EStatusTone.muted),
+  waiting(statusTone: EStatusTone.pending),
 
   /// Accepted; deploy script is about to start.
-  queued(statusTone: EStatusTone.warning),
+  queued(statusTone: EStatusTone.pending),
   running(statusTone: EStatusTone.accent),
   succeeded(statusTone: EStatusTone.success),
   failed(statusTone: EStatusTone.danger);

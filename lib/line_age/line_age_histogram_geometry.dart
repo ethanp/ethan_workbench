@@ -27,7 +27,10 @@ class LineAgeHistogramGeometry(final Size size) {
     bottomGutter,
   );
 
-  final double innerWidth = math.max(0.0, size.width - leftGutter - rightGutter);
+  final double innerWidth = math.max(
+    0.0,
+    size.width - leftGutter - rightGutter,
+  );
 
   double get _availablePlotHeight => math.max(
     0.0,
@@ -139,7 +142,11 @@ class LineAgeHistogramGeometry(final Size size) {
     final scale = scalesFor(report).lastTouched;
     final columns = columnsFor(report.timelineMonths.length);
 
-    for (var monthIndex = 0; monthIndex < report.timelineMonths.length; monthIndex++) {
+    for (
+      var monthIndex = 0;
+      monthIndex < report.timelineMonths.length;
+      monthIndex++
+    ) {
       final month = report.timelineMonths[monthIndex];
       final x = columns.leftAt(monthIndex);
       if (position.dx < x || position.dx > x + columns.width) continue;

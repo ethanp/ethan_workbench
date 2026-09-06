@@ -143,12 +143,14 @@ class LastTouchedMonths(final ProjectSource projectSource) {
   Future<Map<String, int>> _lastTouchedCounts(String relativePath) async {
     final process = await Process.run(
       'git',
-      ['blame', '--line-porcelain', relativePath],
+      ['blame', '--line-porcelain', '--', relativePath],
       workingDirectory: projectSource.gitRoot,
       stdoutEncoding: utf8,
       stderrEncoding: utf8,
     );
-    if (process.exitCode != 0) return {};
+    if (process.exitCode != 0) {
+      return _workingTreeLinesLastTouchedThisMonth(relativePath);
+    }
 
     final counts = <String, int>{};
     for (final line in const LineSplitter().convert(process.stdout as String)) {
@@ -166,5 +168,16 @@ class LastTouchedMonths(final ProjectSource projectSource) {
       );
     }
     return counts;
+  }
+
+  Map<String, int> _workingTreeLinesLastTouchedThisMonth(String relativePath) {
+    final file = File(path.join(projectSource.gitRoot, relativePath));
+    try {
+      final lineCount = file.readAsLinesSync().length;
+      if (lineCount == 0) return {};
+      return {DateTime.now().toUtc().yearMonthKey: lineCount};
+    } on FileSystemException {
+      return {};
+    }
   }
 }

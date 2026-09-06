@@ -81,7 +81,11 @@ abstract class const LineAgeHistogramPane({
   }
 
   void _paintRotatedMonthNames(Canvas canvas) {
-    for (var monthIndex = 0; monthIndex < report.timelineMonths.length; monthIndex++) {
+    for (
+      var monthIndex = 0;
+      monthIndex < report.timelineMonths.length;
+      monthIndex++
+    ) {
       final month = report.timelineMonths[monthIndex];
       final selected = emphasis.isSelected(month.month);
       final hovered = emphasis.isHovered(month.month);
