@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 
 import '../deploy/deploy_platform.dart';
-import 'deployable_project.dart';
 import 'project_app_icon.dart';
+import 'workbench_project.dart';
 
-/// Discovers Flutter apps under configured roots that can deploy to iOS and/or macOS.
+/// Discovers pubspec projects under configured Flutter roots.
 class const ProjectCatalog({required final List<String> flutterRoots}) {
   static const _skipDirectoryNames = {
     '.',
@@ -26,10 +26,8 @@ class const ProjectCatalog({required final List<String> flutterRoots}) {
     '.vscode',
   };
 
-  static const _skipPackageNames = {'ethan_utils', 'ethan_sync', 'viant_core'};
-
-  Future<List<DeployableProject>> listDeployableProjects() async {
-    final discoveredProjects = <DeployableProject>[];
+  Future<List<WorkbenchProject>> listProjects() async {
+    final discoveredProjects = <WorkbenchProject>[];
     final seenPaths = <String>{};
 
     for (final flutterRoot in flutterRoots) {
@@ -55,14 +53,13 @@ class const ProjectCatalog({required final List<String> flutterRoots}) {
     required Directory directory,
     required String flutterRoot,
     required int depth,
-    required List<DeployableProject> discoveredProjects,
+    required List<WorkbenchProject> discoveredProjects,
     required Set<String> seenPaths,
   }) async {
     if (depth > 5) return;
 
     final directoryName = path.basename(directory.path);
     if (depth > 0 && _skipDirectoryNames.contains(directoryName)) return;
-    if (_skipPackageNames.contains(directoryName)) return;
 
     final pubspecFile = File(path.join(directory.path, 'pubspec.yaml'));
     if (await pubspecFile.exists()) {
@@ -73,26 +70,24 @@ class const ProjectCatalog({required final List<String> flutterRoots}) {
       if (await Directory(path.join(directory.path, 'macos')).exists()) {
         platforms.add(DeployPlatform.macos);
       }
-      if (platforms.isNotEmpty) {
-        final absolutePath = directory.absolute.path;
-        if (seenPaths.add(absolutePath)) {
-          final relativePath = path.relative(absolutePath, from: flutterRoot);
-          discoveredProjects.add(
-            DeployableProject(
-              projectId: relativePath.split(path.separator).join('/'),
-              name: directoryName,
-              path: absolutePath,
+      final absolutePath = directory.absolute.path;
+      if (seenPaths.add(absolutePath)) {
+        final relativePath = path.relative(absolutePath, from: flutterRoot);
+        discoveredProjects.add(
+          WorkbenchProject(
+            projectId: relativePath.split(path.separator).join('/'),
+            name: directoryName,
+            path: absolutePath,
+            platforms: platforms,
+            lastDeployedAt: await _lastDeployedAt(
+              projectPath: absolutePath,
               platforms: platforms,
-              lastDeployedAt: await _lastDeployedAt(
-                projectPath: absolutePath,
-                platforms: platforms,
-              ),
-              iconPngBytes: await ProjectAppIcon.loadPngBytes(absolutePath),
             ),
-          );
-        }
-        return;
+            iconPngBytes: await ProjectAppIcon.loadPngBytes(absolutePath),
+          ),
+        );
       }
+      return;
     }
 
     await for (final entity in directory.list(followLinks: false)) {

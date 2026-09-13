@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
@@ -6,41 +8,42 @@ import '../run/local_run_controls.dart';
 import '../run/local_run_key.dart';
 import '../run/local_run_registry.dart';
 import '../run/local_run_screen.dart';
-import 'deployable_project.dart';
+import 'workbench_project.dart';
 
-/// Start / stop a Mac-side local run and show [LocalRunScreen].
-class const ProjectLocalRunFlow() {
-  Future<void> startOrShowLocalRunScreen(
+/// Start / stop a Mac-side local run and show [LocalRunDetail] (rail or screen).
+class const ProjectLocalRunFlow({
+  /// When set (Mac wide workbench), show the run in the side rail instead of
+  /// pushing [LocalRunScreen].
+  final void Function(LocalRunControls controls)? showRunInSideRailOrRunScreen,
+}) {
+  Future<void> startOrShowLocalRun(
     BuildContext context, {
     required LocalRunRegistry registry,
-    required DeployableProject project,
+    required WorkbenchProject project,
     required FlutterRunDevice device,
   }) async {
     final controls = registry.controlsFor(
       LocalRunKey(projectId: project.projectId, deviceKey: device.key),
     );
-    final slotState = controls.state;
 
-    if (slotState.status.isActive) {
-      await _showLocalRunScreen(context, controls);
+    if (controls.state.status.isActive) {
+      _showLocalRun(context, controls);
       return;
     }
 
+    _showLocalRun(context, controls);
     try {
       await controls.start(project, device: device);
     } catch (error) {
       if (!context.mounted) return;
       context.textSnackBar(error.toString());
-      return;
     }
-    if (!context.mounted) return;
-    await _showLocalRunScreen(context, controls);
   }
 
   Future<void> stop(
     BuildContext context, {
     required LocalRunRegistry registry,
-    required DeployableProject project,
+    required WorkbenchProject project,
     required FlutterRunDevice device,
   }) async {
     final controls = registry.controlsFor(
@@ -55,13 +58,17 @@ class const ProjectLocalRunFlow() {
     }
   }
 
-  Future<void> _showLocalRunScreen(
-    BuildContext context,
-    LocalRunControls controls,
-  ) {
-    return Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => LocalRunScreen(session: controls),
+  void _showLocalRun(BuildContext context, LocalRunControls controls) {
+    final showInRailOrRunScreen = showRunInSideRailOrRunScreen;
+    if (showInRailOrRunScreen != null) {
+      showInRailOrRunScreen(controls);
+      return;
+    }
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) => LocalRunScreen(session: controls),
+        ),
       ),
     );
   }

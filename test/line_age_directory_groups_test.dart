@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('directory key uses parent path capped at two segments', () {
+  test('directory key uses parent path capped at three segments', () {
     expect(LineAgeDirectoryGroups.keyForFile('main.dart'), '(repo root)');
     expect(LineAgeDirectoryGroups.keyForFile('lib/main.dart'), 'lib');
     expect(
@@ -13,11 +13,25 @@ void main() {
     );
     expect(
       LineAgeDirectoryGroups.keyForFile('lib/screens/home/body.dart'),
-      'lib/screens',
+      'lib/screens/home',
+    );
+    expect(
+      LineAgeDirectoryGroups.keyForFile('lib/features/cardio/detail.dart'),
+      'lib/features/cardio',
+    );
+    expect(
+      LineAgeDirectoryGroups.keyForFile(
+        'lib/services/repositories/cardio_import.dart',
+      ),
+      'lib/services/repositories',
     );
     expect(
       LineAgeDirectoryGroups.keyForFile('apps/music_listen/lib/main.dart'),
-      'apps/music_listen',
+      'apps/music_listen/lib',
+    );
+    expect(
+      LineAgeDirectoryGroups.keyForFile('apps/music_listen/lib/ui/home.dart'),
+      'apps/music_listen/lib',
     );
   });
 

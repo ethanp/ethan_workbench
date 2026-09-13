@@ -6,7 +6,7 @@ import 'package:ethan_workbench/deploy/deploy_platform.dart';
 import 'package:ethan_workbench/deploy/deploy_pipeline.dart';
 import 'package:ethan_workbench/deploy/deploy_session_persistence.dart';
 import 'package:ethan_workbench/deploy/ruby_deploy_executor.dart';
-import 'package:ethan_workbench/projects/deployable_project.dart';
+import 'package:ethan_workbench/projects/workbench_project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _MemoryPersistence() extends DeploySessionPersistence {
@@ -57,8 +57,8 @@ class _ControllableScriptRunner() extends DeployScriptRunner {
   }
 }
 
-DeployableProject _project(String id) {
-  return DeployableProject(
+WorkbenchProject _project(String id) {
+  return WorkbenchProject(
     projectId: id,
     name: id,
     path: '/tmp/$id',

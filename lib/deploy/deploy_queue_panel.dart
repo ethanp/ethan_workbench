@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'deploy_checklist.dart';
 import 'deploy_job.dart';
 
-/// Right-rail queue: active deploy + FIFO wait list (+ optional job detail).
+/// Right-rail queue: active deploy + FIFO wait list (+ optional detail).
 ///
-/// With a job detail open, the queue section is content-sized by default
+/// With a detail open, the queue section is content-sized by default
 /// (and again whenever a new wait-queue job is enqueued). The queue/detail
 /// split can still be resized by dragging the handle between them.
 class const DeployQueuePanel({
@@ -21,8 +21,11 @@ class const DeployQueuePanel({
   /// Estimated time left for [ongoing] vs typical successful runs.
   final Duration? ongoingRemaining,
 
-  /// Live deploy detail shown under the queue (Mac workbench).
-  final Widget? jobDetail,
+  /// Live deploy or run detail shown under the queue (Mac workbench).
+  final Widget? detail,
+
+  /// Rail title when [detail] is open.
+  final String detailTitle = 'Deploy',
   final double width = 260,
 }) extends StatefulWidget {
   @override
@@ -31,7 +34,7 @@ class const DeployQueuePanel({
 
 class _DeployQueuePanelState() extends State<DeployQueuePanel> {
   static const _queueMinHeight = 48.0;
-  static const _jobDetailMinHeight = 160.0;
+  static const _detailMinHeight = 160.0;
 
   /// Null until the split handle is first dragged; queue stays content-sized.
   /// Cleared again when a new wait-queue job is enqueued so the split just-fits.
@@ -50,20 +53,20 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
   @override
   Widget build(BuildContext context) {
     return ESidePanel(
-      title: widget.jobDetail == null ? 'Queue' : 'Deploy',
+      title: widget.detail == null ? 'Queue' : widget.detailTitle,
       width: widget.width,
-      child: widget.jobDetail == null
+      child: widget.detail == null
           ? _queueList(shrinkWrap: false)
-          : _queueAndJobDetailSplit(),
+          : _queueAndDetailSplit(),
     );
   }
 
-  Widget _queueAndJobDetailSplit() {
+  Widget _queueAndDetailSplit() {
     return LayoutBuilder(
       builder: (context, constraints) {
         _maxQueueHeight = math.max(
           _queueMinHeight,
-          constraints.maxHeight - _jobDetailMinHeight,
+          constraints.maxHeight - _detailMinHeight,
         );
         final draggedQueueHeight = _draggedQueueHeight?.clamp(
           _queueMinHeight,
@@ -85,7 +88,7 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
                 child: _queueList(shrinkWrap: true),
               ),
             _splitDragHandle(),
-            Expanded(child: widget.jobDetail!),
+            Expanded(child: widget.detail!),
           ],
         );
       },

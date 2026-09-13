@@ -11,6 +11,84 @@ require 'yaml'
 
 require_relative 'xcodebuild_error_capture'
 
+class LocalPathDependencyClosure
+  def initialize(root_package_path)
+    @root_package_path = File.expand_path(root_package_path)
+  end
+
+  def resolve
+    root_pubspec = read_pubspec(@root_package_path)
+    return [] unless root_pubspec
+
+    @root_dependency_overrides = dependency_constraints(
+      root_pubspec,
+      "dependency_overrides"
+    )
+    visited_package_roots = { @root_package_path => true }
+    local_package_roots = []
+    visit_dependencies_declared_by(
+      @root_package_path,
+      visited_package_roots,
+      local_package_roots
+    )
+    local_package_roots.sort
+  end
+
+  private
+
+  def visit_dependencies_declared_by(
+    declaring_package_root,
+    visited_package_roots,
+    local_package_roots
+  )
+    pubspec = read_pubspec(declaring_package_root)
+    return unless pubspec
+
+    local_dependency_roots(pubspec, declaring_package_root).each do |dependency_root|
+      next if visited_package_roots[dependency_root]
+
+      visited_package_roots[dependency_root] = true
+      local_package_roots << dependency_root
+      visit_dependencies_declared_by(
+        dependency_root,
+        visited_package_roots,
+        local_package_roots
+      )
+    end
+  end
+
+  def local_dependency_roots(pubspec, declaring_package_root)
+    dependency_constraints(pubspec, "dependencies").filter_map do |dependency_name, declared_constraint|
+      overridden = @root_dependency_overrides.key?(dependency_name)
+      effective_constraint = overridden ? @root_dependency_overrides[dependency_name] : declared_constraint
+      next unless effective_constraint.is_a?(Hash)
+
+      dependency_path = effective_constraint["path"]
+      next unless dependency_path.is_a?(String)
+
+      base_root = overridden ? @root_package_path : declaring_package_root
+      File.expand_path(dependency_path, base_root)
+    end.sort
+  end
+
+  def dependency_constraints(pubspec, section_name)
+    section = pubspec[section_name]
+    section.is_a?(Hash) ? section : {}
+  end
+
+  def read_pubspec(package_root)
+    pubspec_path = File.join(package_root, "pubspec.yaml")
+    return unless File.file?(pubspec_path)
+
+    pubspec = YAML.safe_load(File.read(pubspec_path), aliases: true)
+    if pubspec.is_a?(Hash)
+      pubspec
+    else
+      nil
+    end
+  end
+end
+
 class Deployer
   def initialize(force:)
     @force = force
@@ -28,6 +106,12 @@ class Deployer
     phase 'resolving'
     resolve_dependencies
     deploy
+  end
+
+  def source_hash
+    @source_hash ||= Digest::MD5.hexdigest(
+      source_files.filter_map { |file_path| File.read(file_path) rescue nil }.join
+    )
   end
 
   private
@@ -68,26 +152,9 @@ class Deployer
 
   # pubspec.yaml inputs only (not pubspec.lock — lock is an output of pub get).
   def dependency_manifest_files
-    (
-      ["pubspec.yaml"] +
-      monorepo_package_pubspecs +
-      path_dependency_pubspecs
-    ).uniq.select { |file_path| File.file?(file_path) }.sort
-  end
-
-  def monorepo_package_pubspecs
-    return [] unless Dir.exist?("../../packages")
-    Dir["../../packages/*/pubspec.yaml"]
-  end
-
-  def path_dependency_pubspecs
-    spec = YAML.load_file("pubspec.yaml")
-    return [] unless spec.is_a?(Hash)
-    declared = (spec["dependencies"] || {}).merge(spec["dev_dependencies"] || {})
-    declared.filter_map do |_name, constraint|
-      next unless constraint.is_a?(Hash) && constraint["path"]
-      File.join(constraint["path"], "pubspec.yaml")
-    end
+    ([File.expand_path("pubspec.yaml")] + local_dependency_roots.map do |package_root|
+      File.join(package_root, "pubspec.yaml")
+    end).select { |file_path| File.file?(file_path) }.sort
   end
 
   def dependency_hash_file
@@ -107,12 +174,14 @@ class Deployer
     File.write(hash_file, source_hash)
   end
 
-  def source_hash
-    @source_hash ||= Digest::MD5.hexdigest(source_files.filter_map { |f| File.read(f) rescue nil }.join)
-  end
-
   def source_files
-    source_search_paths.flat_map { |path| files_under(path) }.sort
+    app_source_files = source_search_paths.flat_map do |source_path|
+      files_under(File.expand_path(source_path), package_root: File.expand_path("."))
+    end
+    dependency_source_files = local_dependency_roots.flat_map do |package_root|
+      files_under(package_root, package_root: package_root)
+    end
+    (app_source_files + dependency_source_files).uniq.sort
   end
 
   VOLATILE_PATH_SEGMENTS = %w[
@@ -125,20 +194,24 @@ class Deployer
     node_modules
   ].freeze
 
-  def files_under(path)
-    return []     unless File.exist?(path)
+  def files_under(path, package_root:)
+    return [] unless File.exist?(path)
     return [path] unless File.directory?(path)
     Find.find(path).select do |file_path|
       next false unless File.file?(file_path)
-      next false if File.basename(file_path) == ".DS_Store"
-      next false if VOLATILE_PATH_SEGMENTS.any? { |segment| file_path.split(File::SEPARATOR).include?(segment) }
+      relative_path = file_path.delete_prefix("#{package_root}#{File::SEPARATOR}")
+      next false if File.basename(relative_path) == ".DS_Store"
+      next false if VOLATILE_PATH_SEGMENTS.any? { |segment| relative_path.split(File::SEPARATOR).include?(segment) }
       true
     end
   end
 
   def source_search_paths
-    package_dirs = Dir.exist?("../../packages") ? [ "../../packages" ] : []
-    [ "lib", platform_dir, "pubspec.yaml", "pubspec.lock" ] + package_dirs
+    [ "lib", platform_dir, "pubspec.yaml", "pubspec.lock" ]
+  end
+
+  def local_dependency_roots
+    @local_dependency_roots ||= LocalPathDependencyClosure.new(".").resolve
   end
 
   def hash_file
@@ -255,6 +328,7 @@ class IosDeployer < Deployer
 end
 
 force    = ARGV.delete("--force") || ARGV.delete("-f")
+print_source_hash = ARGV.delete("--print-source-hash")
 platform = ARGV.first
 
 abort "Usage: #{$0} <macos|ios> [--force|-f]" unless %w[macos ios].include?(platform)
@@ -262,7 +336,11 @@ abort "Usage: #{$0} <macos|ios> [--force|-f]" unless %w[macos ios].include?(plat
 deployer = platform == "ios" ? IosDeployer.new(force: force) : MacosDeployer.new(force: force)
 
 begin
-  deployer.run
+  if print_source_hash
+    puts deployer.source_hash
+  else
+    deployer.run
+  end
 rescue => error
   abort error.message
 end

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:ethan_utils/ethan_utils.dart';
 
 import '../phone/deploy_http_client.dart';
-import '../projects/deployable_project.dart';
+import '../projects/workbench_project.dart';
 import 'flutter_run_device.dart';
 import 'local_run_controls.dart';
 import 'local_run_key.dart';
@@ -198,7 +198,7 @@ class RemoteLocalRunSlot({
 
   @override
   Future<void> start(
-    DeployableProject project, {
+    WorkbenchProject project, {
     required FlutterRunDevice device,
   }) async {
     final runState = await remoteRunRegistry.server.startLocalRun(

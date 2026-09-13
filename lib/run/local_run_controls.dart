@@ -1,4 +1,4 @@
-import '../projects/deployable_project.dart';
+import '../projects/workbench_project.dart';
 import 'flutter_run_device.dart';
 import 'local_run_state.dart';
 
@@ -9,7 +9,7 @@ abstract class LocalRunControls() {
   bool get isActive;
 
   Future<void> start(
-    DeployableProject project, {
+    WorkbenchProject project, {
     required FlutterRunDevice device,
   });
 

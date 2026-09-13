@@ -9,7 +9,7 @@ import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_run_record.dart';
-import '../projects/deployable_project.dart';
+import '../projects/workbench_project.dart';
 import '../run/local_run_state.dart';
 
 const _log = ELogger('DeployServerClient');
@@ -82,7 +82,7 @@ class DeployServerClient({
     _throwIfFailed(response, 'Health check failed');
   }
 
-  Future<List<DeployableProject>> listProjects() async {
+  Future<List<WorkbenchProject>> listProjects() async {
     final response = await _httpClient.get(
       Uri.parse('$_baseUrl/projects'),
       headers: _headers,
@@ -91,7 +91,7 @@ class DeployServerClient({
     return _parseProjects(response.body);
   }
 
-  Future<List<DeployableProject>> evaluateSourceChanges() async {
+  Future<List<WorkbenchProject>> evaluateSourceChanges() async {
     final response = await _httpClient.post(
       Uri.parse('$_baseUrl/projects/evaluate-changes'),
       headers: _headers,
@@ -100,13 +100,13 @@ class DeployServerClient({
     return _parseProjects(response.body);
   }
 
-  List<DeployableProject> _parseProjects(String body) {
+  List<WorkbenchProject> _parseProjects(String body) {
     final payload = jsonDecode(body) as Map<String, dynamic>;
     final projectMaps = payload['projects'] as List<dynamic>;
     return projectMaps
         .map(
           (projectMap) =>
-              DeployableProject.fromJson(projectMap as Map<String, dynamic>),
+              WorkbenchProject.fromJson(projectMap as Map<String, dynamic>),
         )
         .toList();
   }

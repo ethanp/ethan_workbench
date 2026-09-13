@@ -5,9 +5,9 @@ import 'line_age_report.dart';
 
 /// Maps files into directory buckets for stacked bars.
 ///
-/// Uses the file's parent path, capped at two segments so monorepo layouts
-/// stay readable (`lib/screens`, `apps/music_listen`) without exploding into
-/// one color per leaf folder.
+/// Uses the file's parent path, capped at three segments so feature and
+/// service folders stay distinct (`lib/features/cardio`, `lib/services/repositories`)
+/// without exploding into one color per leaf folder.
 abstract final class LineAgeDirectoryGroups() {
   static const otherKey = 'other directories';
   static const maxDistinctDirectories = 10;
@@ -27,15 +27,15 @@ abstract final class LineAgeDirectoryGroups() {
 
   static const otherColor = Color(0xFF64748B);
 
-  /// Parent directory of [relativeFilePath], at most two path segments.
+  /// Parent directory of [relativeFilePath], at most three path segments.
   static String keyForFile(String relativeFilePath) {
     final normalized = relativeFilePath.replaceAll('\\', '/');
     final slash = normalized.lastIndexOf('/');
     if (slash <= 0) return '(repo root)';
     final dir = normalized.substring(0, slash);
     final segments = dir.split('/');
-    if (segments.length <= 2) return dir;
-    return '${segments[0]}/${segments[1]}';
+    if (segments.length <= 3) return dir;
+    return '${segments[0]}/${segments[1]}/${segments[2]}';
   }
 
   static LineAgeDirectoryLegend legendFor(LineAgeReport report) {

@@ -9,7 +9,7 @@ import '../deploy/deploy_trigger.dart';
 import '../deploy/job_screen.dart';
 import '../phone/deploy_http_client.dart';
 import 'active_deploy_watch.dart';
-import 'deployable_project.dart';
+import 'workbench_project.dart';
 
 /// Confirm → start deploy → show job UI, or enqueue when busy.
 class ProjectDeployFlow({
@@ -41,7 +41,7 @@ class ProjectDeployFlow({
 
   Future<void> confirmAndStart(
     BuildContext context, {
-    required DeployableProject project,
+    required WorkbenchProject project,
     required DeployPlatform platform,
     required Future<void> Function() afterJobScreenClosed,
   }) async {
@@ -171,7 +171,7 @@ class ProjectDeployFlow({
 
   Future<bool?> _confirmIncrementalDeploy(
     BuildContext context,
-    DeployableProject project,
+    WorkbenchProject project,
     DeployPlatform platform,
   ) {
     return showDialog<bool>(
@@ -207,7 +207,7 @@ class ProjectDeployFlow({
 
   Future<bool?> _confirmForceUnchanged(
     BuildContext context,
-    DeployableProject project,
+    WorkbenchProject project,
     DeployPlatform platform,
   ) {
     return showDialog<bool>(

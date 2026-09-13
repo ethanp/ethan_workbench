@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import '../projects/deployable_project.dart';
+import '../projects/workbench_project.dart';
 import 'flutter_run_device.dart';
 import 'local_flutter_run.dart';
 import 'local_flutter_run_binding.dart';
@@ -67,7 +67,7 @@ class LocalRunSlot({
 
   @override
   Future<void> start(
-    DeployableProject project, {
+    WorkbenchProject project, {
     required FlutterRunDevice device,
   }) async {
     if (_disposed) return;
@@ -180,7 +180,7 @@ class LocalRunSlot({
         );
       }
       await start(
-        DeployableProject(
+        WorkbenchProject(
           projectId: projectId,
           name: projectName,
           path: projectPath,

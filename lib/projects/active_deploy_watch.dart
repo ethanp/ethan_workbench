@@ -146,12 +146,14 @@ class ActiveDeployWatch({
       } else {
         await _ensureTypicalDuration(next);
       }
+      final waitingChanged = !_sameWaitingJobs(waiting, queue);
       if (was != now) {
-        _log.log('refresh $was → $now waiting=${waiting.length}');
+        _log.log('refresh $was → $now waiting=${queue.length}');
       }
       if (previousOngoing != null && previousOngoing.jobId != next?.jobId) {
         await _notifyFinishedFromRefresh(previousOngoing.jobId);
       }
+      if (was == now && !waitingChanged) return;
       onActiveDeployChanged();
     } on ServerRequestException catch (error) {
       _log.warn('refresh failed: ${error.message}', error);
@@ -186,6 +188,15 @@ class ActiveDeployWatch({
   Future<void> cancelWaiting(String jobId) async {
     await trigger.cancelQueuedDeploy(jobId);
     await refresh();
+  }
+
+  static bool _sameWaitingJobs(List<DeployJob> left, List<DeployJob> right) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (left[index].jobId != right[index].jobId) return false;
+      if (left[index].status != right[index].status) return false;
+    }
+    return true;
   }
 
   Future<void> dispose() async {

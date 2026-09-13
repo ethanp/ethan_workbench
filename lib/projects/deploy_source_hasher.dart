@@ -5,7 +5,8 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 
 import '../deploy/deploy_platform.dart';
-import 'deployable_project.dart';
+import 'workbench_project.dart';
+import 'local_path_dependency_closure.dart';
 
 /// Mirrors `deploy.rb` source hashing so change detection matches deploy skips.
 abstract final class DeploySourceHasher() {
@@ -22,6 +23,7 @@ abstract final class DeploySourceHasher() {
   static Future<DeploySourceStatus> statusFor({
     required String projectPath,
     required DeployPlatform platform,
+    DeploySourceHashMemo? memo,
   }) async {
     final hashFile = File(
       path.join(projectPath, '.deploy_${platform.name}_hash'),
@@ -33,6 +35,7 @@ abstract final class DeploySourceHasher() {
     final currentHash = await sourceHash(
       projectPath: projectPath,
       platform: platform,
+      memo: memo,
     );
     if (currentHash == lastDeployedHash) {
       return DeploySourceStatus.unchanged;
@@ -43,12 +46,14 @@ abstract final class DeploySourceHasher() {
   static Future<Map<DeployPlatform, DeploySourceStatus>> statusesFor({
     required String projectPath,
     required Iterable<DeployPlatform> platforms,
+    DeploySourceHashMemo? memo,
   }) async {
     final statuses = <DeployPlatform, DeploySourceStatus>{};
     for (final platform in platforms) {
       statuses[platform] = await statusFor(
         projectPath: projectPath,
         platform: platform,
+        memo: memo,
       );
     }
     return statuses;
@@ -58,15 +63,18 @@ abstract final class DeploySourceHasher() {
   static Future<String> sourceHash({
     required String projectPath,
     required DeployPlatform platform,
+    DeploySourceHashMemo? memo,
   }) async {
     final sourceFilePaths = await _sourceFiles(
       projectPath: projectPath,
       platform: platform,
+      memo: memo,
     );
+    final hashMemo = memo ?? DeploySourceHashMemo();
     final bytes = BytesBuilder(copy: false);
     for (final filePath in sourceFilePaths) {
       try {
-        bytes.add(await File(filePath).readAsBytes());
+        bytes.add(await hashMemo.bytesFor(filePath));
       } catch (_) {}
     }
     return md5.convert(bytes.toBytes()).toString();
@@ -75,32 +83,39 @@ abstract final class DeploySourceHasher() {
   static Future<List<String>> _sourceFiles({
     required String projectPath,
     required DeployPlatform platform,
+    DeploySourceHashMemo? memo,
   }) async {
-    final searchRoots = <String>[
+    final normalizedProjectPath = path.normalize(path.absolute(projectPath));
+    final appSearchRoots = <String>[
       'lib',
       _platformDirectory(platform),
       'pubspec.yaml',
       'pubspec.lock',
     ];
-    final packagesRelative = path.join('..', '..', 'packages');
-    if (await Directory(path.join(projectPath, packagesRelative)).exists()) {
-      searchRoots.add(packagesRelative);
-    }
 
-    final relativeFilePaths = <String>[];
-    for (final searchRoot in searchRoots) {
-      relativeFilePaths.addAll(
-        await _relativeFilesUnder(
-          projectPath: projectPath,
+    final hashMemo = memo ?? DeploySourceHashMemo();
+    final sourceFilePaths = <String>{};
+    for (final searchRoot in appSearchRoots) {
+      sourceFilePaths.addAll(
+        await hashMemo.filesUnder(
+          packageRoot: normalizedProjectPath,
           relativeRoot: searchRoot,
         ),
       );
     }
-    relativeFilePaths.sort();
-    return [
-      for (final relativePath in relativeFilePaths)
-        path.normalize(path.join(projectPath, relativePath)),
-    ];
+
+    final localDependencyRoots = await LocalPathDependencyClosure(
+      normalizedProjectPath,
+    ).resolve();
+    for (final localDependencyRoot in localDependencyRoots) {
+      sourceFilePaths.addAll(
+        await hashMemo.filesUnder(
+          packageRoot: localDependencyRoot,
+          relativeRoot: '.',
+        ),
+      );
+    }
+    return sourceFilePaths.toList()..sort();
   }
 
   static String _platformDirectory(DeployPlatform platform) =>
@@ -109,35 +124,66 @@ abstract final class DeploySourceHasher() {
         DeployPlatform.macos => 'macos',
       };
 
-  static Future<List<String>> _relativeFilesUnder({
-    required String projectPath,
-    required String relativeRoot,
-  }) async {
-    final absoluteRoot = path.normalize(path.join(projectPath, relativeRoot));
-    final entityType = await FileSystemEntity.type(absoluteRoot);
-    if (entityType == FileSystemEntityType.notFound) return const [];
-    if (entityType == FileSystemEntityType.file) {
-      return _isVolatileRelativePath(relativeRoot) ? const [] : [relativeRoot];
-    }
-
-    final relativeFilePaths = <String>[];
-    await for (final entity in Directory(
-      absoluteRoot,
-    ).list(recursive: true, followLinks: false)) {
-      if (entity is! File) continue;
-      final relativePath = path.relative(entity.path, from: projectPath);
-      if (_isVolatileRelativePath(relativePath)) continue;
-      relativeFilePaths.add(relativePath);
-    }
-    return relativeFilePaths;
-  }
-
-  static bool _isVolatileRelativePath(String relativePath) {
+  static bool isVolatileRelativePath(String relativePath) {
     final segments = path.split(relativePath);
     if (segments.contains('.DS_Store') ||
         path.basename(relativePath) == '.DS_Store') {
       return true;
     }
     return segments.any(_volatilePathSegments.contains);
+  }
+}
+
+/// Reuses file lists and bytes across one evaluate-changes pass.
+class DeploySourceHashMemo() {
+  final Map<String, List<String>> _filesByRoot = {};
+  final Map<String, Uint8List> _bytesByFile = {};
+
+  Future<Uint8List> bytesFor(String filePath) async {
+    final cachedBytes = _bytesByFile[filePath];
+    if (cachedBytes != null) return cachedBytes;
+    final fileBytes = await File(filePath).readAsBytes();
+    _bytesByFile[filePath] = fileBytes;
+    return fileBytes;
+  }
+
+  Future<List<String>> filesUnder({
+    required String packageRoot,
+    required String relativeRoot,
+  }) async {
+    final cacheKey = '$packageRoot::$relativeRoot';
+    final cachedPaths = _filesByRoot[cacheKey];
+    if (cachedPaths != null) return cachedPaths;
+    final listedPaths = await _listFilesUnder(
+      packageRoot: packageRoot,
+      relativeRoot: relativeRoot,
+    );
+    _filesByRoot[cacheKey] = listedPaths;
+    return listedPaths;
+  }
+
+  static Future<List<String>> _listFilesUnder({
+    required String packageRoot,
+    required String relativeRoot,
+  }) async {
+    final absoluteRoot = path.normalize(path.join(packageRoot, relativeRoot));
+    final entityType = await FileSystemEntity.type(absoluteRoot);
+    if (entityType == FileSystemEntityType.notFound) return const [];
+    if (entityType == FileSystemEntityType.file) {
+      return DeploySourceHasher.isVolatileRelativePath(relativeRoot)
+          ? const []
+          : [absoluteRoot];
+    }
+
+    final sourceFilePaths = <String>[];
+    await for (final entity in Directory(
+      absoluteRoot,
+    ).list(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      final relativePath = path.relative(entity.path, from: packageRoot);
+      if (DeploySourceHasher.isVolatileRelativePath(relativePath)) continue;
+      sourceFilePaths.add(path.normalize(entity.path));
+    }
+    return sourceFilePaths;
   }
 }

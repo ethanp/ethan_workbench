@@ -9,20 +9,18 @@ import '../run/flutter_run_device.dart';
 import '../run/local_run_state.dart';
 import '../ui/workbench_action_accents.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
-import 'deployable_project.dart';
 import 'project_app_icon_tile.dart';
+import 'workbench_project.dart';
 
 /// Preferred maxima for identity, then Line age, then equal platform clusters.
 abstract final class _IdentityLineAgeClusterWidths() {
   static const clusterWidth = 320.0;
   static const clusterGap = 10.0;
   static const compactClusterGap = 6.0;
-  static const secondaryActionIconOnlyWidth = 44.0;
 
-  /// Hugs icon + "Line age" + SLOC — not identity-column wide.
-  static double get secondaryActionWidth =>
-      (8.0 * 2 + 16.0 + ELayout.spaceSm + 60.0 * ELayout.typeScale)
-          .ceilToDouble();
+  /// Icon above SLOC — sized for a compact count like `10.8k`, not a title.
+  static double get lineAgeWidth =>
+      (8.0 * 2 + 32.0 * ELayout.typeScale).ceilToDouble();
 
   /// Icon-above-title column — sized for typical project names on 1–2 lines.
   static const identityMaxWidth = 140.0;
@@ -50,7 +48,7 @@ class const _IdentityThenLineAgeThenClusters({
 /// One project in the workbench list: identity + Line age + platform Run/Deploy.
 class const ProjectWorkbenchRow({
   super.key,
-  required final DeployableProject project,
+  required final WorkbenchProject project,
   required final List<DeployPlatform> platforms,
   required final LocalRunState Function(FlutterRunDevice device) runStateFor,
   required final bool canRunLocally,
@@ -81,7 +79,7 @@ class const ProjectWorkbenchRow({
         ? _IdentityLineAgeClusterWidths.compactIdentityMaxWidth
         : _IdentityLineAgeClusterWidths.identityMaxWidth;
     final lineAge = showLineAge
-        ? _IdentityLineAgeClusterWidths.secondaryActionWidth
+        ? _IdentityLineAgeClusterWidths.lineAgeWidth
         : 0.0;
     final platforms = math.max(0, platformCount);
     final clusters = platforms * _IdentityLineAgeClusterWidths.clusterWidth;
@@ -138,26 +136,7 @@ class const ProjectWorkbenchRow({
                 const SizedBox(width: ELayout.spaceMd),
               ],
               if (widths.lineAge > 0) ...[
-                SizedBox(
-                  width: widths.lineAge,
-                  child:
-                      widths.lineAge >=
-                          _IdentityLineAgeClusterWidths.secondaryActionWidth
-                      ? ETintedAction.compact(
-                          accent: WorkbenchActionAccents.lineAge,
-                          icon: Icons.bar_chart_rounded,
-                          title: 'Line age',
-                          subtitle: lineAgeSubtitle,
-                          onActivated: onLineAge,
-                        )
-                      : ETintedAction.iconOnly(
-                          accent: WorkbenchActionAccents.lineAge,
-                          icon: Icons.bar_chart_rounded,
-                          title: 'Line age',
-                          subtitle: lineAgeSubtitle,
-                          onActivated: onLineAge,
-                        ),
-                ),
+                SizedBox(width: widths.lineAge, child: _lineAgeAction()),
                 SizedBox(width: clusterGap),
               ],
               for (var index = 0; index < platforms.length; index++) ...[
@@ -174,9 +153,9 @@ class const ProjectWorkbenchRow({
     );
   }
 
-  /// Line age steps down labeled → icon-only → hidden rather than squeeze
-  /// identity below [_IdentityLineAgeClusterWidths.identityMinWidth]; clusters
-  /// never steal identity to satisfy a large minimum.
+  /// Line age hides rather than squeeze identity below
+  /// [_IdentityLineAgeClusterWidths.identityMinWidth]; clusters never steal
+  /// identity to satisfy a large minimum.
   _IdentityThenLineAgeThenClusters _identityThenLineAgeThenClusterWidths(
     double maxWidth, {
     required bool compact,
@@ -247,23 +226,54 @@ class const ProjectWorkbenchRow({
     );
   }
 
-  /// Widest Line age tier (labeled → icon-only → 0) whose gap-inclusive
-  /// cost still leaves the identity floor inside [budget].
+  /// Line age width when its gap-inclusive cost still leaves the identity
+  /// floor inside [budget]; otherwise hidden.
   double _lineAgeWidthLeavingIdentityFloor({
     required double budget,
     required double clusterGap,
   }) {
     if (!showLineAge) return 0;
-    for (final tierWidth in [
-      _IdentityLineAgeClusterWidths.secondaryActionWidth,
-      _IdentityLineAgeClusterWidths.secondaryActionIconOnlyWidth,
-    ]) {
-      if (budget - tierWidth - clusterGap >=
-          _IdentityLineAgeClusterWidths.identityMinWidth) {
-        return tierWidth;
-      }
+    final width = _IdentityLineAgeClusterWidths.lineAgeWidth;
+    if (budget - width - clusterGap >=
+        _IdentityLineAgeClusterWidths.identityMinWidth) {
+      return width;
     }
     return 0;
+  }
+
+  Widget _lineAgeAction() {
+    final accent = WorkbenchActionAccents.lineAge;
+    return Tooltip(
+      message: 'Line age · $lineAgeSubtitle',
+      child: ESurface(
+        kind: ESurfaceKind.tinted,
+        accent: accent,
+        onActivated: onLineAge,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: SizedBox(
+          height: 44,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.bar_chart_rounded, size: 16, color: accent),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  lineAgeSubtitle,
+                  style: EText.caption.copyWith(
+                    color: accent.withValues(alpha: 0.62),
+                    fontSize: ELayout.typeSize(12),
+                    height: 1.15,
+                  ),
+                  maxLines: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _identity() {
@@ -275,19 +285,16 @@ class const ProjectWorkbenchRow({
           size: ELayout.listRowIcon,
         ),
         const SizedBox(height: ELayout.spaceXs),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            project.name,
-            style: EText.caption.copyWith(
-              color: EColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              height: 1.15,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            softWrap: false,
+        Text(
+          project.name,
+          style: EText.caption.copyWith(
+            color: EColors.textPrimary,
+            fontWeight: FontWeight.w600,
+            height: 1.15,
           ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
@@ -345,23 +352,20 @@ class const ProjectWorkbenchRow({
   }
 
   Widget _unavailablePlatformCluster(DeployPlatform platform) {
-    return Opacity(
-      opacity: 0.42,
-      child: IgnorePointer(
-        child: EActionCluster(
-          accent: EColors.textMuted,
-          icon: platform.icon,
-          label: platform.label,
-          cells: [
-            EActionClusterCell(
-              icon: Icons.phonelink_off_rounded,
-              title: 'Not available',
-              subtitle: 'No ${platform.label} target',
-              condensedLabel: 'N/A',
-              onActivated: () {},
-            ),
-          ],
-        ),
+    return IgnorePointer(
+      child: EActionCluster(
+        accent: EColors.textMuted,
+        icon: platform.icon,
+        label: platform.label,
+        cells: [
+          EActionClusterCell(
+            icon: Icons.phonelink_off_rounded,
+            title: 'Not available',
+            subtitle: 'No ${platform.label} target',
+            condensedLabel: 'N/A',
+            onActivated: () {},
+          ),
+        ],
       ),
     );
   }

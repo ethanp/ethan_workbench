@@ -9,8 +9,8 @@ import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_session_persistence.dart';
 import '../deploy/deploy_trigger.dart';
-import '../projects/deployable_project.dart';
 import '../projects/source_changes_progress.dart';
+import '../projects/workbench_project.dart';
 import '../run/local_run_registry.dart';
 import '../sync/deploy_ledger.dart';
 import 'deploy_http_server.dart';
@@ -70,10 +70,10 @@ class DeployServer({ServerConfig? config}) {
 
   Handler buildHandler() => _httpServer.buildHandler();
 
-  Future<List<DeployableProject>> listProjects() =>
+  Future<List<WorkbenchProject>> listProjects() =>
       _deployPipeline.listProjects();
 
-  Future<List<DeployableProject>> evaluateSourceChanges({
+  Future<List<WorkbenchProject>> evaluateSourceChanges({
     void Function(SourceChangesProgress progress)? onProgress,
   }) {
     return _deployPipeline.evaluateSourceChanges(onProgress: onProgress);

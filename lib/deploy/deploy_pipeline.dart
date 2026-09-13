@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../projects/deployable_project.dart';
 import '../projects/source_changes_progress.dart';
+import '../projects/workbench_project.dart';
 import '../sync/deploy_ledger.dart';
 import 'active_deploy_slot.dart';
 import 'deploy_checklist.dart';
@@ -10,11 +10,11 @@ import 'deploy_console.dart';
 import 'deploy_errors.dart';
 import 'deploy_job.dart';
 import 'deploy_platform.dart';
-import 'deploy_project_directory.dart';
 import 'deploy_run_record.dart';
 import 'deploy_session_persistence.dart';
 import 'deploy_wait_queue.dart';
 import 'ruby_deploy_executor.dart';
+import 'workbench_project_directory.dart';
 
 /// Mac deploy desk: accept/cancel/restore deploys and expose live job state.
 ///
@@ -30,9 +30,9 @@ class DeployPipeline {
     DeploySessionPersistence? persistence,
     Future<bool> Function(int pid)? isPidAlive,
     DeployLedger? ledger,
-    Future<DeployableProject?> Function(String projectId)? resolveProject,
+    Future<WorkbenchProject?> Function(String projectId)? resolveProject,
     this._deployScriptExists,
-  }) : _projectDirectory = DeployProjectDirectory(
+  }) : _projectDirectory = WorkbenchProjectDirectory(
          flutterRoots: flutterRoots,
          resolveProject: resolveProject,
        ),
@@ -59,7 +59,7 @@ class DeployPipeline {
 
   final String deployRbPath;
   final Future<bool> Function()? _deployScriptExists;
-  final DeployProjectDirectory _projectDirectory;
+  final WorkbenchProjectDirectory _projectDirectory;
   late final DeployConsole _console;
   late final DeployWaitQueue _waitQueue;
   late final ActiveDeploySlot _slot;
@@ -137,16 +137,16 @@ class DeployPipeline {
     return ledger.listRecentRuns(limit: limit);
   }
 
-  Future<List<DeployableProject>> listProjects() =>
-      _projectDirectory.listDeployable();
+  Future<List<WorkbenchProject>> listProjects() =>
+      _projectDirectory.listProjects();
 
-  Future<List<DeployableProject>> evaluateSourceChanges({
+  Future<List<WorkbenchProject>> evaluateSourceChanges({
     void Function(SourceChangesProgress progress)? onProgress,
   }) {
     return _projectDirectory.evaluateSourceChanges(onProgress: onProgress);
   }
 
-  Future<DeployableProject?> findProject(String projectId) =>
+  Future<WorkbenchProject?> findProject(String projectId) =>
       _projectDirectory.find(projectId);
 
   Future<DeployJob> startDeploy({

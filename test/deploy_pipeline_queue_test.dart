@@ -5,7 +5,7 @@ import 'package:ethan_workbench/deploy/deploy_job.dart';
 import 'package:ethan_workbench/deploy/deploy_pipeline.dart';
 import 'package:ethan_workbench/deploy/deploy_platform.dart';
 import 'package:ethan_workbench/deploy/ruby_deploy_executor.dart';
-import 'package:ethan_workbench/projects/deployable_project.dart';
+import 'package:ethan_workbench/projects/workbench_project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _ControllableScriptRunner() extends DeployScriptRunner {
@@ -36,8 +36,8 @@ class _ControllableScriptRunner() extends DeployScriptRunner {
   }
 }
 
-DeployableProject _project(String id, {String? name}) {
-  return DeployableProject(
+WorkbenchProject _project(String id, {String? name}) {
+  return WorkbenchProject(
     projectId: id,
     name: name ?? id,
     path: '/tmp/$id',
@@ -47,7 +47,7 @@ DeployableProject _project(String id, {String? name}) {
 
 void main() {
   late _ControllableScriptRunner scriptRunner;
-  late Map<String, DeployableProject> projects;
+  late Map<String, WorkbenchProject> projects;
   late DeployPipeline pipeline;
 
   setUp(() {

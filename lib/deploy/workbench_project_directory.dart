@@ -1,14 +1,14 @@
-import '../projects/deployable_project.dart';
 import '../projects/deploy_source_hasher.dart';
 import '../projects/project_scanner.dart';
 import '../projects/source_changes_progress.dart';
+import '../projects/workbench_project.dart';
 import '../sync/deploy_ledger.dart';
 import 'deploy_platform.dart';
 
-/// Lists deployable Flutter projects and evaluates source-change status.
-class DeployProjectDirectory({
+/// Lists workbench projects and evaluates deploy source-change status.
+class WorkbenchProjectDirectory({
   required final List<String> flutterRoots,
-  final Future<DeployableProject?> Function(String projectId)? _resolveProject,
+  final Future<WorkbenchProject?> Function(String projectId)? _resolveProject,
 }) {
   DeployLedger? _ledger;
 
@@ -16,41 +16,47 @@ class DeployProjectDirectory({
     _ledger = ledger;
   }
 
-  Future<List<DeployableProject>> listDeployable() async {
+  Future<List<WorkbenchProject>> listProjects() async {
     final projects = await ProjectCatalog(flutterRoots: flutterRoots)
-        .listDeployableProjects();
+        .listProjects();
     return _enrichWithLedger(projects);
   }
 
-  Future<DeployableProject?> find(String projectId) async {
+  Future<WorkbenchProject?> find(String projectId) async {
     final override = _resolveProject;
     if (override != null) return override(projectId);
-    final projects = await listDeployable();
+    final projects = await listProjects();
     for (final project in projects) {
       if (project.projectId == projectId) return project;
     }
     return null;
   }
 
-  /// Recomputes deploy.rb source hashes for every project/platform.
-  Future<List<DeployableProject>> evaluateSourceChanges({
+  Future<List<WorkbenchProject>> evaluateSourceChanges({
     void Function(SourceChangesProgress progress)? onProgress,
   }) async {
-    final projects = await listDeployable();
+    final projects = await listProjects();
     onProgress?.call(
       SourceChangesProgress(completed: 0, total: projects.length),
     );
-    final evaluated = <DeployableProject>[];
+    final hashMemo = DeploySourceHashMemo();
+    final evaluatedProjects = <WorkbenchProject>[];
     for (var index = 0; index < projects.length; index++) {
       final project = projects[index];
-      evaluated.add(
-        project.copyWith(
-          sourceStatus: await DeploySourceHasher.statusesFor(
-            projectPath: project.path,
-            platforms: project.platforms,
+      if (project.isDeployable) {
+        await Future<void>.delayed(Duration.zero);
+        evaluatedProjects.add(
+          project.copyWith(
+            sourceStatus: await DeploySourceHasher.statusesFor(
+              projectPath: project.path,
+              platforms: project.platforms,
+              memo: hashMemo,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        evaluatedProjects.add(project);
+      }
       onProgress?.call(
         SourceChangesProgress(
           completed: index + 1,
@@ -59,29 +65,36 @@ class DeployProjectDirectory({
         ),
       );
     }
-    evaluated.sort((left, right) => left.compareByChangeThenName(right));
-    return evaluated;
+    evaluatedProjects.sort(
+      (left, right) => left.compareByChangeThenName(right),
+    );
+    return evaluatedProjects;
   }
 
-  Future<List<DeployableProject>> _enrichWithLedger(
-    List<DeployableProject> projects,
+  Future<List<WorkbenchProject>> _enrichWithLedger(
+    List<WorkbenchProject> projects,
   ) async {
     final ledger = _ledger;
     if (ledger == null) return projects;
-    final enriched = <DeployableProject>[];
+    final enrichedProjects = <WorkbenchProject>[];
     for (final project in projects) {
       final ledgerTimes = await ledger.lastDeployedAtFor(project.projectId);
       if (ledgerTimes.isEmpty) {
-        enriched.add(project);
+        enrichedProjects.add(project);
         continue;
       }
-      final merged = <DeployPlatform, DateTime?>{...project.lastDeployedAt};
+      final mergedDeployTimes = <DeployPlatform, DateTime?>{
+        ...project.lastDeployedAt,
+      };
       for (final entry in ledgerTimes.entries) {
-        merged[entry.key] = _laterDate(entry.value, merged[entry.key]);
+        mergedDeployTimes[entry.key] = _laterDate(
+          entry.value,
+          mergedDeployTimes[entry.key],
+        );
       }
-      enriched.add(project.copyWith(lastDeployedAt: merged));
+      enrichedProjects.add(project.copyWith(lastDeployedAt: mergedDeployTimes));
     }
-    return enriched;
+    return enrichedProjects;
   }
 
   DateTime? _laterDate(DateTime? left, DateTime? right) {

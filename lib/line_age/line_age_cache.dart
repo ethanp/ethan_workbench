@@ -15,15 +15,28 @@ class const _LineAgeCacheEntry({
   required final LineAgeReport report,
 });
 
+/// One shared analysis for a git root. Cancellation is global to that root:
+/// [cancel] stops the underlying work and every waiter receives the error.
+class _LineAgeInFlight({
+  required final Future<LineAgeReport> report,
+  required final void Function() cancel,
+  required final List<void Function(LineAgeProgress)> progressListeners,
+});
+
 /// Line age reports keyed by git root, persisted across app restarts.
 class LineAgeCache._() extends ChangeNotifier {
   static final LineAgeCache instance = LineAgeCache._();
 
   final Map<String, _LineAgeCacheEntry> _entries = {};
-  final Map<String, LineAgeAnalyzer> _inFlight = {};
+  final Map<String, _LineAgeInFlight> _inFlight = {};
   LineAgeCachePersistence _persistence = LineAgeCachePersistence();
   bool _persistToDisk = true;
   Future<void>? _loadFuture;
+  Future<LineAgeReport> Function(
+    String repoPath,
+    void Function(LineAgeProgress)? onProgress,
+  )?
+  _analyzeOverride;
 
   /// Loads cached reports from disk once per process (no-op if already loaded).
   Future<void> ensureLoaded() {
@@ -31,10 +44,18 @@ class LineAgeCache._() extends ChangeNotifier {
   }
 
   /// Test hook — clears memory state and optionally swaps the persistence root.
-  void resetForTest({Directory? persistenceDirectory}) {
+  void resetForTest({
+    Directory? persistenceDirectory,
+    Future<LineAgeReport> Function(
+      String repoPath,
+      void Function(LineAgeProgress)? onProgress,
+    )?
+    analyzeOverride,
+  }) {
     _entries.clear();
     _inFlight.clear();
     _loadFuture = null;
+    _analyzeOverride = analyzeOverride;
     if (persistenceDirectory == null) {
       _persistToDisk = false;
       return;
@@ -133,20 +154,72 @@ class LineAgeCache._() extends ChangeNotifier {
       return existing.report;
     }
 
-    final analyzer = LineAgeAnalyzer(
+    final flight = _claimInFlight(
       repoPath: repoPath,
+      normalizedRoot: normalizedRoot,
       projectSource: projectSource,
     );
-    _inFlight[normalizedRoot] = analyzer;
+    if (onProgress != null) flight.progressListeners.add(onProgress);
     try {
-      final report = await analyzer.analyze(onProgress: onProgress);
+      final report = await flight.report;
       put(gitRoot: normalizedRoot, fingerprint: fingerprint, report: report);
       return report;
     } finally {
-      _inFlight.remove(normalizedRoot);
+      if (identical(_inFlight[normalizedRoot], flight)) {
+        _inFlight.remove(normalizedRoot);
+      }
     }
   }
 
+  /// Sync claim: the second caller joins the same [_LineAgeInFlight].
+  _LineAgeInFlight _claimInFlight({
+    required String repoPath,
+    required String normalizedRoot,
+    required ProjectSource projectSource,
+  }) {
+    final existingFlight = _inFlight[normalizedRoot];
+    if (existingFlight != null) return existingFlight;
+
+    final cancelled = Completer<LineAgeReport>();
+    LineAgeAnalyzer? analyzer;
+    void cancel() {
+      analyzer?.cancel();
+      if (!cancelled.isCompleted) {
+        cancelled.completeError(StateError('Line age analysis cancelled.'));
+      }
+    }
+
+    final progressListeners = <void Function(LineAgeProgress)>[];
+    void emitProgress(LineAgeProgress progress) {
+      for (final listener in List.of(progressListeners)) {
+        listener(progress);
+      }
+    }
+
+    final work = () async {
+      final analyzeOverride = _analyzeOverride;
+      if (analyzeOverride != null) {
+        return analyzeOverride(repoPath, emitProgress);
+      }
+      analyzer = LineAgeAnalyzer(
+        repoPath: repoPath,
+        projectSource: projectSource,
+      );
+      return analyzer!.analyze(onProgress: emitProgress);
+    }();
+
+    final flight = _LineAgeInFlight(
+      report: Future.any([work, cancelled.future]),
+      cancel: cancel,
+      progressListeners: progressListeners,
+    );
+    _inFlight[normalizedRoot] = flight;
+    return flight;
+  }
+
+  /// Cancels the shared in-flight analysis for [repoPath]'s git root.
+  /// Every waiter of that analysis receives the cancellation error.
+  /// A later [analyzeOrCached] starts a new analysis.
   void cancelAnalyze(String repoPath) {
     final gitRoot = gitRootFor(repoPath);
     if (gitRoot == null) return;

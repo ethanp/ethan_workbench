@@ -17,6 +17,7 @@ import '../run/local_run_key.dart';
 import '../run/local_run_registry.dart';
 import '../run/local_run_state.dart';
 import 'json_http.dart';
+import 'listening_tcp_port.dart';
 import 'password_auth_middleware.dart';
 import 'request_logging.dart';
 import 'server_config.dart';
@@ -73,6 +74,16 @@ class DeployHttpServer({
 
   Future<void> start() async {
     if (_httpServer != null) return;
+    try {
+      await _bindHttp();
+    } on SocketException catch (error) {
+      if (!error.isAddressInUse) rethrow;
+      await config.port.asListeningTcpPort.killOtherListenersTillExit();
+      await _bindHttp();
+    }
+  }
+
+  Future<void> _bindHttp() async {
     try {
       _httpServer = await shelf_io
           .serve(

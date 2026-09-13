@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:ethan_workbench/line_age/line_age_report.dart';
@@ -94,6 +95,110 @@ void main() {
     final fresh = await cache.analyzeOrCached(root.path);
     expect(fresh.totalLines, greaterThan(1));
     expect(cache.isFingerprintCurrent(root.path), isTrue);
+  });
+
+  test(
+    'two concurrent callers share one analysis and the same result',
+    () async {
+      final root = _dartTree();
+      final cache = LineAgeCache.instance;
+      final release = Completer<void>();
+      var starts = 0;
+      final shared = _report(totalLines: 17);
+      cache.resetForTest(
+        analyzeOverride: (repoPath, onProgress) async {
+          starts++;
+          await release.future;
+          return shared;
+        },
+      );
+
+      final first = cache.analyzeOrCached(root.path);
+      final second = cache.analyzeOrCached(root.path);
+      await Future<void>.delayed(Duration.zero);
+      expect(starts, 1);
+      release.complete();
+
+      final firstReport = await first;
+      final secondReport = await second;
+      expect(identical(firstReport, shared), isTrue);
+      expect(identical(secondReport, shared), isTrue);
+    },
+  );
+
+  test('failure clears in-flight state so a later retry runs again', () async {
+    final root = _dartTree();
+    final cache = LineAgeCache.instance;
+    var starts = 0;
+    cache.resetForTest(
+      analyzeOverride: (repoPath, onProgress) async {
+        starts++;
+        if (starts == 1) throw StateError('blame failed');
+        return _report(totalLines: 8);
+      },
+    );
+
+    await expectLater(
+      cache.analyzeOrCached(root.path),
+      throwsA(isA<StateError>()),
+    );
+    final retry = await cache.analyzeOrCached(root.path);
+    expect(starts, 2);
+    expect(retry.totalLines, 8);
+  });
+
+  test('cancel fails every waiter and a later retry starts fresh', () async {
+    final root = _dartTree();
+    final cache = LineAgeCache.instance;
+    final hang = Completer<LineAgeReport>();
+    var starts = 0;
+    cache.resetForTest(
+      analyzeOverride: (repoPath, onProgress) {
+        starts++;
+        return hang.future;
+      },
+    );
+
+    final first = cache.analyzeOrCached(root.path);
+    final second = cache.analyzeOrCached(root.path);
+    await Future<void>.delayed(Duration.zero);
+    expect(starts, 1);
+    cache.cancelAnalyze(root.path);
+
+    await expectLater(first, throwsA(isA<StateError>()));
+    await expectLater(second, throwsA(isA<StateError>()));
+
+    cache.resetForTest(
+      analyzeOverride: (repoPath, onProgress) async {
+        starts++;
+        return _report(totalLines: 3);
+      },
+    );
+    final retry = await cache.analyzeOrCached(root.path);
+    expect(starts, 2);
+    expect(retry.totalLines, 3);
+  });
+
+  test('different roots still analyze independently', () async {
+    final firstRoot = _dartTree();
+    final secondRoot = _dartTree();
+    final cache = LineAgeCache.instance;
+    final release = Completer<void>();
+    final startedRoots = <String>[];
+    cache.resetForTest(
+      analyzeOverride: (repoPath, onProgress) async {
+        startedRoots.add(repoPath);
+        await release.future;
+        return _report(totalLines: startedRoots.length);
+      },
+    );
+
+    final first = cache.analyzeOrCached(firstRoot.path);
+    final second = cache.analyzeOrCached(secondRoot.path);
+    await Future<void>.delayed(Duration.zero);
+    expect(startedRoots, hasLength(2));
+    release.complete();
+    await Future.wait([first, second]);
   });
 
   test(

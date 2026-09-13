@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../projects/deployable_project.dart';
+import '../projects/workbench_project.dart';
 import '../run/os_process_tree.dart';
 import 'deploy_checklist.dart';
 import 'deploy_console.dart';
@@ -42,7 +42,7 @@ class ActiveDeploySlot({
   }
 
   /// Start the ruby deploy for [job] and drive it to a terminal status.
-  Future<void> start(DeployJob job, DeployableProject project) async {
+  Future<void> start(DeployJob job, WorkbenchProject project) async {
     _projectPath = project.path;
     final startedAt = DateTime.now();
     _console.updateStatusWithoutNewLog(

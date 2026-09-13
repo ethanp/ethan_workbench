@@ -21,6 +21,8 @@ import 'deploy_server.dart';
 import 'server_config.dart';
 import 'server_endpoint.dart';
 
+const _log = ELogger('MacosCompanion');
+
 class const MacosCompanionScreen({final ProviderContainer? syncContainer})
     extends StatefulWidget {
   @override
@@ -105,8 +107,9 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
           '${_server.boundPort ?? ServerConfig.defaultPort}',
         );
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
       final message = 'Failed to start: $error';
+      _log.error(message, error, stackTrace);
       if (mounted) setState(() => _statusMessage = message);
       _showServerMessage(message);
     } finally {
@@ -124,8 +127,9 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
       if (!mounted) return;
       setState(() => _statusMessage = 'Server stopped');
       _showServerMessage('Server stopped');
-    } catch (error) {
+    } catch (error, stackTrace) {
       final message = 'Failed to stop: $error';
+      _log.error(message, error, stackTrace);
       if (mounted) setState(() => _statusMessage = message);
       _showServerMessage(message);
     } finally {
@@ -182,8 +186,13 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
           _jobPanel(),
           if (_statusMessage != null) ...[
             const SizedBox(height: 16),
-            Text(_statusMessage!, style: EText.caption),
+            SelectableText(_statusMessage!, style: EText.caption),
           ],
+          const SizedBox(height: 14),
+          const SizedBox(
+            height: 280,
+            child: EAppLogViewer(maxBodyHeight: 220),
+          ),
         ],
       ),
     );
@@ -225,7 +234,7 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
           ),
           if (_statusMessage != null) ...[
             const SizedBox(height: 12),
-            Text(_statusMessage!, style: EText.caption),
+            SelectableText(_statusMessage!, style: EText.caption),
           ],
         ],
       ),

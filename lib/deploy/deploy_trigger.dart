@@ -1,13 +1,13 @@
-import '../projects/deployable_project.dart';
 import '../projects/source_changes_progress.dart';
+import '../projects/workbench_project.dart';
 import 'deploy_job.dart';
 import 'deploy_platform.dart';
 import 'deploy_run_record.dart';
 
 /// Shared entry point for the projects UI — phone (remote) or Mac (in-process).
 class const DeployTrigger({
-  required final Future<List<DeployableProject>> Function() listProjects,
-  required final Future<List<DeployableProject>> Function({
+  required final Future<List<WorkbenchProject>> Function() listProjects,
+  required final Future<List<WorkbenchProject>> Function({
     void Function(SourceChangesProgress progress)? onProgress,
   })
   evaluateSourceChanges,

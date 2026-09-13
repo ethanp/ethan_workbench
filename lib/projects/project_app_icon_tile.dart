@@ -17,38 +17,29 @@ class const ProjectAppIconTile({
   @override
   Widget build(BuildContext context) {
     final edge = size ?? ELayout.iconTile;
-    final radius = BorderRadius.circular(iosCornerRadius(edge));
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: SizedBox(
-          width: edge,
-          height: edge,
-          child: iconPngBytes == null
-              ? ColoredBox(
-                  color: EColors.surfaceInset,
-                  child: Icon(
-                    Icons.apps_rounded,
-                    size: edge * 0.42,
-                    color: EColors.textMuted,
-                  ),
-                )
-              : Image.memory(
-                  iconPngBytes!,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
+    final pixelEdge = (edge * MediaQuery.devicePixelRatioOf(context)).round();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(iosCornerRadius(edge)),
+      child: SizedBox(
+        width: edge,
+        height: edge,
+        child: iconPngBytes == null
+            ? ColoredBox(
+                color: EColors.surfaceInset,
+                child: Icon(
+                  Icons.apps_rounded,
+                  size: edge * 0.42,
+                  color: EColors.textMuted,
                 ),
-        ),
+              )
+            : Image.memory(
+                iconPngBytes!,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.low,
+                cacheWidth: pixelEdge,
+                cacheHeight: pixelEdge,
+              ),
       ),
     );
   }

@@ -6,8 +6,8 @@ import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_trigger.dart';
-import '../projects/deployable_project.dart';
 import '../projects/source_changes_progress.dart';
+import '../projects/workbench_project.dart';
 import '../run/local_run_registry.dart';
 import '../run/remote_local_run_registry.dart';
 import '../server/server_endpoint.dart';
@@ -97,9 +97,9 @@ class PhoneSession({
     _server.setBearerToken(null);
   }
 
-  Future<List<DeployableProject>> listProjects() => _server.listProjects();
+  Future<List<WorkbenchProject>> listProjects() => _server.listProjects();
 
-  Future<List<DeployableProject>> evaluateSourceChanges({
+  Future<List<WorkbenchProject>> evaluateSourceChanges({
     void Function(SourceChangesProgress progress)? onProgress,
   }) {
     return _server.evaluateSourceChanges();

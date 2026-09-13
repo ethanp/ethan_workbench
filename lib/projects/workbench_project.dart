@@ -5,12 +5,10 @@ import 'package:ethan_ui/ethan_ui.dart';
 
 import '../deploy/deploy_platform.dart';
 
-/// Result of comparing current sources to `.deploy_*_hash`.
 enum DeploySourceStatus({
   required final String? chipLabel,
   required final EStatusTone? chipTone,
 }) {
-  /// CTA has not been run for this platform yet.
   unevaluated(chipLabel: null, chipTone: null),
   neverDeployed(chipLabel: null, chipTone: null),
   unchanged(chipLabel: 'current', chipTone: EStatusTone.success),
@@ -26,7 +24,7 @@ enum DeploySourceStatus({
   bool get isEvaluated => this != DeploySourceStatus.unevaluated;
 }
 
-class const DeployableProject({
+class const WorkbenchProject({
   required final String projectId,
   required final String name,
   required final String path,
@@ -35,6 +33,8 @@ class const DeployableProject({
   final Map<DeployPlatform, DeploySourceStatus> sourceStatus = const {},
   final Uint8List? iconPngBytes,
 }) {
+  bool get isDeployable => platforms.isNotEmpty;
+
   bool supports(DeployPlatform platform) => platforms.contains(platform);
 
   DateTime? lastDeployedAtFor(DeployPlatform platform) =>
@@ -47,8 +47,7 @@ class const DeployableProject({
     (platform) => sourceStatusFor(platform) == DeploySourceStatus.changed,
   );
 
-  /// Mark this platform current as of [deployedAt] after a successful deploy.
-  DeployableProject withSuccessfulDeploy({
+  WorkbenchProject withSuccessfulDeploy({
     required DeployPlatform platform,
     required DateTime deployedAt,
   }) {
@@ -58,8 +57,7 @@ class const DeployableProject({
     );
   }
 
-  /// Changed apps first, then A–Z by name — same order as a Refresh.
-  int compareByChangeThenName(DeployableProject other) {
+  int compareByChangeThenName(WorkbenchProject other) {
     final changeOrder = (hasChangedSources ? 0 : 1).compareTo(
       other.hasChangedSources ? 0 : 1,
     );
@@ -67,12 +65,12 @@ class const DeployableProject({
     return name.toLowerCase().compareTo(other.name.toLowerCase());
   }
 
-  DeployableProject copyWith({
+  WorkbenchProject copyWith({
     Map<DeployPlatform, DateTime?>? lastDeployedAt,
     Map<DeployPlatform, DeploySourceStatus>? sourceStatus,
     Uint8List? iconPngBytes,
   }) {
-    return DeployableProject(
+    return WorkbenchProject(
       projectId: projectId,
       name: name,
       path: path,
@@ -85,7 +83,7 @@ class const DeployableProject({
 
   factory fromJson(Map<String, dynamic> json) {
     final platformNames = json['platforms'] as List<dynamic>?;
-    final platforms = platformNames == null || platformNames.isEmpty
+    final platforms = platformNames == null
         ? {DeployPlatform.ios}
         : platformNames
               .map((name) => DeployPlatform.fromName(name as String))
@@ -106,7 +104,7 @@ class const DeployableProject({
           ),
     };
     final iconBase64 = json['iconPngBase64'] as String?;
-    return DeployableProject(
+    return WorkbenchProject(
       projectId: json['projectId'] as String,
       name: json['name'] as String,
       path: json['path'] as String,

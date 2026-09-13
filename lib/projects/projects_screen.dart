@@ -19,15 +19,18 @@ import '../line_age/line_age_cache.dart';
 import '../line_age/line_age_screen.dart';
 import '../ui/workbench_action_accents.dart';
 import '../run/flutter_run_device.dart';
+import '../run/local_run_controls.dart';
 import '../run/local_run_key.dart';
 import '../run/local_run_registry.dart';
+import '../run/local_run_screen.dart';
 import '../run/local_run_state.dart';
 import 'active_deploy_watch.dart';
-import 'deployable_project.dart';
 import 'project_deploy_flow.dart';
 import 'project_local_run_flow.dart';
 import 'project_workbench_row.dart';
 import 'projects_catalog.dart';
+import 'source_changes_progress.dart';
+import 'workbench_project.dart';
 
 class const ProjectsScreen({
   required final DeployTrigger trigger,
@@ -41,16 +44,22 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   late final ProjectsCatalog _catalog;
   late final ActiveDeployWatch _activeDeploy;
   late final ProjectDeployFlow _deployFlow;
-  final _localRunFlow = const ProjectLocalRunFlow();
+  late final ProjectLocalRunFlow _localRunFlow;
 
-  Timer? _lastCheckedTicker;
+  Timer? _sourceChangesRefreshTimer;
   StreamSubscription<void>? _localRunSubscription;
 
-  /// Job shown in the Mac side rail under the queue (null = rail closed).
+  /// Job shown in the deploy pane under the queue (null = not selected).
   DeployJob? _inlineJob;
 
+  /// Run shown in the right-hand run pane (null = not selected).
+  LocalRunControls? _inlineRun;
+
+  /// After the user closes the run pane, do not auto-reopen until they tap Run.
+  var _runRailClosedByUser = false;
+
   static const _queueOnlyWidth = 260.0;
-  static const _queueWithJobWidth = 440.0;
+  static const _detailPaneMinWidth = 440.0;
 
   @override
   void initState() {
@@ -74,22 +83,27 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       activeDeploy: _activeDeploy,
       showJobInSideRailOrJobScreen: _showJobInSideRailOrJobScreen,
     );
+    _localRunFlow = ProjectLocalRunFlow(
+      showRunInSideRailOrRunScreen: _showRunInSideRailOrRunScreen,
+    );
 
-    _lastCheckedTicker = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (!mounted || _catalog.lastChangesCheckedAt == null) return;
-      setState(() {});
+    _sourceChangesRefreshTimer = Timer.periodic(const Duration(seconds: 30), (
+      _,
+    ) {
+      if (!mounted || _catalog.loading || _catalog.evaluatingChanges) return;
+      unawaited(_reload(evaluateChanges: true, analyzeLineAgeAfterLoad: false));
     });
 
     final localRunRegistry = widget.localRunRegistry;
     if (localRunRegistry != null) {
+      _adoptRestoredActiveRunInRail();
       _localRunSubscription = localRunRegistry.changes.listen((_) {
         if (!mounted) return;
-        setState(() {});
+        setState(_adoptRestoredActiveRunInRail);
       });
     }
 
     _activeDeploy.start();
-    LineAgeCache.instance.addListener(_onLineAgeCacheChanged);
     unawaited(_loadPersistedLineAgeCache());
     unawaited(_reload(evaluateChanges: true));
   }
@@ -99,21 +113,19 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     if (mounted) setState(() {});
   }
 
-  void _onLineAgeCacheChanged() {
-    if (mounted) setState(() {});
-  }
-
   @override
   void dispose() {
-    LineAgeCache.instance.removeListener(_onLineAgeCacheChanged);
-    _lastCheckedTicker?.cancel();
+    _sourceChangesRefreshTimer?.cancel();
     unawaited(_localRunSubscription?.cancel());
     unawaited(_activeDeploy.dispose());
+    _catalog.dispose();
     super.dispose();
   }
 
-  Future<void> _reload({required bool evaluateChanges}) async {
-    setState(() {});
+  Future<void> _reload({
+    required bool evaluateChanges,
+    bool analyzeLineAgeAfterLoad = true,
+  }) async {
     final outcome = await _catalog.load(evaluateChanges: evaluateChanges);
     if (!mounted) return;
     if (outcome == ProjectsCatalogLoadOutcome.unauthorized) {
@@ -129,7 +141,8 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       }
     }
     setState(() {});
-    if (outcome == ProjectsCatalogLoadOutcome.succeeded &&
+    if (analyzeLineAgeAfterLoad &&
+        outcome == ProjectsCatalogLoadOutcome.succeeded &&
         widget.trigger.showLineAgeAnalysis) {
       unawaited(_blameDistinctGitRootsAfterRefresh());
     }
@@ -140,6 +153,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       flutterRoots: widget.trigger.flutterRoots,
     ).gitRoots;
     await Future.wait(analyzePaths.map(_analyzeOrCachedOneGitRoot));
+    if (mounted) setState(() {});
   }
 
   Future<void> _analyzeOrCachedOneGitRoot(String repoPath) async {
@@ -195,6 +209,44 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     unawaited(_afterJobScreenClosed());
   }
 
+  void _showRunInSideRailOrRunScreen(LocalRunControls controls) {
+    if (!mounted) return;
+    if (MediaQuery.sizeOf(context).shortestSide < 600) {
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (context) => LocalRunScreen(session: controls),
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _runRailClosedByUser = false;
+      _inlineRun = controls;
+    });
+  }
+
+  void _closeInlineRun() {
+    setState(() {
+      _runRailClosedByUser = true;
+      _inlineRun = null;
+    });
+  }
+
+  void _adoptRestoredActiveRunInRail() {
+    if (_inlineRun != null || _runRailClosedByUser) return;
+    final registry = widget.localRunRegistry;
+    if (registry == null) return;
+    for (final runState in registry.knownStates) {
+      if (!runState.status.isActive) continue;
+      final runKey = runState.runKey;
+      if (runKey == null) continue;
+      _inlineRun = registry.controlsFor(runKey);
+      return;
+    }
+  }
+
   Future<void> _showOngoingJobScreen() async {
     final job = _activeDeploy.ongoing;
     if (job == null) return;
@@ -205,7 +257,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
-  Future<void> _deploy(DeployableProject project, DeployPlatform platform) {
+  Future<void> _deploy(WorkbenchProject project, DeployPlatform platform) {
     return _deployFlow.confirmAndStart(
       context,
       project: project,
@@ -214,10 +266,10 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
-  Future<void> _run(DeployableProject project, FlutterRunDevice device) async {
+  Future<void> _run(WorkbenchProject project, FlutterRunDevice device) async {
     final registry = widget.localRunRegistry;
     if (registry == null) return;
-    await _localRunFlow.startOrShowLocalRunScreen(
+    await _localRunFlow.startOrShowLocalRun(
       context,
       registry: registry,
       project: project,
@@ -226,7 +278,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   }
 
   Future<void> _stopRun(
-    DeployableProject project,
+    WorkbenchProject project,
     FlutterRunDevice device,
   ) async {
     final registry = widget.localRunRegistry;
@@ -251,9 +303,8 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
 
   Widget _flutterLineAgeAction() {
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
-    final subtitle = FlutterLineAge(
-      flutterRoots: widget.trigger.flutterRoots,
-    ).cachedSlocSubtitle();
+    final subtitle = FlutterLineAge(flutterRoots: widget.trigger.flutterRoots)
+        .cachedSlocSubtitle();
     if (compact) {
       return IconButton(
         tooltip: 'Line age · $subtitle',
@@ -273,7 +324,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
-  void _showLineAgeScreen(DeployableProject project) {
+  void _showLineAgeScreen(WorkbenchProject project) {
     final gitRoot = LineAgeAnalyzer.findGitRoot(project.path) ?? project.path;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -293,7 +344,10 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
     final showSideRail =
-        !compact && (_activeDeploy.hasQueuePanelContent || _inlineJob != null);
+        !compact &&
+        (_activeDeploy.hasQueuePanelContent ||
+            _inlineJob != null ||
+            _inlineRun != null);
 
     return EScaffoldShell(
       contentMaxWidth: showSideRail ? double.infinity : ELayout.contentMaxWidth,
@@ -311,68 +365,114 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
             ),
         ],
       ),
-      body: showSideRail ? _bodyWithQueueRail(compact: compact) : _body(),
+      body: showSideRail ? _bodyWithSideRail(compact: compact) : _body(),
     );
   }
 
-  /// Project list + deploy queue rail; surplus width past saturated rows
-  /// goes to the rail.
-  Widget _bodyWithQueueRail({required bool compact}) {
-    final showJobDetail = _inlineJob != null;
+  /// Project list + deploy pane + run pane. Surplus past saturated rows
+  /// is split across the visible panes.
+  Widget _bodyWithSideRail({required bool compact}) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final railWidth = _railTakesSurplusPastSaturatedRows(
+        final paneWidths = _homescreenPaneWidths(
           totalWidth: constraints.maxWidth,
-          showJobDetail: showJobDetail,
           compact: compact,
         );
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(child: _body()),
-            DeployQueuePanel(
-              ongoing: _activeDeploy.ongoing,
-              waiting: _activeDeploy.waiting,
-              ongoingRemaining: _activeDeploy.ongoingRemainingEstimate,
-              width: railWidth,
-              jobDetail: showJobDetail
-                  ? DeployJobDetail(
-                      key: ValueKey(_inlineJob!.jobId),
-                      trigger: widget.trigger,
-                      initialJob: _inlineJob!,
-                      inSideRail: true,
-                      onDismiss: _closeInlineJob,
-                      onRetryStarted: _showJobInSideRailOrJobScreen,
-                    )
-                  : null,
-              onOpenOngoing: () => unawaited(_showOngoingJobScreen()),
-              onCancelWaiting: (jobId) => _activeDeploy.cancelWaiting(jobId),
-            ),
+            if (paneWidths.deploy > 0) _deployPane(width: paneWidths.deploy),
+            if (paneWidths.run > 0) _runPane(width: paneWidths.run),
           ],
         );
       },
     );
   }
 
-  double _railTakesSurplusPastSaturatedRows({
+  Widget _deployPane({required double width}) {
+    final inlineJob = _inlineJob;
+    return DeployQueuePanel(
+      ongoing: _activeDeploy.ongoing,
+      waiting: _activeDeploy.waiting,
+      ongoingRemaining: _activeDeploy.ongoingRemainingEstimate,
+      width: width,
+      detail: inlineJob == null
+          ? null
+          : DeployJobDetail(
+              key: ValueKey<String>(inlineJob.jobId),
+              trigger: widget.trigger,
+              initialJob: inlineJob,
+              inSideRail: true,
+              onDismiss: _closeInlineJob,
+              onRetryStarted: _showJobInSideRailOrJobScreen,
+            ),
+      onOpenOngoing: () => unawaited(_showOngoingJobScreen()),
+      onCancelWaiting: (jobId) => _activeDeploy.cancelWaiting(jobId),
+    );
+  }
+
+  Widget _runPane({required double width}) {
+    final inlineRun = _inlineRun!;
+    return ESidePanel(
+      title: 'Run',
+      width: width,
+      child: LocalRunDetail(
+        key: ObjectKey(inlineRun),
+        session: inlineRun,
+        inSideRail: true,
+        onDismiss: _closeInlineRun,
+      ),
+    );
+  }
+
+  double get _deployPaneMinWidth {
+    if (!_activeDeploy.hasQueuePanelContent && _inlineJob == null) return 0;
+    return _inlineJob != null ? _detailPaneMinWidth : _queueOnlyWidth;
+  }
+
+  double get _runPaneMinWidth =>
+      _inlineRun == null ? 0 : _detailPaneMinWidth;
+
+  _HomescreenPaneWidths _homescreenPaneWidths({
     required double totalWidth,
-    required bool showJobDetail,
     required bool compact,
   }) {
-    final minRailWidth = showJobDetail ? _queueWithJobWidth : _queueOnlyWidth;
+    final deployMin = _deployPaneMinWidth;
+    final runMin = _runPaneMinWidth;
     final listPadH = compact ? 6.0 : ELayout.spaceXl;
-    final maxUsefulMainWidth =
+    final saturatedListWidth =
         listPadH * 2 +
         ProjectWorkbenchRow.saturatedWidth(
           platformCount: widget.trigger.preferredPlatforms.length,
           showLineAge: widget.trigger.showLineAgeAnalysis,
           compact: compact,
         );
-    return math.max(minRailWidth, totalWidth - maxUsefulMainWidth);
+    final surplus = math.max(
+      0.0,
+      totalWidth - saturatedListWidth - deployMin - runMin,
+    );
+    if (deployMin > 0 && runMin > 0) {
+      return _HomescreenPaneWidths(
+        deploy: deployMin + surplus / 2,
+        run: runMin + surplus / 2,
+      );
+    }
+    if (deployMin > 0) {
+      return _HomescreenPaneWidths(deploy: deployMin + surplus, run: 0);
+    }
+    return _HomescreenPaneWidths(deploy: 0, run: runMin + surplus);
   }
 
   Widget _checkForChangesAction() {
-    final lastCheckedLabel = _lastChangesCheckedLabel;
+    return ValueListenableBuilder<SourceChangesProgress?>(
+      valueListenable: _catalog.changesProgress,
+      builder: (context, progress, _) => _refreshChangedStatusAction(progress),
+    );
+  }
+
+  Widget _refreshChangedStatusAction(SourceChangesProgress? progress) {
+    final lastCheckedLabel = _lastChangesCheckedLabel(progress);
     final isBusy = _catalog.loading || _catalog.evaluatingChanges;
     final onPressed = isBusy
         ? null
@@ -387,7 +487,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
             height: compact ? 18 : 14,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              value: _catalog.changesProgress?.fraction,
+              value: progress?.fraction,
             ),
           )
         : null;
@@ -416,9 +516,9 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
-  String? get _lastChangesCheckedLabel {
+  String? _lastChangesCheckedLabel(SourceChangesProgress? progress) {
     if (_catalog.evaluatingChanges) {
-      return _catalog.changesProgress?.caption ?? 'Checking…';
+      return progress?.caption ?? 'Checking…';
     }
     final lastCheckedAt = _catalog.lastChangesCheckedAt;
     if (lastCheckedAt == null) return null;
@@ -475,7 +575,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
-            Text(
+            SelectableText(
               _catalog.errorMessage!,
               style: EText.body.medium,
               textAlign: TextAlign.center,
@@ -491,8 +591,9 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
-  Widget _projectRow(DeployableProject project) {
+  Widget _projectRow(WorkbenchProject project) {
     return ProjectWorkbenchRow(
+      key: ValueKey(project.projectId),
       project: project,
       platforms: _catalog.platformsFor(project),
       runStateFor: (device) {
@@ -517,3 +618,8 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 }
+
+class const _HomescreenPaneWidths({
+  required final double deploy,
+  required final double run,
+});
