@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 
 import '../app_identity.dart';
+import '../commit/commit_screen.dart';
+import '../commit/uncommitted_changes_cache.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_queue_panel.dart';
@@ -104,6 +106,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     }
 
     _activeDeploy.start();
+    UncommittedChangesCache.instance.addListener(_rebuildFromUncommittedCache);
     unawaited(_loadPersistedLineAgeCache());
     unawaited(_reload(evaluateChanges: true));
   }
@@ -116,10 +119,15 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   @override
   void dispose() {
     _sourceChangesRefreshTimer?.cancel();
+    UncommittedChangesCache.instance.removeListener(_rebuildFromUncommittedCache);
     unawaited(_localRunSubscription?.cancel());
     unawaited(_activeDeploy.dispose());
     _catalog.dispose();
     super.dispose();
+  }
+
+  void _rebuildFromUncommittedCache() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _reload({
@@ -141,11 +149,20 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       }
     }
     setState(() {});
+    if (widget.trigger.showLineAgeAnalysis) {
+      unawaited(_refreshUncommittedChanges());
+    }
     if (analyzeLineAgeAfterLoad &&
         outcome == ProjectsCatalogLoadOutcome.succeeded &&
         widget.trigger.showLineAgeAnalysis) {
       unawaited(_blameDistinctGitRootsAfterRefresh());
     }
+  }
+
+  Future<void> _refreshUncommittedChanges() async {
+    await UncommittedChangesCache.instance.refreshAll(
+      _catalog.projects.map((project) => project.path),
+    );
   }
 
   Future<void> _blameDistinctGitRootsAfterRefresh() async {
@@ -336,6 +353,19 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
+  Future<void> _showCommitScreen(WorkbenchProject project) async {
+    final gitRoot = LineAgeAnalyzer.findGitRoot(project.path) ?? project.path;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => CommitScreen(
+          gitRoot: gitRoot,
+          repoName: path.basename(gitRoot),
+        ),
+      ),
+    );
+    await UncommittedChangesCache.instance.refresh(gitRoot);
+  }
+
   Future<void> _signOut() async {
     await widget.trigger.onSignOut?.call();
   }
@@ -446,6 +476,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
         ProjectWorkbenchRow.saturatedWidth(
           platformCount: widget.trigger.preferredPlatforms.length,
           showLineAge: widget.trigger.showLineAgeAnalysis,
+          showCommit: widget.trigger.showLineAgeAnalysis,
           compact: compact,
         );
     final surplus = math.max(
@@ -608,9 +639,16 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       lineAgeSubtitle: LineAgeCache.instance.slocSubtitleForRepoPath(
         project.path,
       ),
+      showCommit:
+          widget.trigger.showLineAgeAnalysis &&
+          LineAgeAnalyzer.findGitRoot(project.path) != null,
+      uncommittedChanges: UncommittedChangesCache.instance.countsForRepoPath(
+        project.path,
+      ),
       ongoingDeploy: _activeDeploy.forProject(project.projectId),
       waitingDeploys: _activeDeploy.waiting,
       onLineAge: () => _showLineAgeScreen(project),
+      onCommit: () => unawaited(_showCommitScreen(project)),
       onDeploy: (platform) => unawaited(_deploy(project, platform)),
       onRun: (device) => unawaited(_run(project, device)),
       onStopRun: (device) => unawaited(_stopRun(project, device)),

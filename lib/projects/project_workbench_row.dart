@@ -1,19 +1,22 @@
 import 'dart:math' as math;
 
 import 'package:ethan_ui/ethan_ui.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../run/flutter_run_device.dart';
 import '../run/local_run_state.dart';
+import '../commit/uncommitted_change_counts.dart';
+import '../commit/uncommitted_file_diff.dart';
 import '../ui/workbench_action_accents.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
 import 'project_app_icon_tile.dart';
 import 'workbench_project.dart';
 
-/// Preferred maxima for identity, then Line age, then equal platform clusters.
-abstract final class _IdentityLineAgeClusterWidths() {
+/// Preferred maxima for identity, then Line age + commit, then clusters.
+abstract final class _WorkbenchRowLayout() {
   static const clusterWidth = 320.0;
   static const clusterGap = 10.0;
   static const compactClusterGap = 6.0;
@@ -21,6 +24,10 @@ abstract final class _IdentityLineAgeClusterWidths() {
   /// Icon above SLOC — sized for a compact count like `10.8k`, not a title.
   static double get lineAgeWidth =>
       (8.0 * 2 + 32.0 * ELayout.typeScale).ceilToDouble();
+
+  /// Icon above `+104 / -502`.
+  static double get commitWidth =>
+      (8.0 * 2 + 76.0 * ELayout.typeScale).ceilToDouble();
 
   /// Icon-above-title column — sized for typical project names on 1–2 lines.
   static const identityMaxWidth = 140.0;
@@ -38,14 +45,36 @@ abstract final class _IdentityLineAgeClusterWidths() {
   static const rowPadV = 12.0;
 }
 
-/// Identity first (up to max), then Line age, then clusters share the rest.
-class const _IdentityThenLineAgeThenClusters({
+/// Identity first (up to max), then Line age + commit, then clusters.
+class const _WorkbenchRowSlotWidths({
   required final double identity,
   required final double lineAge,
+  required final double commit,
   required final double cluster,
 });
 
-/// One project in the workbench list: identity + Line age + platform Run/Deploy.
+class const _SecondaryActionWidths({
+  required final double lineAge,
+  required final double commit,
+}) {
+  double occupied(double clusterGap) {
+    var width = 0.0;
+    if (lineAge > 0) width += lineAge;
+    if (commit > 0) {
+      if (width > 0) width += clusterGap;
+      width += commit;
+    }
+    return width;
+  }
+
+  double occupiedWithTrailingGap(double clusterGap) {
+    final inner = occupied(clusterGap);
+    if (inner == 0) return 0;
+    return inner + clusterGap;
+  }
+}
+
+/// One project in the workbench list: identity + Line age + commit + Run/Deploy.
 class const ProjectWorkbenchRow({
   super.key,
   required final WorkbenchProject project,
@@ -54,45 +83,49 @@ class const ProjectWorkbenchRow({
   required final bool canRunLocally,
   required final bool showLineAge,
   final String lineAgeSubtitle = '…',
+  final bool showCommit = false,
+  final UncommittedChangeCounts? uncommittedChanges,
   final DeployJob? ongoingDeploy,
   final List<DeployJob> waitingDeploys = const [],
   required final VoidCallback onLineAge,
+  final VoidCallback? onCommit,
   required final ValueChanged<DeployPlatform> onDeploy,
   required final ValueChanged<FlutterRunDevice> onRun,
   required final ValueChanged<FlutterRunDevice> onStopRun,
   required final VoidCallback onOpenOngoingDeploy,
 }) extends StatelessWidget {
-  /// Width at which identity / Line age / clusters sit at preferred maxima.
+  /// Width at which identity / Line age / commit / clusters sit at maxima.
   /// Further width is unused blank inside the row (list padding is not included).
   static double saturatedWidth({
     required int platformCount,
     required bool showLineAge,
+    required bool showCommit,
     required bool compact,
   }) {
     final rowPadH = compact
-        ? _IdentityLineAgeClusterWidths.compactRowPadH
-        : _IdentityLineAgeClusterWidths.rowPadH;
+        ? _WorkbenchRowLayout.compactRowPadH
+        : _WorkbenchRowLayout.rowPadH;
     final clusterGap = compact
-        ? _IdentityLineAgeClusterWidths.compactClusterGap
-        : _IdentityLineAgeClusterWidths.clusterGap;
+        ? _WorkbenchRowLayout.compactClusterGap
+        : _WorkbenchRowLayout.clusterGap;
     final identity = compact
-        ? _IdentityLineAgeClusterWidths.compactIdentityMaxWidth
-        : _IdentityLineAgeClusterWidths.identityMaxWidth;
-    final lineAge = showLineAge
-        ? _IdentityLineAgeClusterWidths.lineAgeWidth
-        : 0.0;
+        ? _WorkbenchRowLayout.compactIdentityMaxWidth
+        : _WorkbenchRowLayout.identityMaxWidth;
+    final secondary = _SecondaryActionWidths(
+      lineAge: showLineAge ? _WorkbenchRowLayout.lineAgeWidth : 0,
+      commit: showCommit ? _WorkbenchRowLayout.commitWidth : 0,
+    );
     final platforms = math.max(0, platformCount);
-    final clusters = platforms * _IdentityLineAgeClusterWidths.clusterWidth;
+    final clusters = platforms * _WorkbenchRowLayout.clusterWidth;
     final clusterGaps = math.max(0, platforms - 1) * clusterGap;
-    final afterIdentityGap = platforms > 0 || lineAge > 0
+    final afterIdentityGap =
+        platforms > 0 || secondary.occupied(clusterGap) > 0
         ? ELayout.spaceMd
         : 0.0;
-    final lineAgeGap = lineAge > 0 ? clusterGap : 0.0;
     return rowPadH * 2 +
         identity +
         afterIdentityGap +
-        lineAge +
-        lineAgeGap +
+        secondary.occupiedWithTrailingGap(clusterGap) +
         clusters +
         clusterGaps;
   }
@@ -103,11 +136,11 @@ class const ProjectWorkbenchRow({
     final meSimRunStatus = _activeRunStatus(FlutterRunDevice.meSim);
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
     final clusterGap = compact
-        ? _IdentityLineAgeClusterWidths.compactClusterGap
-        : _IdentityLineAgeClusterWidths.clusterGap;
+        ? _WorkbenchRowLayout.compactClusterGap
+        : _WorkbenchRowLayout.clusterGap;
     final rowPadH = compact
-        ? _IdentityLineAgeClusterWidths.compactRowPadH
-        : _IdentityLineAgeClusterWidths.rowPadH;
+        ? _WorkbenchRowLayout.compactRowPadH
+        : _WorkbenchRowLayout.rowPadH;
     return ESurface(
       kind: ESurfaceKind.row,
       attention:
@@ -117,13 +150,13 @@ class const ProjectWorkbenchRow({
           ongoingDeploy != null,
       padding: EdgeInsets.fromLTRB(
         rowPadH,
-        _IdentityLineAgeClusterWidths.rowPadV,
+        _WorkbenchRowLayout.rowPadV,
         rowPadH,
-        _IdentityLineAgeClusterWidths.rowPadV,
+        _WorkbenchRowLayout.rowPadV,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final widths = _identityThenLineAgeThenClusterWidths(
+          final widths = _slotWidths(
             constraints.maxWidth,
             compact: compact,
             clusterGap: clusterGap,
@@ -137,6 +170,10 @@ class const ProjectWorkbenchRow({
               ],
               if (widths.lineAge > 0) ...[
                 SizedBox(width: widths.lineAge, child: _lineAgeAction()),
+                SizedBox(width: clusterGap),
+              ],
+              if (widths.commit > 0) ...[
+                SizedBox(width: widths.commit, child: _commitAction()),
                 SizedBox(width: clusterGap),
               ],
               for (var index = 0; index < platforms.length; index++) ...[
@@ -153,126 +190,172 @@ class const ProjectWorkbenchRow({
     );
   }
 
-  /// Line age hides rather than squeeze identity below
-  /// [_IdentityLineAgeClusterWidths.identityMinWidth]; clusters never steal
+  /// Line age and commit hide rather than squeeze identity below
+  /// [_WorkbenchRowLayout.identityMinWidth]; clusters never steal
   /// identity to satisfy a large minimum.
-  _IdentityThenLineAgeThenClusters _identityThenLineAgeThenClusterWidths(
+  _WorkbenchRowSlotWidths _slotWidths(
     double maxWidth, {
     required bool compact,
     required double clusterGap,
   }) {
     if (!maxWidth.isFinite || maxWidth <= 0) {
-      return const _IdentityThenLineAgeThenClusters(
+      return const _WorkbenchRowSlotWidths(
         identity: 0,
         lineAge: 0,
+        commit: 0,
         cluster: 0,
       );
     }
 
     final identityMax = compact
-        ? _IdentityLineAgeClusterWidths.compactIdentityMaxWidth
-        : _IdentityLineAgeClusterWidths.identityMaxWidth;
+        ? _WorkbenchRowLayout.compactIdentityMaxWidth
+        : _WorkbenchRowLayout.identityMaxWidth;
 
     if (platforms.isEmpty) {
-      final lineAge = _lineAgeWidthLeavingIdentityFloor(
+      final secondary = _secondaryWidthsLeavingIdentityFloor(
         budget: maxWidth,
         clusterGap: clusterGap,
       );
-      final identity = (maxWidth - (lineAge > 0 ? lineAge + clusterGap : 0))
-          .clamp(0.0, identityMax);
-      return _IdentityThenLineAgeThenClusters(
+      final identity =
+          (maxWidth - secondary.occupiedWithTrailingGap(clusterGap))
+              .clamp(0.0, identityMax);
+      return _WorkbenchRowSlotWidths(
         identity: identity,
-        lineAge: lineAge,
+        lineAge: secondary.lineAge,
+        commit: secondary.commit,
         cluster: 0,
       );
     }
 
     final clusterGaps = math.max(0, platforms.length - 1) * clusterGap;
     final clusterFloorTotal =
-        platforms.length * _IdentityLineAgeClusterWidths.clusterAbsoluteFloor;
+        platforms.length * _WorkbenchRowLayout.clusterAbsoluteFloor;
     final afterIdentityGap = ELayout.spaceMd;
 
-    // What identity may spend once clusters hold their floor.
     var identityBudget =
         maxWidth - clusterGaps - clusterFloorTotal - afterIdentityGap;
-    final lineAge = _lineAgeWidthLeavingIdentityFloor(
+    final secondary = _secondaryWidthsLeavingIdentityFloor(
       budget: identityBudget,
       clusterGap: clusterGap,
     );
-    if (lineAge > 0) {
-      identityBudget -= lineAge + clusterGap;
-    }
+    identityBudget -= secondary.occupiedWithTrailingGap(clusterGap);
     if (identityBudget <= 0) {
-      return _IdentityThenLineAgeThenClusters(
+      return _WorkbenchRowSlotWidths(
         identity: 0,
         lineAge: 0,
+        commit: 0,
         cluster: ((maxWidth - clusterGaps) / platforms.length)
             .floorToDouble()
-            .clamp(0.0, _IdentityLineAgeClusterWidths.clusterWidth),
+            .clamp(0.0, _WorkbenchRowLayout.clusterWidth),
       );
     }
 
     final identity = math.min(identityMax, identityBudget);
-    // Floor cluster width so subpixel rounding cannot overflow the row.
     final cluster =
         (((clusterFloorTotal + identityBudget - identity) / platforms.length)
                 .floorToDouble())
-            .clamp(0.0, _IdentityLineAgeClusterWidths.clusterWidth);
+            .clamp(0.0, _WorkbenchRowLayout.clusterWidth);
 
-    return _IdentityThenLineAgeThenClusters(
+    return _WorkbenchRowSlotWidths(
       identity: identity,
-      lineAge: lineAge,
+      lineAge: secondary.lineAge,
+      commit: secondary.commit,
       cluster: cluster,
     );
   }
 
-  /// Line age width when its gap-inclusive cost still leaves the identity
-  /// floor inside [budget]; otherwise hidden.
-  double _lineAgeWidthLeavingIdentityFloor({
+  /// Line age + commit width when the pair still leaves the identity floor
+  /// inside [budget]; otherwise both hidden.
+  _SecondaryActionWidths _secondaryWidthsLeavingIdentityFloor({
     required double budget,
     required double clusterGap,
   }) {
-    if (!showLineAge) return 0;
-    final width = _IdentityLineAgeClusterWidths.lineAgeWidth;
-    if (budget - width - clusterGap >=
-        _IdentityLineAgeClusterWidths.identityMinWidth) {
-      return width;
+    final wanted = _SecondaryActionWidths(
+      lineAge: showLineAge ? _WorkbenchRowLayout.lineAgeWidth : 0,
+      commit: showCommit ? _WorkbenchRowLayout.commitWidth : 0,
+    );
+    if (wanted.occupied(clusterGap) == 0) return wanted;
+    if (budget - wanted.occupiedWithTrailingGap(clusterGap) >=
+        _WorkbenchRowLayout.identityMinWidth) {
+      return wanted;
     }
-    return 0;
+    return const _SecondaryActionWidths(lineAge: 0, commit: 0);
   }
 
   Widget _lineAgeAction() {
-    final accent = WorkbenchActionAccents.lineAge;
-    return Tooltip(
-      message: 'Line age · $lineAgeSubtitle',
-      child: ESurface(
-        kind: ESurfaceKind.tinted,
-        accent: accent,
-        onActivated: onLineAge,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: SizedBox(
-          height: 44,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.bar_chart_rounded, size: 16, color: accent),
-              const SizedBox(height: 2),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  lineAgeSubtitle,
-                  style: EText.caption.copyWith(
-                    color: accent.withValues(alpha: 0.62),
-                    fontSize: ELayout.typeSize(12),
-                    height: 1.15,
-                  ),
-                  maxLines: 1,
-                ),
-              ),
-            ],
-          ),
+    return _WorkbenchIconCaptionAction(
+      accent: WorkbenchActionAccents.lineAge,
+      icon: Icons.bar_chart_rounded,
+      tooltip: 'Line age · $lineAgeSubtitle',
+      caption: Text(
+        lineAgeSubtitle,
+        style: EText.caption.copyWith(
+          color: WorkbenchActionAccents.lineAge.withValues(alpha: 0.62),
+          fontSize: ELayout.typeSize(12),
+          height: 1.15,
         ),
+        maxLines: 1,
       ),
+      onActivated: onLineAge,
+    );
+  }
+
+  Widget _commitAction() {
+    final counts = uncommittedChanges;
+    final caption = counts?.caption ?? '…';
+    return _WorkbenchIconCaptionAction(
+      accent: WorkbenchActionAccents.commit,
+      icon: Icons.commit_rounded,
+      tooltip: 'Commit · $caption',
+      caption: _commitCaption(counts),
+      onActivated: onCommit,
+    );
+  }
+
+  Widget _commitCaption(UncommittedChangeCounts? counts) {
+    final style = EText.caption.copyWith(
+      fontSize: ELayout.typeSize(12),
+      height: 1.15,
+    );
+    if (counts == null) {
+      return Text(
+        '…',
+        style: style.copyWith(
+          color: WorkbenchActionAccents.commit.withValues(alpha: 0.62),
+        ),
+        maxLines: 1,
+      );
+    }
+    if (counts.isClean || !counts.hasLineEdits) {
+      return Text(
+        counts.caption,
+        style: style.copyWith(
+          color: WorkbenchActionAccents.commit.withValues(alpha: 0.62),
+        ),
+        maxLines: 1,
+      );
+    }
+    return Text.rich(
+      TextSpan(
+        style: style,
+        children: [
+          TextSpan(
+            text: '+${counts.added.asCompactCount}',
+            style: TextStyle(color: DiffLineKind.insertion.foreground),
+          ),
+          TextSpan(
+            text: ' / ',
+            style: TextStyle(
+              color: WorkbenchActionAccents.commit.withValues(alpha: 0.62),
+            ),
+          ),
+          TextSpan(
+            text: '-${counts.removed.asCompactCount}',
+            style: TextStyle(color: DiffLineKind.deletion.foreground),
+          ),
+        ],
+      ),
+      maxLines: 1,
     );
   }
 
@@ -422,4 +505,36 @@ class const ProjectWorkbenchRow({
         DeployPlatform.macos => FlutterRunDevice.macos,
         DeployPlatform.ios => FlutterRunDevice.meSim,
       };
+}
+
+class const _WorkbenchIconCaptionAction({
+  required final Color accent,
+  required final IconData icon,
+  required final String tooltip,
+  required final Widget caption,
+  required final VoidCallback? onActivated,
+}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: ESurface(
+        kind: ESurfaceKind.tinted,
+        accent: accent,
+        onActivated: onActivated,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: SizedBox(
+          height: 44,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: accent),
+              const SizedBox(height: 2),
+              FittedBox(fit: BoxFit.scaleDown, child: caption),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
