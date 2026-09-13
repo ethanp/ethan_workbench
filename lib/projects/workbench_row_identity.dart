@@ -100,12 +100,19 @@ class const WorkbenchRowCommitAction({
   Widget build(BuildContext context) {
     final counts = uncommittedChanges;
     final caption = counts?.caption ?? '…';
+    final canCommit = counts != null && !counts.isClean;
     return WorkbenchIconCaptionAction(
-      accent: WorkbenchActionAccents.commit,
+      accent: canCommit
+          ? WorkbenchActionAccents.commit
+          : WorkbenchActionAccents.commit.withValues(alpha: 0.38),
       icon: Icons.commit_rounded,
-      tooltip: 'Commit · $caption',
+      tooltip: counts == null
+          ? 'Counting uncommitted changes'
+          : canCommit
+          ? 'Commit · $caption'
+          : 'Working tree is clean',
       caption: WorkbenchRowCommitCaption(counts: counts),
-      onActivated: onCommit,
+      onActivated: canCommit ? onCommit : null,
     );
   }
 }
