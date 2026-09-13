@@ -33,6 +33,9 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 
+# Golden / screenshot comparison leftovers
+test/failures/
+
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
