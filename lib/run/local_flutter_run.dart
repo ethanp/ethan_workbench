@@ -14,9 +14,32 @@ abstract final class FlutterRunOutput() {
     caseSensitive: false,
   );
 
-  static final _exceptionLibraryPattern = RegExp(
-    r'EXCEPTION CAUGHT BY\s+(.+?)(?:\s*╞|$)',
+  static final _exceptionHeaderPattern = RegExp(
+    r'EXCEPTION CAUGHT BY\s+(.+?)\s*╞',
     caseSensitive: false,
+  );
+
+  static final _boxRuleLinePattern = RegExp(r'^═{8,}\s*$', multiLine: true);
+
+  static final _assertionThrownPattern = RegExp(
+    r'The following (?:assertion|exception|FlutterError|_FlutterError) '
+    r'was thrown (.+):\n(.+)',
+    caseSensitive: false,
+  );
+
+  static final _appStackFramePattern = RegExp(
+    r'^\s*#\d+\s+(\S+)\s+\((package:(?!flutter(?:_test)?/)[^)]+)\)',
+    multiLine: true,
+  );
+
+  static final _eventPattern = RegExp(
+    r'^Event:\s*\n\s*(.+)$',
+    multiLine: true,
+  );
+
+  static final _targetPattern = RegExp(
+    r'^Target:\s*\n\s*(.+)$',
+    multiLine: true,
   );
 
   static final _errorCausingWidgetPattern = RegExp(
@@ -102,16 +125,22 @@ abstract final class FlutterRunOutput() {
         ? scannable
         : scannable.substring(scannable.length - exceptionScanWindowChars);
 
-    final libraryMatch = _exceptionLibraryPattern.allMatches(window).lastOrNull;
-    final widgetMatch = _errorCausingWidgetPattern
-        .allMatches(window)
-        .lastOrNull;
-    final creatorMatch = _creatorBlockPattern.allMatches(window).lastOrNull;
-    final constraintsMatch = _constraintsPattern.allMatches(window).lastOrNull;
-    final sizeMatch = _sizePattern.allMatches(window).lastOrNull;
-    final followOnMatch = _followOnPattern.allMatches(window).lastOrNull;
+    final dump = _lastExceptionDump(window);
+    if (dump == null) return null;
+    final dumpBody = dump.body;
+    final afterDump = dump.after;
 
-    final library = libraryMatch?.group(1)?.trim();
+    final library = dump.library;
+    final widgetMatch = _errorCausingWidgetPattern.firstMatch(dumpBody);
+    final creatorMatch = _creatorBlockPattern.firstMatch(dumpBody);
+    final constraintsMatch = _constraintsPattern.firstMatch(dumpBody);
+    final sizeMatch = _sizePattern.firstMatch(dumpBody);
+    final assertionMatch = _assertionThrownPattern.firstMatch(dumpBody);
+    final appFrameMatch = _appStackFramePattern.firstMatch(dumpBody);
+    final eventMatch = _eventPattern.firstMatch(dumpBody);
+    final targetMatch = _targetPattern.firstMatch(dumpBody);
+    final followOnMatch = _followOnPattern.firstMatch(afterDump);
+
     final widget = widgetMatch?.group(1)?.trim();
     var fileUri = widgetMatch?.group(2)?.trim();
     if (fileUri != null) {
@@ -126,11 +155,23 @@ abstract final class FlutterRunOutput() {
     final constraints = constraintsMatch?.group(1)?.trim();
     final size = sizeMatch?.group(1)?.trim();
     final followOn = followOnMatch?.group(1)?.trim();
+    final thrownDuring = assertionMatch?.group(1)?.trim();
+    final assertion = assertionMatch?.group(2)?.trim();
+    final appFrameSymbol = appFrameMatch?.group(1)?.trim();
+    final packageUri = appFrameMatch?.group(2)?.trim();
+    final event = eventMatch?.group(1)?.trim();
+    final target = targetMatch?.group(1)?.trim();
 
     final parsed = FlutterRunException(
-      library: library?.isEmpty == true ? null : library,
+      library: library.isEmpty ? null : library,
       widget: widget?.isEmpty == true ? null : widget,
       fileUri: fileUri?.isEmpty == true ? null : fileUri,
+      packageUri: packageUri?.isEmpty == true ? null : packageUri,
+      appFrameSymbol: appFrameSymbol?.isEmpty == true ? null : appFrameSymbol,
+      thrownDuring: thrownDuring?.isEmpty == true ? null : thrownDuring,
+      assertion: assertion?.isEmpty == true ? null : assertion,
+      event: event?.isEmpty == true ? null : event,
+      target: target?.isEmpty == true ? null : target,
       creatorChain: creatorChain,
       constraints: constraints?.isEmpty == true ? null : constraints,
       size: size?.isEmpty == true ? null : size,
@@ -138,6 +179,29 @@ abstract final class FlutterRunOutput() {
     );
     if (!parsed.hasSignal) return null;
     return parsed;
+  }
+
+  static _ExceptionDumpSlice? _lastExceptionDump(String window) {
+    final headers = _exceptionHeaderPattern.allMatches(window).toList();
+    if (headers.isEmpty) return null;
+    final header = headers.last;
+    final headerLineEnd = window.indexOf('\n', header.end);
+    if (headerLineEnd < 0) return null;
+    final rest = window.substring(headerLineEnd + 1);
+    final closer = _boxRuleLinePattern.firstMatch(rest);
+    final nextHeader = _exceptionHeaderPattern.firstMatch(rest);
+    var bodyEnd = rest.length;
+    if (closer != null && closer.start < bodyEnd) {
+      bodyEnd = closer.start;
+    }
+    if (nextHeader != null && nextHeader.start < bodyEnd) {
+      bodyEnd = nextHeader.start;
+    }
+    return _ExceptionDumpSlice(
+      library: header.group(1)?.trim() ?? '',
+      body: rest.substring(0, bodyEnd),
+      after: rest.substring(bodyEnd),
+    );
   }
 
   static String? _normalizeCreatorChain(String? raw) {
@@ -166,6 +230,12 @@ abstract final class FlutterRunOutput() {
     return ancestors.join(' ← ');
   }
 }
+
+class const _ExceptionDumpSlice({
+  required final String library,
+  required final String body,
+  required final String after,
+});
 
 /// One `flutter run` / `flutter attach` process (stdin, merged output, quit).
 class LocalFlutterRun._(final Process _process) {

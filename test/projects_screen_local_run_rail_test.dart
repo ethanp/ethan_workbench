@@ -157,6 +157,55 @@ void main() {
     expect(find.text('Now'), findsOneWidget);
     expect(find.text('workouts'), findsOneWidget);
   });
+
+  testWidgets('run pane lists every live app and switches on tap', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final registry = _StubLocalRunRegistry([
+      _runningControls(
+        projectId: 'book_track',
+        projectName: 'book_track',
+        device: FlutterRunDevice.macos,
+        log: 'book_track vm is up',
+      ),
+      _runningControls(
+        projectId: 'spend_trends',
+        projectName: 'spend_trends',
+        device: FlutterRunDevice.macos,
+        log: 'spend_trends vm is up',
+      ),
+    ]);
+    addTearDown(registry.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProjectsScreen(
+          trigger: _trigger([
+            _macosProject('book_track'),
+            _macosProject('spend_trends'),
+          ]),
+          localRunRegistry: registry,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Running'), findsOneWidget);
+    expect(find.text('book_track · macOS'), findsOneWidget);
+    expect(find.text('spend_trends · macOS'), findsOneWidget);
+    expect(find.text('book_track vm is up'), findsOneWidget);
+    expect(find.text('spend_trends vm is up'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey<String>('spend_trends__macos')));
+    await tester.pump();
+
+    expect(find.text('spend_trends vm is up'), findsOneWidget);
+    expect(find.text('book_track vm is up'), findsNothing);
+    expect(find.byType(LocalRunScreen), findsNothing);
+  });
 }
 
 Finder _runCellForProject(String projectId, {required bool running}) {
@@ -209,6 +258,7 @@ DeployTrigger _trigger(
     listDeployHistory: () async => const <DeployRunRecord>[],
     fetchDeployQueue: () async => const <DeployJob>[],
     cancelQueuedDeploy: (jobId) async {},
+    reorderQueuedDeploy: ({required jobId, required toIndex}) async {},
   );
 }
 
@@ -216,11 +266,12 @@ _StubLocalRunControls _runningControls({
   required String projectId,
   required String projectName,
   required FlutterRunDevice device,
+  String? log,
 }) {
   return _StubLocalRunControls(
     LocalRunState(
       status: LocalRunStatus.running,
-      log: 'A Dart VM Service on ${device.label} is available',
+      log: log ?? 'A Dart VM Service on ${device.label} is available',
       readyForKeyCommands: true,
       projectId: projectId,
       projectName: projectName,

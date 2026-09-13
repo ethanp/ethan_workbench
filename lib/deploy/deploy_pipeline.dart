@@ -218,6 +218,12 @@ class DeployPipeline {
   /// Removes a waiting job. Returns false if [jobId] is not in the queue.
   bool cancelWaiting(String jobId) => _waitQueue.cancel(jobId);
 
+  /// Moves a waiting job in the FIFO. Returns false if [jobId] is not queued
+  /// or [toIndex] is out of range.
+  bool moveWaitingJob({required String jobId, required int toIndex}) {
+    return _waitQueue.moveToIndex(jobId: jobId, toIndex: toIndex);
+  }
+
   Future<DeployJob> fetchJob(String jobId) async {
     final active = activeJob;
     if (active != null && active.jobId == jobId) return active;

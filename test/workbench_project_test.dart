@@ -29,6 +29,7 @@ class _CatalogTestScenario(final List<WorkbenchProject> suppliedProjects) {
       listDeployHistory: () async => const <DeployRunRecord>[],
       fetchDeployQueue: () async => const <DeployJob>[],
       cancelQueuedDeploy: (jobId) async {},
+      reorderQueuedDeploy: ({required jobId, required toIndex}) async {},
     );
   }
 }

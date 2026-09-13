@@ -84,6 +84,7 @@ abstract final class LocalRunCursorMirror() {
           'widget': flutterException.widget,
           'displayLocation': flutterException.displayLocation,
           'library': flutterException.library,
+          'assertion': flutterException.assertion,
           'promptText': flutterException.promptText,
         },
       'mirrorDirectories': [

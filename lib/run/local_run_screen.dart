@@ -17,9 +17,6 @@ class const LocalRunDetail({
 
   /// Side-rail run detail (no scaffold).
   final bool inSideRail = false,
-
-  /// Shown in the side-rail header; omitted in full-screen (AppBar back).
-  final VoidCallback? onDismiss,
 }) extends StatefulWidget {
   @override
   State<LocalRunDetail> createState() => _LocalRunDetailState();
@@ -60,20 +57,13 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
     });
   }
 
-  String get _title {
-    if (_state.deviceLabel == null) {
-      return _state.projectName ?? 'Local run';
-    }
-    return '${_state.projectName ?? 'App'} · ${_state.deviceLabel}';
-  }
-
   @override
   Widget build(BuildContext context) {
     if (widget.inSideRail) return _sideRailBody();
     return EScaffoldShell(
       appBar: AppBar(
         title: Text(
-          _title,
+          _state.projectAndDeviceLabel,
           style: EText.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -87,53 +77,14 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
   }
 
   Widget _sideRailBody() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _sideRailHeader(),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              ELayout.spaceMd,
-              0,
-              ELayout.spaceMd,
-              ELayout.spaceMd,
-            ),
-            child: _runColumn(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _sideRailHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         ELayout.spaceMd,
-        ELayout.spaceSm,
-        ELayout.spaceXs,
-        ELayout.spaceSm,
+        0,
+        ELayout.spaceMd,
+        ELayout.spaceMd,
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              _title,
-              style: EText.label.medium.copyWith(color: EColors.textPrimary),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (widget.onDismiss != null)
-            IconButton(
-              tooltip: 'Close',
-              onPressed: widget.onDismiss,
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.close_rounded, size: 18),
-              color: EColors.textMuted,
-            ),
-        ],
-      ),
+      child: _runColumn(),
     );
   }
 
@@ -300,9 +251,11 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (widgetName != null)
+        if (widgetName != null || flutterException.assertion != null)
           Text(
-            widgetName,
+            widgetName ?? flutterException.assertion!,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
             style: EText.section.copyWith(color: EColors.danger),
           ),
         if (location != null)

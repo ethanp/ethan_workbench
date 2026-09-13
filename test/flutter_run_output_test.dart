@@ -56,6 +56,8 @@ Another exception was thrown: RenderBox was not laid out: RenderIntrinsicWidth#c
       final exception = FlutterRunOutput.exceptionFrom(dump);
       expect(exception, isNotNull);
       expect(exception!.library, 'RENDERING LIBRARY');
+      expect(exception.thrownDuring, 'during layout');
+      expect(exception.assertion, 'RenderBox was not laid out.');
       expect(exception.widget, 'IntrinsicWidth');
       expect(
         exception.fileUri,
@@ -87,6 +89,66 @@ Another exception was thrown: RenderBox was not laid out: RenderIntrinsicWidth#c
       expect(prompt, contains('constraints: BoxConstraints(0.0<=w<=Infinity'));
       expect(prompt, contains('size: MISSING'));
       expect(prompt, contains('Another exception was thrown:'));
+    });
+
+    test('exceptionFrom extracts assertion and app frame from gesture dumps', () {
+      const dump = '''
+══╡ EXCEPTION CAUGHT BY GESTURE LIBRARY ╞═══════════════════════════════════════════════════════════
+The following assertion was thrown while dispatching a pointer event:
+setState() called after dispose(): ZoomPanViewState#939e6(lifecycle state: defunct, not mounted)
+This error happens if you call setState() on a State object for a widget that no longer appears in
+the widget tree.
+
+When the exception was thrown, this was the stack:
+#0      State.setState.<anonymous closure> (package:flutter/src/widgets/framework.dart:1163:9)
+#1      State.setState (package:flutter/src/widgets/framework.dart:1200:6)
+#2      ZoomPanViewState._forgetPointerContact (package:viant_core/widgets/zoom_pan_view.dart:215:5)
+#3      RenderPointerListener.handleEvent (package:flutter/src/rendering/proxy_box.dart:3270:40)
+
+Event:
+  PointerUpEvent#90a75(position: Offset(575.7, 1267.5))
+Target:
+  RenderPointerListener#72fe6 DISPOSED
+════════════════════════════════════════════════════════════════════════════════════════════════════
+''';
+
+      final exception = FlutterRunOutput.exceptionFrom(dump);
+      expect(exception, isNotNull);
+      expect(exception!.library, 'GESTURE LIBRARY');
+      expect(exception.thrownDuring, 'while dispatching a pointer event');
+      expect(
+        exception.assertion,
+        'setState() called after dispose(): ZoomPanViewState#939e6(lifecycle state: defunct, not mounted)',
+      );
+      expect(exception.appFrameSymbol, 'ZoomPanViewState._forgetPointerContact');
+      expect(
+        exception.packageUri,
+        'package:viant_core/widgets/zoom_pan_view.dart:215:5',
+      );
+      expect(
+        exception.displayLocation,
+        'viant_core/widgets/zoom_pan_view.dart:215:5',
+      );
+      expect(
+        exception.event,
+        'PointerUpEvent#90a75(position: Offset(575.7, 1267.5))',
+      );
+      expect(exception.target, 'RenderPointerListener#72fe6 DISPOSED');
+
+      final prompt = exception.promptText;
+      expect(prompt, contains('Flutter exception in GESTURE LIBRARY.'));
+      expect(
+        prompt,
+        contains('The following assertion was thrown while dispatching a pointer event:'),
+      );
+      expect(prompt, contains('setState() called after dispose()'));
+      expect(prompt, contains('ZoomPanViewState._forgetPointerContact'));
+      expect(
+        prompt,
+        contains('package:viant_core/widgets/zoom_pan_view.dart:215:5'),
+      );
+      expect(prompt, contains('Event: PointerUpEvent#90a75'));
+      expect(prompt, contains('Target: RenderPointerListener#72fe6 DISPOSED'));
     });
 
     test('exceptionFrom returns null when log has no dump', () {

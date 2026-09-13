@@ -136,6 +136,7 @@ class ActiveDeployWatch({
       final job = await trigger.fetchActiveJob();
       final next = job != null && !job.status.isTerminal ? job : null;
       final queue = await trigger.fetchDeployQueue();
+      final waitingChanged = !_sameWaitingJobs(waiting, queue);
       final was = previousOngoing?.debugSummary ?? 'none';
       final now = next?.debugSummary ?? 'none';
       ongoing = next;
@@ -146,7 +147,6 @@ class ActiveDeployWatch({
       } else {
         await _ensureTypicalDuration(next);
       }
-      final waitingChanged = !_sameWaitingJobs(waiting, queue);
       if (was != now) {
         _log.log('refresh $was → $now waiting=${queue.length}');
       }
@@ -187,6 +187,14 @@ class ActiveDeployWatch({
 
   Future<void> cancelWaiting(String jobId) async {
     await trigger.cancelQueuedDeploy(jobId);
+    await refresh();
+  }
+
+  Future<void> reorderWaiting({
+    required String jobId,
+    required int toIndex,
+  }) async {
+    await trigger.reorderQueuedDeploy(jobId: jobId, toIndex: toIndex);
     await refresh();
   }
 

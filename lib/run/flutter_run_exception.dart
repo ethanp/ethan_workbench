@@ -5,6 +5,14 @@ class const FlutterRunException({
 
   /// Full `file:///…dart:line:col` when present.
   final String? fileUri,
+
+  /// `package:…/file.dart:line:col` from the first non-Flutter stack frame.
+  final String? packageUri,
+  final String? appFrameSymbol,
+  final String? thrownDuring,
+  final String? assertion,
+  final String? event,
+  final String? target,
   final String? creatorChain,
   final String? constraints,
   final String? size,
@@ -14,6 +22,12 @@ class const FlutterRunException({
       library != null ||
       widget != null ||
       fileUri != null ||
+      packageUri != null ||
+      appFrameSymbol != null ||
+      thrownDuring != null ||
+      assertion != null ||
+      event != null ||
+      target != null ||
       creatorChain != null ||
       constraints != null ||
       size != null ||
@@ -21,6 +35,12 @@ class const FlutterRunException({
 
   /// Short path for on-screen labels (`…/e_side_panel.dart:43:12`).
   String? get displayLocation {
+    final package = packageUri;
+    if (package != null && package.isNotEmpty) {
+      return package.startsWith('package:')
+          ? package.substring('package:'.length)
+          : package;
+    }
     final uri = fileUri;
     if (uri == null || uri.isEmpty) return null;
     final withoutScheme = uri.startsWith('file://')
@@ -46,6 +66,13 @@ class const FlutterRunException({
       lines.add('Flutter exception.');
       lines.add('');
     }
+    if (thrownDuring != null && thrownDuring!.isNotEmpty) {
+      lines.add('The following assertion was thrown $thrownDuring:');
+    }
+    if (assertion != null && assertion!.isNotEmpty) {
+      lines.add(assertion!);
+      lines.add('');
+    }
     if (widget != null || fileUri != null) {
       lines.add('The relevant error-causing widget was:');
       if (widget != null) lines.add('  $widget');
@@ -55,6 +82,17 @@ class const FlutterRunException({
         lines.add('  $fileUri');
       }
       lines.add('');
+    }
+    if (appFrameSymbol != null || packageUri != null) {
+      if (appFrameSymbol != null) lines.add('  $appFrameSymbol');
+      if (packageUri != null) lines.add('  $packageUri');
+      lines.add('');
+    }
+    if (event != null && event!.isNotEmpty) {
+      lines.add('Event: $event');
+    }
+    if (target != null && target!.isNotEmpty) {
+      lines.add('Target: $target');
     }
     if (creatorChain != null && creatorChain!.isNotEmpty) {
       lines.add('creator: $creatorChain');
@@ -78,6 +116,12 @@ class const FlutterRunException({
   int get richness {
     var score = 0;
     if (library != null) score += 1;
+    if (assertion != null) score += 3;
+    if (thrownDuring != null) score += 1;
+    if (appFrameSymbol != null) score += 2;
+    if (packageUri != null) score += 3;
+    if (event != null) score += 1;
+    if (target != null) score += 1;
     if (widget != null) score += 2;
     if (fileUri != null) score += 3;
     if (creatorChain != null) score += 2;
@@ -97,6 +141,12 @@ class const FlutterRunException({
       library: json['library'] as String?,
       widget: json['widget'] as String?,
       fileUri: json['fileUri'] as String?,
+      packageUri: json['packageUri'] as String?,
+      appFrameSymbol: json['appFrameSymbol'] as String?,
+      thrownDuring: json['thrownDuring'] as String?,
+      assertion: json['assertion'] as String?,
+      event: json['event'] as String?,
+      target: json['target'] as String?,
       creatorChain: json['creatorChain'] as String?,
       constraints: json['constraints'] as String?,
       size: json['size'] as String?,
@@ -108,6 +158,12 @@ class const FlutterRunException({
     'library': library,
     'widget': widget,
     'fileUri': fileUri,
+    'packageUri': packageUri,
+    'appFrameSymbol': appFrameSymbol,
+    'thrownDuring': thrownDuring,
+    'assertion': assertion,
+    'event': event,
+    'target': target,
     'creatorChain': creatorChain,
     'constraints': constraints,
     'size': size,
@@ -120,6 +176,12 @@ class const FlutterRunException({
       other.library == library &&
       other.widget == widget &&
       other.fileUri == fileUri &&
+      other.packageUri == packageUri &&
+      other.appFrameSymbol == appFrameSymbol &&
+      other.thrownDuring == thrownDuring &&
+      other.assertion == assertion &&
+      other.event == event &&
+      other.target == target &&
       other.creatorChain == creatorChain &&
       other.constraints == constraints &&
       other.size == size &&
@@ -130,6 +192,12 @@ class const FlutterRunException({
     library,
     widget,
     fileUri,
+    packageUri,
+    appFrameSymbol,
+    thrownDuring,
+    assertion,
+    event,
+    target,
     creatorChain,
     constraints,
     size,

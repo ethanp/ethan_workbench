@@ -105,6 +105,49 @@ void main() {
     expect(scriptRunner.startedCount, 2);
   });
 
+  test('reorder waiting job then promote uses new order', () async {
+    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await Future<void>.delayed(Duration.zero);
+    final second = await pipeline.startDeploy(
+      projectId: 'b',
+      platform: DeployPlatform.ios,
+    );
+    final third = await pipeline.startDeploy(
+      projectId: 'c',
+      platform: DeployPlatform.macos,
+    );
+    expect(pipeline.waitingQueue.map((job) => job.jobId), [
+      second.jobId,
+      third.jobId,
+    ]);
+
+    expect(
+      pipeline.moveWaitingJob(jobId: third.jobId, toIndex: 0),
+      isTrue,
+    );
+    expect(pipeline.waitingQueue.map((job) => job.jobId), [
+      third.jobId,
+      second.jobId,
+    ]);
+
+    scriptRunner.completeLatest();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(pipeline.activeJob?.projectId, 'c');
+    expect(pipeline.waitingQueue.single.jobId, second.jobId);
+  });
+
+  test('moveWaitingJob returns false for unknown id', () async {
+    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await Future<void>.delayed(Duration.zero);
+    await pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios);
+    expect(
+      pipeline.moveWaitingJob(jobId: 'missing', toIndex: 0),
+      isFalse,
+    );
+  });
+
   test('cancel removes waiting job', () async {
     await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
     await Future<void>.delayed(Duration.zero);

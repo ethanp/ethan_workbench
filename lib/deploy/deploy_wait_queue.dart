@@ -27,6 +27,19 @@ class DeployWaitQueue({final void Function()? onQueueChanged}) {
     return true;
   }
 
+  /// Moves [jobId] to [toIndex] (0 = next to run). Returns false if the job
+  /// is not queued or [toIndex] is out of range.
+  bool moveToIndex({required String jobId, required int toIndex}) {
+    final fromIndex = _jobs.indexWhere((job) => job.jobId == jobId);
+    if (fromIndex < 0) return false;
+    if (toIndex < 0 || toIndex >= _jobs.length) return false;
+    if (fromIndex == toIndex) return true;
+    final job = _jobs.removeAt(fromIndex);
+    _jobs.insert(toIndex, job);
+    _emit();
+    return true;
+  }
+
   DeployJob? takeNext() {
     if (_jobs.isEmpty) return null;
     final next = _jobs.removeAt(0);

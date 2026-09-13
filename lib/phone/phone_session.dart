@@ -63,6 +63,7 @@ class PhoneSession({
       listDeployHistory: listDeployHistory,
       fetchDeployQueue: fetchDeployQueue,
       cancelQueuedDeploy: cancelQueuedDeploy,
+      reorderQueuedDeploy: reorderQueuedDeploy,
       jobUpdates: jobUpdates,
       onUnauthorized: endSession,
       onSignOut: endSession,
@@ -128,6 +129,13 @@ class PhoneSession({
 
   Future<void> cancelQueuedDeploy(String jobId) =>
       _server.cancelQueuedDeploy(jobId);
+
+  Future<void> reorderQueuedDeploy({
+    required String jobId,
+    required int toIndex,
+  }) {
+    return _server.reorderQueuedDeploy(jobId: jobId, toIndex: toIndex);
+  }
 
   void _ensureJobEventsListening() {
     if (_jobEventsLoopRunning) {

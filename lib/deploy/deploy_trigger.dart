@@ -22,6 +22,11 @@ class const DeployTrigger({
   required final Future<List<DeployRunRecord>> Function() listDeployHistory,
   required final Future<List<DeployJob>> Function() fetchDeployQueue,
   required final Future<void> Function(String jobId) cancelQueuedDeploy,
+  required final Future<void> Function({
+    required String jobId,
+    required int toIndex,
+  })
+  reorderQueuedDeploy,
 
   /// Live job updates when available (Mac in-process, phone via SSE).
   /// Otherwise the UI polls [fetchActiveJob] / [fetchJob].

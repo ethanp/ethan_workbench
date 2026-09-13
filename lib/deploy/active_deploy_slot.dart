@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../projects/workbench_project.dart';
 import '../run/os_process_tree.dart';
+import 'active_deploy_completion.dart';
 import 'deploy_checklist.dart';
 import 'deploy_console.dart';
 import 'deploy_job.dart';
@@ -11,7 +12,10 @@ import 'deploy_session_persistence.dart';
 import 'deploy_wait_queue.dart';
 import 'ruby_deploy_executor.dart';
 
-/// One active deploy run: script process, session checkpoint, finish/fail.
+/// One active deploy run: start, reclaim, checkpoint.
+///
+/// Terminal finish / fail / promote lives in [ActiveDeployCompletion].
+/// Live log tail uses [DeployLogFileFollow].
 class ActiveDeploySlot({
   required final String deployRbPath,
   required final DeployScriptRunner _scriptRunner,
@@ -23,6 +27,12 @@ class ActiveDeploySlot({
   final Future<bool> Function(int pid)? _isPidAlive,
 }) {
   final _pidWatch = PidLivenessWatch();
+  late final ActiveDeployCompletion _completion = ActiveDeployCompletion(
+    console: _console,
+    stopLogFollow: _stopLogFollow,
+    clearSession: clearSession,
+    onPromoteNext: onPromoteNext,
+  );
 
   int? _pid;
   String? _projectPath;
@@ -41,7 +51,7 @@ class ActiveDeploySlot({
     return active != null && active.status.isActiveRunner;
   }
 
-  /// Start the ruby deploy for [job] and drive it to a terminal status.
+  /// Start the ruby deploy for [job].
   Future<void> start(DeployJob job, WorkbenchProject project) async {
     _projectPath = project.path;
     final startedAt = DateTime.now();
@@ -84,15 +94,14 @@ class ActiveDeploySlot({
           unawaited(checkpoint());
         },
       );
-      await finish(exitCode: exitCode);
+      await _completion.finish(
+        exitCode: exitCode,
+        projectPath: project.path,
+      );
     } catch (error, stackTrace) {
       _console.flush();
       _console.append('\n✗ Deploy crashed: $error\n$stackTrace\n');
-      await _completeTerminal(
-        succeeded: false,
-        exitCode: -1,
-        projectPath: project.path,
-      );
+      await _completion.finish(exitCode: -1, projectPath: project.path);
     }
   }
 
@@ -109,17 +118,7 @@ class ActiveDeploySlot({
     _logPath = logPath;
     _pid = pid;
 
-    var mergedLog = job.log;
-    if (logPath != null) {
-      final logFile = File(logPath);
-      if (await logFile.exists()) {
-        mergedLog = mergeDeployLogWithFile(
-          mergedLog,
-          await logFile.readAsString(),
-        );
-      }
-    }
-
+    final mergedLog = await _logMergedFromDisk(job.log, logPath);
     final reclaimed = job.copyWith(
       status: DeployJobStatus.running,
       log:
@@ -142,16 +141,7 @@ class ActiveDeploySlot({
   }) async {
     _projectPath = projectPath;
     _logPath = logPath;
-    var mergedLog = job.log;
-    if (logPath != null) {
-      final logFile = File(logPath);
-      if (await logFile.exists()) {
-        mergedLog = mergeDeployLogWithFile(
-          mergedLog,
-          await logFile.readAsString(),
-        );
-      }
-    }
+    final mergedLog = await _logMergedFromDisk(job.log, logPath);
     final resumed = job.copyWith(
       status: DeployJobStatus.running,
       log:
@@ -160,7 +150,7 @@ class ActiveDeploySlot({
     );
     _console.updateStatusWithoutNewLog(resumed);
     onJobUpdated(resumed);
-    await finish(exitCode: exitCode);
+    await _completion.finish(exitCode: exitCode, projectPath: projectPath);
   }
 
   Future<void> failInterrupted({
@@ -169,32 +159,10 @@ class ActiveDeploySlot({
     required String message,
   }) async {
     _projectPath = projectPath;
-    final finishedAt = DateTime.now();
-    final failed = job.copyWith(
-      status: DeployJobStatus.failed,
-      finishedAt: finishedAt,
-      exitCode: -1,
-      log: '${job.log}\n$message',
-      checklist: DeployChecklist.advanceToPhase(
-        job.checklist,
-        'failed',
-        at: finishedAt,
-      ),
-    );
-    _console.updateStatusWithoutNewLog(failed);
-    await clearSession();
-    unawaited(_console.finalize(failed));
-    await _console.recordFinished(failed, projectPath: projectPath);
-    await onPromoteNext();
-  }
-
-  Future<void> finish({required int exitCode}) async {
-    final path = _projectPath;
-    if (path == null) return;
-    await _completeTerminal(
-      succeeded: exitCode == 0,
-      exitCode: exitCode,
-      projectPath: path,
+    await _completion.failInterrupted(
+      job: job,
+      projectPath: projectPath,
+      message: message,
     );
   }
 
@@ -288,38 +256,14 @@ class ActiveDeploySlot({
     final exitCode = exitCodePath == null
         ? -1
         : await readExitCode(exitCodePath) ?? -1;
-    await finish(exitCode: exitCode);
+    await _completion.finish(exitCode: exitCode, projectPath: projectPath);
   }
 
-  Future<void> _completeTerminal({
-    required bool succeeded,
-    required int exitCode,
-    required String projectPath,
-  }) async {
-    await _stopLogFollow();
-    _console.flush();
-    _console.append(
-      succeeded
-          ? '\n✓ Deploy finished successfully\n'
-          : '\n✗ Deploy failed (exit $exitCode)\n',
-    );
-    final currentJob = job!;
-    final finishedAt = DateTime.now();
-    final finishedJob = currentJob.copyWith(
-      status: succeeded ? DeployJobStatus.succeeded : DeployJobStatus.failed,
-      finishedAt: finishedAt,
-      exitCode: exitCode,
-      checklist: DeployChecklist.advanceToPhase(
-        currentJob.checklist,
-        succeeded ? 'done' : 'failed',
-        at: finishedAt,
-      ),
-    );
-    _console.updateStatusWithoutNewLog(finishedJob);
-    await clearSession();
-    unawaited(_console.finalize(finishedJob));
-    await _console.recordFinished(finishedJob, projectPath: projectPath);
-    await onPromoteNext();
+  Future<String> _logMergedFromDisk(String existingLog, String? logPath) async {
+    if (logPath == null) return existingLog;
+    final logFile = File(logPath);
+    if (!await logFile.exists()) return existingLog;
+    return mergeDeployLogWithFile(existingLog, await logFile.readAsString());
   }
 
   DeployJob _jobForPersistence(DeployJob job) {

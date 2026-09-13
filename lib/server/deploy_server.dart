@@ -64,6 +64,7 @@ class DeployServer({ServerConfig? config}) {
     listDeployHistory: listDeployHistory,
     fetchDeployQueue: () async => waitingQueue,
     cancelQueuedDeploy: cancelQueuedDeploy,
+    reorderQueuedDeploy: reorderQueuedDeploy,
     jobUpdates: jobUpdates,
     queueUpdates: queueUpdates,
   );
@@ -98,6 +99,15 @@ class DeployServer({ServerConfig? config}) {
 
   Future<void> cancelQueuedDeploy(String jobId) async {
     if (!_deployPipeline.cancelWaiting(jobId)) {
+      throw DeployJobNotFound(jobId);
+    }
+  }
+
+  Future<void> reorderQueuedDeploy({
+    required String jobId,
+    required int toIndex,
+  }) async {
+    if (!_deployPipeline.moveWaitingJob(jobId: jobId, toIndex: toIndex)) {
       throw DeployJobNotFound(jobId);
     }
   }

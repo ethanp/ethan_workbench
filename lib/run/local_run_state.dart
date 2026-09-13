@@ -86,6 +86,13 @@ class const LocalRunState({
     return LocalRunKey(projectId: projectId, deviceKey: deviceKey);
   }
 
+  String get projectAndDeviceLabel {
+    final projectName = this.projectName ?? 'App';
+    final deviceLabel = this.deviceLabel;
+    if (deviceLabel == null) return projectName;
+    return '$projectName · $deviceLabel';
+  }
+
   factory fromJson(Map<String, dynamic> json) {
     final exceptionJson = json['flutterException'];
     return LocalRunState(

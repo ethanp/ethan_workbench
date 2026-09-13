@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:ethan_ui/ethan_ui.dart';
@@ -17,6 +18,11 @@ class const DeployQueuePanel({
   required final List<DeployJob> waiting,
   required final VoidCallback onOpenOngoing,
   required final Future<void> Function(String jobId) onCancelWaiting,
+  required final Future<void> Function({
+    required String jobId,
+    required int toIndex,
+  })
+  onReorderWaiting,
 
   /// Estimated time left for [ongoing] vs typical successful runs.
   final Duration? ongoingRemaining,
@@ -153,14 +159,37 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
   }
 
   Widget _queueList({required bool shrinkWrap}) {
-    return ListView(
+    return ReorderableListView.builder(
       shrinkWrap: shrinkWrap,
+      buildDefaultDragHandles: false,
       padding: const EdgeInsets.fromLTRB(
         ELayout.spaceMd,
         0,
         ELayout.spaceMd,
         ELayout.spaceLg,
       ),
+      header: _queueHeader(),
+      itemCount: widget.waiting.length,
+      onReorderItem: _reorderWaiting,
+      itemBuilder: (context, index) {
+        final job = widget.waiting[index];
+        return Padding(
+          key: ValueKey(job.jobId),
+          padding: EdgeInsets.only(top: index == 0 ? 0 : ELayout.spaceSm),
+          child: _QueueJobTile(
+            job: job,
+            position: index + 1,
+            reorderIndex: index,
+            onCancel: () => unawaited(widget.onCancelWaiting(job.jobId)),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _queueHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (widget.ongoing != null) ...[
           Text('Now', style: EText.label.small),
@@ -176,18 +205,18 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
         Text('Up next', style: EText.label.small),
         const SizedBox(height: ELayout.spaceSm),
         if (widget.waiting.isEmpty)
-          Text('Nothing queued', style: EText.caption)
-        else
-          for (var index = 0; index < widget.waiting.length; index++) ...[
-            if (index > 0) const SizedBox(height: ELayout.spaceSm),
-            _QueueJobTile(
-              job: widget.waiting[index],
-              position: index + 1,
-              onCancel: () =>
-                  widget.onCancelWaiting(widget.waiting[index].jobId),
-            ),
-          ],
+          Text('Nothing queued', style: EText.caption),
       ],
+    );
+  }
+
+  void _reorderWaiting(int oldIndex, int newIndex) {
+    if (newIndex == oldIndex) return;
+    unawaited(
+      widget.onReorderWaiting(
+        jobId: widget.waiting[oldIndex].jobId,
+        toIndex: newIndex,
+      ),
     );
   }
 }
@@ -195,6 +224,7 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
 class const _QueueJobTile({
   required final DeployJob job,
   final int? position,
+  final int? reorderIndex,
   final VoidCallback? onActivated,
   final VoidCallback? onCancel,
   final String? stageLabel,
@@ -209,20 +239,55 @@ class const _QueueJobTile({
       padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
       child: Row(
         children: [
-          if (position != null) ...[
-            Text(
-              '$position',
-              style: EText.mono.copyWith(
-                color: EColors.textMuted,
-                fontSize: ELayout.typeSize(12),
-              ),
-            ),
-            const SizedBox(width: ELayout.spaceSm),
-          ],
-          Expanded(child: _titleAndStatus()),
+          Expanded(child: _draggableOrStaticCaption()),
           if (onCancel != null) _removeFromQueueButton(),
         ],
       ),
+    );
+  }
+
+  Widget _draggableOrStaticCaption() {
+    final dragIndex = reorderIndex;
+    if (dragIndex == null) return _jobCaptionRow();
+    return ReorderableDragStartListener(
+      index: dragIndex,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.grab,
+        child: _jobCaptionRow(leading: _dragHandle()),
+      ),
+    );
+  }
+
+  Widget _dragHandle() {
+    return const Tooltip(
+      message: 'Drag to reorder',
+      child: Icon(
+        Icons.drag_handle_rounded,
+        size: 18,
+        color: EColors.textMuted,
+      ),
+    );
+  }
+
+  Widget _jobCaptionRow({Widget? leading}) {
+    return Row(
+      children: [
+        if (leading != null) ...[
+          leading,
+          const SizedBox(width: ELayout.spaceSm),
+        ],
+        if (position != null) ...[
+          Text(
+            '$position',
+            style: EText.mono.copyWith(
+              color: EColors.textMuted,
+              fontSize: ELayout.typeSize(12),
+            ),
+          ),
+          const SizedBox(width: ELayout.spaceSm),
+        ],
+        Expanded(child: _titleAndStatus()),
+      ],
     );
   }
 

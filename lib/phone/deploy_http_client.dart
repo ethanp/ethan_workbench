@@ -215,6 +215,18 @@ class DeployServerClient({
     _throwIfFailed(response, 'Failed to cancel queued deploy');
   }
 
+  Future<void> reorderQueuedDeploy({
+    required String jobId,
+    required int toIndex,
+  }) async {
+    final response = await _httpClient.patch(
+      Uri.parse('$_baseUrl/deploy/queue/$jobId'),
+      headers: _headers,
+      body: jsonEncode({'toIndex': toIndex}),
+    );
+    _throwIfFailed(response, 'Failed to reorder queued deploy');
+  }
+
   Future<List<DeployRunRecord>> listDeployHistory() async {
     final response = await _httpClient.get(
       Uri.parse('$_baseUrl/jobs/history'),
