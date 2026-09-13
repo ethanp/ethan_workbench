@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 /// Shared on-disk mirror roots for Cursor (workspace `.workbench` + app support).
 abstract final class WorkbenchCursorDirs() {
@@ -12,6 +11,13 @@ abstract final class WorkbenchCursorDirs() {
 
   static Future<void> ensureResolved() {
     return _resolveFuture ??= _resolve();
+  }
+
+  /// Workspace `.workbench` (and any directories added after resolve).
+  static Future<Directory> supportOrWorkbench() async {
+    await ensureResolved();
+    if (_directories.isNotEmpty) return _directories.first;
+    return Directory(path.join(Directory.current.path, '.workbench'));
   }
 
   /// Test hook — resets cached resolution.
@@ -26,13 +32,6 @@ abstract final class WorkbenchCursorDirs() {
     final workspaceWorkbench = _resolveWorkspaceWorkbenchDir();
     if (workspaceWorkbench != null) {
       _directories.add(workspaceWorkbench);
-    }
-
-    try {
-      final support = await getApplicationSupportDirectory();
-      _directories.add(Directory(path.join(support.path, 'cursor')));
-    } catch (_) {
-      // path_provider unavailable in some tests — workspace mirror only.
     }
 
     for (final directory in _directories) {

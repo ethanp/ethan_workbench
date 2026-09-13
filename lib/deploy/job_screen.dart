@@ -5,6 +5,7 @@ import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
 import '../phone/deploy_http_client.dart';
+import '../ui/workbench_domain_appearance.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
 import '../ui/widgets/deploy_progress_checklist.dart';
 import '../ui/widgets/status_pill.dart';

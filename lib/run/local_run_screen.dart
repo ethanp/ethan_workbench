@@ -5,6 +5,7 @@ import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../ui/workbench_domain_appearance.dart';
 import 'flutter_run_exception.dart';
 import 'local_flutter_run.dart';
 import 'local_run_controls.dart';

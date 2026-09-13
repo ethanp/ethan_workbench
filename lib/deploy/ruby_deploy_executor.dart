@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../tooling/flutter_tool_environment.dart';
+import '../tooling/homebrew_ruby.dart';
 import 'deploy_platform.dart';
 
 /// Runs `deploy.rb <ios|macos>` for a project and streams build output.
@@ -22,7 +23,7 @@ class DeployScriptRunner() {
     final Process process;
     if (exitCodePath == null) {
       process = await Process.start(
-        'ruby',
+        HomebrewRuby.executable,
         [deployRbPath, platform.scriptArgument, if (force) '--force'],
         workingDirectory: projectPath,
         environment: flutterToolEnvironment()..['PYTHONUNBUFFERED'] = '1',
@@ -39,8 +40,10 @@ class DeployScriptRunner() {
           '-c',
           // $0/$1[/ $2] are deploy.rb args; EXIT_FILE / LOG_FILE survive restart.
           durableLog == null
-              ? r'ruby "$0" "$1" ${2+"$2"}; ec=$?; printf %s "$ec" > "$EXIT_FILE"; exit $ec'
-              : r'ruby "$0" "$1" ${2+"$2"} 2>&1 | tee -a "$LOG_FILE"; '
+              ? '${HomebrewRuby.executable} "\$0" "\$1" \${2+"\$2"}; '
+                    r'ec=$?; printf %s "$ec" > "$EXIT_FILE"; exit $ec'
+              : '${HomebrewRuby.executable} "\$0" "\$1" \${2+"\$2"} 2>&1 | '
+                    r'tee -a "$LOG_FILE"; '
                     r'ec=${PIPESTATUS[0]}; printf %s "$ec" > "$EXIT_FILE"; exit $ec',
           deployRbPath,
           platform.scriptArgument,

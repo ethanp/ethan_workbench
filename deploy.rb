@@ -1,8 +1,11 @@
-#!/usr/bin/env ruby
+#!/opt/homebrew/opt/ruby/bin/ruby
 # Usage (from any Flutter app directory):
 #   ruby /path/to/ethan_workbench/deploy.rb <macos|ios> [--force|-f]
 # Or from a sibling app: ruby ../ethan_workbench/deploy.rb ios
 
+
+Encoding.default_external = Encoding::UTF_8
+Encoding.default_internal = Encoding::UTF_8
 
 require 'digest'
 require 'fileutils'

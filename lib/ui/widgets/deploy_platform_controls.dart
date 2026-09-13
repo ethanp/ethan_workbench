@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../deploy/deploy_job.dart';
 import '../../deploy/deploy_platform.dart';
 import '../../projects/workbench_project.dart';
+import '../workbench_domain_appearance.dart';
 import 'e_action_cluster.dart';
 
 /// Deploy cell for an [EActionCluster] under a platform rail.

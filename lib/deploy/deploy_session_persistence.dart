@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
+import '../cursor/workbench_cursor_dirs.dart';
 import 'deploy_job.dart';
 
 /// On-disk snapshot of the active deploy + wait queue for Mac hot restart.
@@ -41,10 +41,8 @@ class const DeploySessionRecord({
 }
 
 class DeploySessionPersistence() {
-  Future<Directory> _supportDirectory() async {
-    final supportDirectory = await getApplicationSupportDirectory();
-    return Directory(supportDirectory.path);
-  }
+  Future<Directory> _supportDirectory() =>
+      WorkbenchCursorDirs.supportOrWorkbench();
 
   Future<File> _sessionFile() async {
     final supportDirectory = await _supportDirectory();

@@ -40,12 +40,13 @@ class DeployHttpServer({
         .addHandler(router.call);
   }
 
-  Future<void> start() async {
+  Future<void> start({bool takeOverOccupiedPort = false}) async {
     if (_httpServer != null) return;
     try {
       await _bindHttp();
     } on SocketException catch (error) {
       if (!error.isAddressInUse) rethrow;
+      if (!takeOverOccupiedPort) rethrow;
       await config.port.asListeningTcpPort.killOtherListenersTillExit();
       await _bindHttp();
     }

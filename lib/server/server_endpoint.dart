@@ -13,6 +13,9 @@ String get serverPassword => envStringOr('SERVER_PASSWORD', '');
 
 String get serverBaseUrl => 'http://$serverHost:$serverPort';
 
+/// Agent / Mac-local CLI talks to the daemon on loopback, never a LAN host.
+String get loopbackServerBaseUrl => 'http://127.0.0.1:$serverPort';
+
 Future<String?> firstLanIpv4Address() async {
   final interfaces = await NetworkInterface.list(
     type: InternetAddressType.IPv4,

@@ -1,4 +1,4 @@
-import 'package:ethan_sync/ethan_sync.dart';
+import 'package:ethan_sync/powersync_upsert.dart';
 import 'package:powersync/powersync.dart';
 
 import '../deploy/deploy_checklist.dart';

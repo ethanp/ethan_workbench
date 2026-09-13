@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import 'package:ethan_workbench/deploy/deploy_platform.dart';
 import 'package:ethan_workbench/projects/deploy_source_hasher.dart';
 import 'package:ethan_workbench/projects/local_path_dependency_closure.dart';
+import 'package:ethan_workbench/tooling/homebrew_ruby.dart';
 
 void main() {
   late _DeployHashFixture fixture;
@@ -102,7 +103,7 @@ class _DeployHashFixture(final Directory fixtureDirectory) {
   Future<String> rubyHash() async {
     final deployRubyFile = File(path.join(Directory.current.path, 'deploy.rb'));
     expect(deployRubyFile.existsSync(), isTrue);
-    final rubyProcess = await Process.run('ruby', [
+    final rubyProcess = await Process.run(HomebrewRuby.executable, [
       deployRubyFile.path,
       'macos',
       '--print-source-hash',

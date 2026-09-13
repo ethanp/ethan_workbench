@@ -11,7 +11,13 @@ void main() {
       'HOME': '/Users/test',
     });
 
-    expect(environment['PATH'], '/usr/bin');
+    expect(
+      environment['PATH'],
+      '/opt/homebrew/opt/ruby/bin:/opt/homebrew/share/flutter/bin:'
+      '/opt/homebrew/bin:/usr/bin',
+    );
+    expect(environment['LANG'], 'en_US.UTF-8');
+    expect(environment['LC_ALL'], 'en_US.UTF-8');
     expect(environment['HOME'], '/Users/test');
     expect(environment.containsKey('GIT_CONFIG_COUNT'), isFalse);
     expect(environment.containsKey('GIT_CONFIG_KEY_0'), isFalse);

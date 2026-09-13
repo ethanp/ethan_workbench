@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
+import '../cursor/workbench_cursor_dirs.dart';
 import 'local_run_key.dart';
 
 /// On-disk record of an active `flutter run` so workbench hot restart can reclaim it.
@@ -50,7 +50,7 @@ class const LocalRunRecord({
 
 class LocalRunPersistence() {
   Future<Directory> _directory() async {
-    final supportDirectory = await getApplicationSupportDirectory();
+    final supportDirectory = await WorkbenchCursorDirs.supportOrWorkbench();
     return Directory(path.join(supportDirectory.path, 'active_local_runs'));
   }
 
@@ -60,7 +60,7 @@ class LocalRunPersistence() {
   }
 
   Future<File> _legacyFile() async {
-    final supportDirectory = await getApplicationSupportDirectory();
+    final supportDirectory = await WorkbenchCursorDirs.supportOrWorkbench();
     return File(path.join(supportDirectory.path, 'active_local_run.json'));
   }
 

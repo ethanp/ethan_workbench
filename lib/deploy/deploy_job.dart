@@ -1,20 +1,19 @@
 import 'dart:math';
 
-import 'package:ethan_ui/ethan_ui.dart';
 import 'package:ethan_utils/ethan_utils.dart';
 
 import 'deploy_checklist.dart';
 import 'deploy_platform.dart';
 
-enum DeployJobStatus({required final EStatusTone statusTone}) {
+enum DeployJobStatus() {
   /// Waiting in the FIFO behind the active deploy.
-  waiting(statusTone: EStatusTone.pending),
+  waiting,
 
   /// Accepted; deploy script is about to start.
-  queued(statusTone: EStatusTone.pending),
-  running(statusTone: EStatusTone.accent),
-  succeeded(statusTone: EStatusTone.success),
-  failed(statusTone: EStatusTone.danger);
+  queued,
+  running,
+  succeeded,
+  failed;
 
   String get pillLabel => nameAsCapitalizedWords;
 

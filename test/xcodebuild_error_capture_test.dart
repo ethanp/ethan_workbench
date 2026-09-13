@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:ethan_workbench/tooling/homebrew_ruby.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 
@@ -22,7 +23,10 @@ note: Building targets in dependency order
 xcodebuild: error: Failed to build workspace Runner with scheme Runner.: This scheme builds an embedded Apple Watch app. watchOS 26.5 must be installed in order to run the scheme
 xcodebuild: error: Unable to find a destination matching the provided destination specifier:
 ''');
-    final ruby = await Process.run('ruby', [captureRb.path, fixture.path]);
+    final ruby = await Process.run(HomebrewRuby.executable, [
+      captureRb.path,
+      fixture.path,
+    ]);
     expect(ruby.exitCode, 0, reason: '${ruby.stderr}');
     expect(
       ruby.stdout,
@@ -38,7 +42,7 @@ xcodebuild: error: Unable to find a destination matching the provided destinatio
     'xcrun wrapper records xcodebuild stderr from the same process',
     () async {
       expect(captureRb.existsSync(), isTrue);
-      final ruby = await Process.run('ruby', [
+      final ruby = await Process.run(HomebrewRuby.executable, [
         '-e',
         '''
 require "${captureRb.path}"

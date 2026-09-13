@@ -1,42 +1,19 @@
-import 'package:ethan_ui/ethan_ui.dart';
-
 import 'flutter_run_exception.dart';
 import 'local_run_key.dart';
 
 /// Lifecycle of a local `flutter run` session.
 enum LocalRunStatus({
   required final String chipLabel,
-  required final EStatusTone chipTone,
 
   /// Fixed plate subtitle while active; null means use the idle caption.
   required final String? actionSubtitle,
 }) {
-  idle(chipLabel: 'idle', chipTone: EStatusTone.muted, actionSubtitle: null),
-  starting(
-    chipLabel: 'starting',
-    chipTone: EStatusTone.accent,
-    actionSubtitle: 'Starting…',
-  ),
-  running(
-    chipLabel: 'running',
-    chipTone: EStatusTone.success,
-    actionSubtitle: 'Open',
-  ),
-  stopping(
-    chipLabel: 'stopping',
-    chipTone: EStatusTone.warning,
-    actionSubtitle: 'Stopping…',
-  ),
-  exited(
-    chipLabel: 'exited',
-    chipTone: EStatusTone.muted,
-    actionSubtitle: null,
-  ),
-  failed(
-    chipLabel: 'failed',
-    chipTone: EStatusTone.danger,
-    actionSubtitle: null,
-  );
+  idle(chipLabel: 'idle', actionSubtitle: null),
+  starting(chipLabel: 'starting', actionSubtitle: 'Starting…'),
+  running(chipLabel: 'running', actionSubtitle: 'Open'),
+  stopping(chipLabel: 'stopping', actionSubtitle: 'Stopping…'),
+  exited(chipLabel: 'exited', actionSubtitle: null),
+  failed(chipLabel: 'failed', actionSubtitle: null);
 
   bool get isActive =>
       this == LocalRunStatus.starting ||

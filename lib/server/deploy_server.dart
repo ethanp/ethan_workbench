@@ -116,7 +116,8 @@ class DeployServer({ServerConfig? config}) {
     _deployPipeline.attachLedger(ledger);
   }
 
-  Future<void> start() => _httpServer.start();
+  Future<void> start({bool takeOverOccupiedPort = false}) =>
+      _httpServer.start(takeOverOccupiedPort: takeOverOccupiedPort);
 
   Future<void> stop() => _httpServer.stop();
 

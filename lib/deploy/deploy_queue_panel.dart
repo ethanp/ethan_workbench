@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
+import '../ui/workbench_domain_appearance.dart';
 import 'deploy_checklist.dart';
 import 'deploy_job.dart';
 

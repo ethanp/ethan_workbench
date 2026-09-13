@@ -8,7 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app_identity.dart';
 import '../deploy/deploy_history_screen.dart';
 import '../deploy/deploy_job.dart';
+import '../deploy/deploy_trigger.dart';
+import '../phone/deploy_http_client.dart';
 import '../projects/projects_screen.dart';
+import '../run/local_run_registry.dart';
 import '../sync/deploy_ledger.dart';
 import '../sync/sync_config.dart';
 
@@ -20,6 +23,8 @@ import '../ui/widgets/status_pill.dart';
 import 'deploy_server.dart';
 import 'server_config.dart';
 import 'server_endpoint.dart';
+import 'workbench_lan_session.dart';
+import 'workbench_loopback.dart';
 
 const _log = ELogger('MacosCompanion');
 
@@ -30,7 +35,8 @@ class const MacosCompanionScreen({final ProviderContainer? syncContainer})
 }
 
 class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
-  final _server = DeployServer();
+  DeployServer? _inProcessServer;
+  WorkbenchLanSession? _daemonSession;
   String? _lanAddress;
   String? _statusMessage;
   DeployJob? _activeJob;
@@ -39,41 +45,104 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
   int _tabIndex = 0;
   int _ledgerGeneration = 0;
 
+  bool get _usingDaemon => _daemonSession != null;
+
+  bool get _isListening =>
+      _usingDaemon || (_inProcessServer?.isRunning ?? false);
+
+  DeployTrigger get _deployTrigger {
+    final daemonSession = _daemonSession;
+    if (daemonSession != null) {
+      return daemonSession.deployTrigger(
+        showLineAgeAnalysis: true,
+        flutterRoots: ServerConfig().flutterRoots,
+      );
+    }
+    return _inProcessServer!.localDeployTrigger;
+  }
+
+  LocalRunRegistry get _localRunRegistry {
+    return _daemonSession?.localRunRegistry ??
+        _inProcessServer!.localRunRegistry;
+  }
+
   @override
   void initState() {
     super.initState();
-    unawaited(_startServerBeforeLedgerAttach());
+    unawaited(_connectToDaemonOrStartInProcess());
   }
 
   @override
   void dispose() {
     unawaited(_jobSubscription?.cancel());
-    unawaited(_server.dispose());
+    _daemonSession?.close();
+    unawaited(_inProcessServer?.dispose());
     super.dispose();
   }
 
-  Future<void> _startServerBeforeLedgerAttach() async {
+  Future<void> _connectToDaemonOrStartInProcess() async {
     final lanAddress = await firstLanIpv4Address();
-    setState(() => _lanAddress = lanAddress);
-    await _server.restoreLocalRun();
+    if (mounted) setState(() => _lanAddress = lanAddress);
+
+    if (await WorkbenchLoopback.isHealthy) {
+      _attachDaemonSession();
+      return;
+    }
+
+    final inProcessServer = DeployServer();
+    _inProcessServer = inProcessServer;
+    await inProcessServer.restoreLocalRun();
     if (mounted) setState(() {});
-    // Server must come up even if PowerSync ledger attach is slow/hangs.
-    await _startServer(announce: false);
+    await _startInProcessServer(announce: false);
     await _attachSyncLedger();
-    await _server.restoreDeploySession();
+    await inProcessServer.restoreDeploySession();
     if (mounted) {
-      setState(() => _activeJob = _server.activeJob);
+      setState(() => _activeJob = inProcessServer.activeJob);
+    }
+  }
+
+  void _attachDaemonSession() {
+    final daemonSession = WorkbenchLanSession(
+      deployServerClient: DeployServerClient(baseUrl: loopbackServerBaseUrl)
+        ..setBearerToken(serverPassword),
+      unreachableHint:
+          'Is the workbench daemon running at $loopbackServerBaseUrl?',
+    );
+    _daemonSession = daemonSession;
+    daemonSession.startListening();
+    unawaited(_jobSubscription?.cancel());
+    _jobSubscription = daemonSession.jobUpdates.listen((job) {
+      if (!mounted) return;
+      setState(() => _activeJob = job);
+    });
+    unawaited(_refreshActiveJobFromDaemon());
+    if (mounted) {
+      setState(() {
+        _statusMessage = 'Using workbench daemon on $loopbackServerBaseUrl';
+      });
+    }
+  }
+
+  Future<void> _refreshActiveJobFromDaemon() async {
+    try {
+      final job = await _daemonSession?.fetchActiveJob();
+      if (!mounted) return;
+      setState(() => _activeJob = job);
+    } catch (error, stackTrace) {
+      _log.warn('Failed to load active job from daemon', error, stackTrace);
     }
   }
 
   Future<void> _attachSyncLedger() async {
     if (!ethanWorkbenchSyncConfigured()) return;
+    final inProcessServer = _inProcessServer;
+    if (inProcessServer == null) return;
     final container = widget.syncContainer;
     if (container == null) return;
     final databaseManager = await container.read(
       powerSyncDatabaseManagerProvider.future,
     );
-    _server.attachLedger(DeployLedger(databaseManager.database));
+    inProcessServer.attachLedger(DeployLedger(databaseManager.database));
     if (mounted) setState(() => _ledgerGeneration++);
   }
 
@@ -83,28 +152,29 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
     context.textSnackBar(message);
   }
 
-  Future<void> _startServer({bool announce = true}) async {
-    if (_busy || _server.isRunning) return;
+  Future<void> _startInProcessServer({bool announce = true}) async {
+    final inProcessServer = _inProcessServer;
+    if (_busy || inProcessServer == null || inProcessServer.isRunning) return;
     setState(() {
       _busy = true;
       _statusMessage = null;
     });
     try {
-      await _server.start();
+      await inProcessServer.start(takeOverOccupiedPort: true);
       await _jobSubscription?.cancel();
-      _jobSubscription = _server.jobUpdates.listen((job) {
+      _jobSubscription = inProcessServer.jobUpdates.listen((job) {
         if (!mounted) return;
         setState(() => _activeJob = job);
       });
       if (!mounted) return;
       setState(() {
-        _activeJob = _server.activeJob;
+        _activeJob = inProcessServer.activeJob;
         _statusMessage = null;
       });
       if (announce) {
         _showServerMessage(
           'Server listening on port '
-          '${_server.boundPort ?? ServerConfig.defaultPort}',
+          '${inProcessServer.boundPort ?? ServerConfig.defaultPort}',
         );
       }
     } catch (error, stackTrace) {
@@ -117,13 +187,14 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
     }
   }
 
-  Future<void> _stopServer() async {
-    if (_busy) return;
+  Future<void> _stopInProcessServer() async {
+    final inProcessServer = _inProcessServer;
+    if (_busy || inProcessServer == null) return;
     setState(() => _busy = true);
     try {
       await _jobSubscription?.cancel();
       _jobSubscription = null;
-      await _server.stop();
+      await inProcessServer.stop();
       if (!mounted) return;
       setState(() => _statusMessage = 'Server stopped');
       _showServerMessage('Server stopped');
@@ -139,18 +210,21 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_daemonSession == null && _inProcessServer == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return Scaffold(
       backgroundColor: EColors.background,
       body: IndexedStack(
         index: _tabIndex,
         children: [
           ProjectsScreen(
-            trigger: _server.localDeployTrigger,
-            localRunRegistry: _server.localRunRegistry,
+            trigger: _deployTrigger,
+            localRunRegistry: _localRunRegistry,
           ),
           DeployHistoryScreen(
             key: ValueKey(_ledgerGeneration),
-            trigger: _server.localDeployTrigger,
+            trigger: _deployTrigger,
           ),
           _serverTab(),
         ],
@@ -174,7 +248,9 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
       appBar: EAppHeader(
         eyebrow: AppIdentity.displayName,
         title: 'Server',
-        subtitle: 'iOS client endpoint',
+        subtitle: _usingDaemon
+            ? 'Workbench daemon on loopback'
+            : 'iOS client endpoint',
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
@@ -201,37 +277,51 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
   Widget _serverPanel() {
     return EPanel(
       title: 'Server',
-      subtitle: _server.isRunning
+      subtitle: _usingDaemon
+          ? 'Using workbench daemon'
+          : (_inProcessServer?.isRunning ?? false)
           ? 'Ready for the iOS client'
           : 'Server offline',
-      trailing: StatusPill.server(running: _server.isRunning),
+      trailing: StatusPill.server(running: _isListening),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Port ${_server.boundPort ?? ServerConfig.defaultPort}',
+            _usingDaemon
+                ? loopbackServerBaseUrl
+                : 'Port ${_inProcessServer?.boundPort ?? ServerConfig.defaultPort}',
             style: EText.mono,
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              if (_server.isRunning)
-                const OutlinedButton(onPressed: null, child: Text('Start'))
-              else
-                FilledButton(
-                  onPressed: _busy ? null : () => unawaited(_startServer()),
-                  child: Text(_busy ? 'Starting…' : 'Start'),
-                ),
-              const SizedBox(width: 10),
-              if (_server.isRunning)
-                FilledButton(
-                  onPressed: _busy ? null : () => unawaited(_stopServer()),
-                  child: const Text('Stop'),
-                )
-              else
-                const OutlinedButton(onPressed: null, child: Text('Stop')),
-            ],
-          ),
+          if (_usingDaemon)
+            Text(
+              'Stop or start the daemon with scripts/workbench daemon.',
+              style: EText.body.medium,
+            )
+          else
+            Row(
+              children: [
+                if (_inProcessServer?.isRunning ?? false)
+                  const OutlinedButton(onPressed: null, child: Text('Start'))
+                else
+                  FilledButton(
+                    onPressed: _busy
+                        ? null
+                        : () => unawaited(_startInProcessServer()),
+                    child: Text(_busy ? 'Starting…' : 'Start'),
+                  ),
+                const SizedBox(width: 10),
+                if (_inProcessServer?.isRunning ?? false)
+                  FilledButton(
+                    onPressed: _busy
+                        ? null
+                        : () => unawaited(_stopInProcessServer()),
+                    child: const Text('Stop'),
+                  )
+                else
+                  const OutlinedButton(onPressed: null, child: Text('Stop')),
+              ],
+            ),
           if (_statusMessage != null) ...[
             const SizedBox(height: 12),
             SelectableText(_statusMessage!, style: EText.caption),
@@ -274,7 +364,10 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            'Keep this window open while deploying from the phone.',
+            _usingDaemon
+                ? 'The workbench daemon owns the HTTP port. This window is a client.'
+                : 'Keep this window open while deploying from the phone, '
+                      'or run scripts/workbench daemon start.',
             style: EText.body.medium,
           ),
         ],
@@ -290,7 +383,7 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
       trailing: job == null ? null : StatusPill.job(job.status),
       child: job == null
           ? Text(
-              'Deploys from this Mac or the iOS client show live logs here.',
+              'Deploys from this Mac, the CLI, or the iOS client show here.',
               style: EText.body.medium,
             )
           : Column(

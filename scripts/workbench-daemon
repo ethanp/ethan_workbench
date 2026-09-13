@@ -1,0 +1,8 @@
+#!/bin/bash
+# Headless workbench daemon (Flutter test binding, no window).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+exec /opt/homebrew/share/flutter/bin/flutter test \
+  tool/workbench_daemon_harness.dart \
+  --reporter failures-only

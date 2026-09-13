@@ -7,6 +7,7 @@ import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_trigger.dart';
 import '../deploy/job_screen.dart';
+import '../ui/workbench_domain_appearance.dart';
 import '../phone/deploy_http_client.dart';
 import 'active_deploy_watch.dart';
 import 'workbench_project.dart';

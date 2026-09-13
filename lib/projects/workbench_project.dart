@@ -1,18 +1,13 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:ethan_ui/ethan_ui.dart';
-
 import '../deploy/deploy_platform.dart';
 
-enum DeploySourceStatus({
-  required final String? chipLabel,
-  required final EStatusTone? chipTone,
-}) {
-  unevaluated(chipLabel: null, chipTone: null),
-  neverDeployed(chipLabel: null, chipTone: null),
-  unchanged(chipLabel: 'current', chipTone: EStatusTone.success),
-  changed(chipLabel: 'changed', chipTone: EStatusTone.warning);
+enum DeploySourceStatus({required final String? chipLabel}) {
+  unevaluated(chipLabel: null),
+  neverDeployed(chipLabel: null),
+  unchanged(chipLabel: 'current'),
+  changed(chipLabel: 'changed');
 
   static DeploySourceStatus fromName(String name) {
     return DeploySourceStatus.values.firstWhere(
