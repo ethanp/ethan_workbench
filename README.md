@@ -2,6 +2,10 @@
 
 Personal Flutter workbench for your app fleet: a macOS companion runs a LAN **server** that wraps `deploy.rb`, an **iOS client** triggers deploys, and Mac-side tools (line age, more later) operate on local repos.
 
+### Screenshots
+
+![Projects](screenshots/projects.png)
+
 ## Security
 
 Auth is a **shared password** from `.env`, not open LAN access:
