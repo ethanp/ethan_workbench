@@ -19,6 +19,7 @@ class ActiveDeployWatch({
 }) {
   DeployJob? ongoing;
   List<DeployJob> waiting = const [];
+  bool restartAfterQueue = false;
 
   /// Median successful duration for [ongoing]'s project/platform, when known.
   Duration? ongoingTypicalDuration;
@@ -29,7 +30,8 @@ class ActiveDeployWatch({
   String? _typicalDurationCacheKey;
   String? _finishedJobId;
 
-  bool get hasQueuePanelContent => ongoing != null || waiting.isNotEmpty;
+  bool get hasQueuePanelContent =>
+      ongoing != null || waiting.isNotEmpty || restartAfterQueue;
 
   /// Remaining wall time vs typical successful runs; null if no baseline yet.
   Duration? get ongoingRemainingEstimate {
@@ -136,11 +138,14 @@ class ActiveDeployWatch({
       final job = await trigger.fetchActiveJob();
       final next = job != null && !job.status.isTerminal ? job : null;
       final queue = await trigger.fetchDeployQueue();
-      final waitingChanged = !_sameWaitingJobs(waiting, queue);
+      final waitingChanged =
+          !_sameWaitingJobs(waiting, queue.waiting) ||
+          restartAfterQueue != queue.restartAfterQueue;
       final was = previousOngoing?.debugSummary ?? 'none';
       final now = next?.debugSummary ?? 'none';
       ongoing = next;
-      waiting = List.unmodifiable(queue);
+      waiting = List.unmodifiable(queue.waiting);
+      restartAfterQueue = queue.restartAfterQueue;
       if (next == null) {
         ongoingTypicalDuration = null;
         _typicalDurationCacheKey = null;
@@ -148,7 +153,7 @@ class ActiveDeployWatch({
         await _ensureTypicalDuration(next);
       }
       if (was != now) {
-        _log.log('refresh $was → $now waiting=${queue.length}');
+        _log.log('refresh $was → $now waiting=${queue.waiting.length}');
       }
       if (previousOngoing != null && previousOngoing.jobId != next?.jobId) {
         await _notifyFinishedFromRefresh(previousOngoing.jobId);

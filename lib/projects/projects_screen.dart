@@ -225,7 +225,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   }
 
   Future<void> _deploy(WorkbenchProject project, DeployPlatform platform) {
-    return _deployFlow.confirmAndStart(
+    return _deployFlow.startDeploy(
       context,
       project: project,
       platform: platform,
@@ -268,6 +268,39 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     );
   }
 
+  Widget _deployChangedAction() {
+    var changedCount = 0;
+    for (final project in _catalog.projects) {
+      changedCount += project.changedPlatforms.length;
+    }
+    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final onActivated = changedCount == 0
+        ? null
+        : () => unawaited(
+            _deployFlow.startChangedDeploys(
+              context,
+              projects: _catalog.projects,
+              afterJobScreenClosed: _afterJobScreenClosed,
+            ),
+          );
+    if (compact) {
+      return IconButton(
+        tooltip: changedCount == 0
+            ? 'Deploy changed · none'
+            : 'Deploy changed · $changedCount',
+        onPressed: onActivated,
+        icon: const Icon(Icons.rocket_launch_rounded),
+      );
+    }
+    return ETintedAction.compact(
+      accent: changedCount == 0 ? EColors.textMuted : EColors.accentGlow,
+      icon: Icons.rocket_launch_rounded,
+      title: 'Deploy changed',
+      subtitle: changedCount == 0 ? 'None' : '$changedCount',
+      onActivated: onActivated,
+    );
+  }
+
   Widget _flutterLineAgeAction() {
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
     final subtitle = FlutterLineAge(flutterRoots: widget.trigger.flutterRoots)
@@ -279,15 +312,12 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
         icon: const Icon(Icons.bar_chart_rounded),
       );
     }
-    return SizedBox(
-      width: 140,
-      child: ETintedAction.compact(
-        accent: WorkbenchActionAccents.lineAge,
-        icon: Icons.bar_chart_rounded,
-        title: 'Line age',
-        subtitle: subtitle,
-        onActivated: _showFlutterLineAgeScreen,
-      ),
+    return ETintedAction.compact(
+      accent: WorkbenchActionAccents.lineAge,
+      icon: Icons.bar_chart_rounded,
+      title: 'Line age',
+      subtitle: subtitle,
+      onActivated: _showFlutterLineAgeScreen,
     );
   }
 
@@ -334,6 +364,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
         eyebrow: AppIdentity.displayName,
         title: widget.trigger.title,
         actions: [
+          _deployChangedAction(),
           if (widget.trigger.showLineAgeAnalysis) _flutterLineAgeAction(),
           _checkForChangesAction(),
           if (widget.trigger.showSignOut)
@@ -423,18 +454,15 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       );
     }
 
-    return SizedBox(
-      width: 140,
-      child: Tooltip(
-        message: tooltip,
-        child: ETintedAction.compact(
-          accent: onPressed == null ? EColors.textMuted : EColors.accentGlow,
-          icon: Icons.refresh_rounded,
-          title: 'Refresh',
-          subtitle: lastCheckedLabel ?? 'Changed status',
-          onActivated: onPressed,
-          trailing: progressIndicator,
-        ),
+    return Tooltip(
+      message: tooltip,
+      child: ETintedAction.compact(
+        accent: onPressed == null ? EColors.textMuted : EColors.accentGlow,
+        icon: Icons.refresh_rounded,
+        title: 'Refresh',
+        subtitle: lastCheckedLabel ?? 'Changed status',
+        onActivated: onPressed,
+        trailing: progressIndicator,
       ),
     );
   }

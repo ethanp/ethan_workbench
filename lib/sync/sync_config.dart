@@ -1,6 +1,5 @@
 import 'package:ethan_sync/ethan_sync.dart';
 import 'package:ethan_utils/ethan_utils.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_identity.dart';
 import 'powersync_schema.dart';
@@ -10,9 +9,12 @@ const _log = ELogger('EthanWorkbenchSync');
 bool ethanWorkbenchSyncConfigured() => DotEnvSyncBootstrap.isConfigured();
 
 /// Builds ethan_workbench's [SyncConfig] for `ethan_sync`.
-SyncConfig buildEthanWorkbenchSyncConfig(SharedPreferences preferences) {
+///
+/// Database path is [AppIdentity.localDatabasePath] so the daemon (no
+/// SharedPreferences plugin) and the companion open the same ledger file.
+SyncConfig buildEthanWorkbenchSyncConfig() {
   return DotEnvSyncBootstrap.build(
-    preferences: preferences,
+    databasePath: () async => AppIdentity.localDatabasePath,
     appName: AppIdentity.syncAppName,
     localDatabaseStem: AppIdentity.localDatabaseStem,
     powersyncPort: 8084,

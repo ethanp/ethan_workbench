@@ -174,6 +174,7 @@ class const HomescreenDeployPane({
     return DeployQueuePanel(
       ongoing: activeDeploy.ongoing,
       waiting: activeDeploy.waiting,
+      restartAfterQueue: activeDeploy.restartAfterQueue,
       ongoingRemaining: activeDeploy.ongoingRemainingEstimate,
       width: width,
       detail: inlineJob == null

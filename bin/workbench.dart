@@ -113,7 +113,7 @@ class WorkbenchCli() {
     var platform = 'ios';
     var force = false;
     var wait = false;
-    String? projectId;
+    final projectIds = <String>[];
     for (final argument in arguments) {
       switch (argument) {
         case '--ios':
@@ -130,23 +130,44 @@ class WorkbenchCli() {
             exitCode = 1;
             return;
           }
-          if (projectId != null) {
-            stderr.writeln('Unexpected argument: $argument');
-            exitCode = 1;
-            return;
-          }
-          projectId = argument;
+          projectIds.add(argument);
       }
     }
-    if (projectId == null || projectId.isEmpty) {
+    if (projectIds.isEmpty) {
       stderr.writeln(
-        'Usage: workbench deploy <projectId> [--ios|--macos] [--force] [--wait]',
+        'Usage: workbench deploy <projectId> [projectId ...] '
+        '[--ios|--macos] [--force] [--wait]',
       );
       exitCode = 1;
       return;
     }
 
-    http.Response? response;
+    final jobIds = <String>[];
+    for (final projectId in projectIds) {
+      final job = await _enqueueDeploy(
+        projectId: projectId,
+        platform: platform,
+        force: force,
+      );
+      if (job == null) {
+        exitCode = 1;
+        continue;
+      }
+      _printJob(job);
+      jobIds.add(job['jobId'] as String);
+    }
+    if (!wait) return;
+    for (final jobId in jobIds) {
+      await _waitForJob(jobId);
+    }
+  }
+
+  Future<Map<String, dynamic>?> _enqueueDeploy({
+    required String projectId,
+    required String platform,
+    required bool force,
+  }) async {
+    http.Response response;
     try {
       response = await http.post(
         Uri.parse('$_baseUrl/deploy'),
@@ -159,31 +180,19 @@ class WorkbenchCli() {
       );
     } on SocketException {
       stderr.writeln(_daemonDownHint);
-      exitCode = 1;
-      return;
+      return null;
     }
 
     if (response.statusCode == 409) {
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
       final jobJson = payload['job'];
-      if (jobJson is Map<String, dynamic>) {
-        _printJob(jobJson);
-        if (wait) {
-          await _waitForJob(jobJson['jobId'] as String);
-        }
-        return;
-      }
+      if (jobJson is Map<String, dynamic>) return jobJson;
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       _printHttpError(response);
-      exitCode = 1;
-      return;
+      return null;
     }
-    final job = jsonDecode(response.body) as Map<String, dynamic>;
-    _printJob(job);
-    if (wait) {
-      await _waitForJob(job['jobId'] as String);
-    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   Future<void> job(List<String> arguments) async {
@@ -205,7 +214,9 @@ class WorkbenchCli() {
 
   Future<void> daemon(List<String> arguments) async {
     if (arguments.isEmpty) {
-      stderr.writeln('Usage: workbench daemon start|stop|status|install');
+      stderr.writeln(
+        'Usage: workbench daemon start|stop|restart|status|install',
+      );
       exitCode = 1;
       return;
     }
@@ -216,16 +227,107 @@ class WorkbenchCli() {
         await _startDaemon();
       case 'stop':
         await _stopDaemon();
+      case 'restart':
+        await _restartDaemon();
       case 'status':
-        if (await isHealthy) {
-          stdout.writeln('running $_baseUrl');
-        } else {
-          stdout.writeln('not running');
-          exitCode = 1;
-        }
+        await _daemonStatus();
       default:
         stderr.writeln('Unknown daemon command: ${arguments.first}');
         exitCode = 1;
+    }
+  }
+
+  Future<void> _daemonStatus() async {
+    if (!await isHealthy) {
+      stdout.writeln('not running');
+      exitCode = 1;
+      return;
+    }
+    final response = await _get('/health');
+    if (response == null) return;
+    try {
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      final restartAfterQueue = payload['restartAfterQueue'] == true;
+      stdout.writeln(
+        restartAfterQueue
+            ? 'running $_baseUrl (restart after queue)'
+            : 'running $_baseUrl',
+      );
+    } catch (_) {
+      stdout.writeln('running $_baseUrl');
+    }
+  }
+
+  Future<void> _restartDaemon() async {
+    if (!await isHealthy) {
+      await _startDaemon();
+      return;
+    }
+    http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('$_baseUrl/daemon/restart'),
+        headers: _headers,
+      );
+    } on SocketException {
+      stderr.writeln(_daemonDownHint);
+      exitCode = 1;
+      return;
+    }
+    if (response.statusCode == 404) {
+      stdout.writeln(
+        'This daemon build cannot enqueue a restart. '
+        'Waiting until the deploy queue is idle, then restarting…',
+      );
+      if (!await _waitUntilDeployQueueIdle()) {
+        exitCode = 1;
+        return;
+      }
+      await _stopDaemon();
+      await _startDaemon();
+      return;
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      _printHttpError(response);
+      exitCode = 1;
+      return;
+    }
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    if (payload['beganImmediately'] == true) {
+      stdout.writeln('Daemon restarting now');
+      await _waitUntilUnhealthy();
+      await _startDaemon();
+      return;
+    }
+    stdout.writeln(
+      'Daemon restart scheduled after the deploy queue drains '
+      '(waiting=${payload['waitingJobCount']} '
+      'active=${payload['activeJobId'] ?? 'none'})',
+    );
+  }
+
+  Future<bool> _waitUntilDeployQueueIdle() async {
+    while (true) {
+      final queueResponse = await _get('/deploy/queue');
+      if (queueResponse == null) return false;
+      final queuePayload =
+          jsonDecode(queueResponse.body) as Map<String, dynamic>;
+      final waitingJobs = queuePayload['jobs'] as List<dynamic>? ?? const [];
+      final activeResponse = await _get('/jobs/active', notFoundOk: true);
+      if (activeResponse == null) return false;
+      if (waitingJobs.isEmpty && activeResponse.statusCode == 404) return true;
+      stdout.writeln(
+        'waiting for idle (queue=${waitingJobs.length} '
+        'active=${activeResponse.statusCode == 404 ? 'no' : 'yes'})',
+      );
+      await Future<void>.delayed(const Duration(seconds: 5));
+    }
+  }
+
+  Future<void> _waitUntilUnhealthy() async {
+    for (var attempt = 0; attempt < 40; attempt++) {
+      if (!await isHealthy) return;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
     }
   }
 
@@ -427,9 +529,9 @@ Usage: workbench <command>
 
   health
   projects
-  deploy <projectId> [--ios|--macos] [--force] [--wait]
+  deploy <projectId> [projectId ...] [--ios|--macos] [--force] [--wait]
   job [jobId]
-  daemon start|stop|status|install
+  daemon start|stop|restart|status|install
 ''');
   }
 

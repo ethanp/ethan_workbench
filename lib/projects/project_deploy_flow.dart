@@ -1,4 +1,3 @@
-import 'package:ethan_ui/ethan_ui.dart';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
@@ -7,12 +6,11 @@ import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_trigger.dart';
 import '../deploy/job_screen.dart';
-import '../ui/workbench_domain_appearance.dart';
 import '../phone/deploy_http_client.dart';
 import 'active_deploy_watch.dart';
 import 'workbench_project.dart';
 
-/// Confirm → start deploy → show job UI, or enqueue when busy.
+/// Start deploy → show job UI, or enqueue when busy.
 class ProjectDeployFlow({
   required final DeployTrigger trigger,
   required final ActiveDeployWatch activeDeploy,
@@ -40,7 +38,90 @@ class ProjectDeployFlow({
     await afterJobScreenClosed();
   }
 
-  Future<void> confirmAndStart(
+  Future<void> startChangedDeploys(
+    BuildContext context, {
+    required List<WorkbenchProject> projects,
+    required Future<void> Function() afterJobScreenClosed,
+  }) async {
+    final changedDeploys = [
+      for (final project in projects)
+        for (final platform in project.changedPlatforms)
+          _ChangedDeploy(project: project, platform: platform),
+    ];
+    if (changedDeploys.isEmpty) {
+      if (context.mounted) {
+        context.textSnackBar('No changed deploys.');
+      }
+      return;
+    }
+
+    DeployJob? firstStarted;
+    var queuedCount = 0;
+    for (final changedDeploy in changedDeploys) {
+      if (!context.mounted) return;
+      if (activeDeploy.ongoing?.status.isActiveRunner == true &&
+          activeDeploy.ongoing?.projectId == changedDeploy.project.projectId &&
+          activeDeploy.ongoing?.platform == changedDeploy.platform) {
+        continue;
+      }
+      if (activeDeploy.waitingFor(
+            projectId: changedDeploy.project.projectId,
+            platformName: changedDeploy.platform.name,
+          ) !=
+          null) {
+        continue;
+      }
+      try {
+        final job = await trigger.startDeploy(
+          projectId: changedDeploy.project.projectId,
+          platform: changedDeploy.platform,
+          force: false,
+        );
+        if (job.status.isWaiting) {
+          queuedCount++;
+          await activeDeploy.refresh();
+        } else {
+          firstStarted ??= job;
+          await activeDeploy.refresh();
+        }
+      } on DeployAlreadyQueued {
+        await activeDeploy.refresh();
+      } on DeployAlreadyRunning {
+        await activeDeploy.refresh();
+      } on ServerRequestException catch (error) {
+        if (!context.mounted) return;
+        if (error.isUnauthorized) {
+          await trigger.onUnauthorized?.call();
+          return;
+        }
+        context.textSnackBar(error.message);
+        return;
+      } catch (error) {
+        if (!context.mounted) return;
+        context.textSnackBar(error.toString());
+        return;
+      }
+    }
+
+    if (!context.mounted) return;
+    if (firstStarted != null) {
+      await showJobScreen(
+        context,
+        firstStarted,
+        afterJobScreenClosed: afterJobScreenClosed,
+      );
+    }
+    if (!context.mounted) return;
+    if (queuedCount > 0) {
+      context.textSnackBar(
+        queuedCount == 1
+            ? 'Queued 1 changed deploy'
+            : 'Queued $queuedCount changed deploys',
+      );
+    }
+  }
+
+  Future<void> startDeploy(
     BuildContext context, {
     required WorkbenchProject project,
     required DeployPlatform platform,
@@ -71,17 +152,11 @@ class ProjectDeployFlow({
       return;
     }
 
-    final sourceStatus = project.sourceStatusFor(platform);
-    final force = sourceStatus == DeploySourceStatus.unchanged
-        ? await _confirmForceUnchanged(context, project, platform)
-        : await _confirmIncrementalDeploy(context, project, platform);
-    if (force == null || !context.mounted) return;
-
     try {
       final job = await trigger.startDeploy(
         projectId: project.projectId,
         platform: platform,
-        force: force,
+        force: false,
       );
       if (!context.mounted) return;
       if (job.status.isWaiting) {
@@ -169,77 +244,9 @@ class ProjectDeployFlow({
       }
     }
   }
-
-  Future<bool?> _confirmIncrementalDeploy(
-    BuildContext context,
-    WorkbenchProject project,
-    DeployPlatform platform,
-  ) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(platform.icon, color: platform.accent, size: 24),
-            const SizedBox(width: 12),
-            Expanded(child: Text('Deploy ${project.name}?')),
-          ],
-        ),
-        content: Text(
-          'Build (if needed) and install to ${platform.label} via deploy.rb.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: platform.accent,
-              foregroundColor: EColors.surfaceInset,
-            ),
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Deploy to ${platform.label}'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<bool?> _confirmForceUnchanged(
-    BuildContext context,
-    WorkbenchProject project,
-    DeployPlatform platform,
-  ) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(platform.icon, color: platform.accent, size: 24),
-            const SizedBox(width: 12),
-            Expanded(child: Text('No changes for ${platform.label}')),
-          ],
-        ),
-        content: Text(
-          '${project.name} matches the last ${platform.label} deploy. '
-          'Force a full rebuild and install anyway?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: EColors.warning,
-              foregroundColor: EColors.surfaceInset,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Force deploy'),
-          ),
-        ],
-      ),
-    );
-  }
 }
+
+class const _ChangedDeploy({
+  required final WorkbenchProject project,
+  required final DeployPlatform platform,
+});

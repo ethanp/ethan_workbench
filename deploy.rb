@@ -10,6 +10,7 @@ Encoding.default_internal = Encoding::UTF_8
 require 'digest'
 require 'fileutils'
 require 'find'
+require 'open3'
 require 'yaml'
 
 require_relative 'xcodebuild_error_capture'
@@ -294,13 +295,20 @@ class IosDeployer < Deployer
   def install_to_device
     device_id = find_ios_device
     puts "Installing on iPhone..."
-    install_with_retry(device_id) || install_after_clean_rebuild(device_id)
+    first_attempt = install_with_retry(device_id)
+    return if first_attempt.succeeded?
+    raise "No target device found" if first_attempt.console_output.include?("No target device found")
+
+    install_after_clean_rebuild(device_id)
   end
 
   def install_after_clean_rebuild(device_id)
     puts "Install failed, retrying after clean rebuild..."
     clean_and_rebuild_ios
-    install_with_retry(device_id) or raise "Install failed after clean rebuild"
+    after_clean = install_with_retry(device_id)
+    return if after_clean.succeeded?
+
+    raise "Install failed after clean rebuild"
   end
 
   def clean_and_rebuild_ios
@@ -313,37 +321,64 @@ class IosDeployer < Deployer
   end
 
   def install_with_retry(device_id)
-    install(device_id) || retry_install(device_id)
+    first_attempt = IosInstallAttempt.new(device_id).run
+    return first_attempt if first_attempt.succeeded?
+
+    retry_install(device_id)
   end
 
   def retry_install(device_id)
     puts "Retrying in 3s..."
     sleep 3
-    install(device_id)
-  end
-
-  def install(device_id)
-    system "flutter install -d #{device_id}"
+    IosInstallAttempt.new(device_id).run
   end
 
   def platform_dir  = "ios/Runner"
   def platform_name = "ios"
 end
 
-force    = ARGV.delete("--force") || ARGV.delete("-f")
-print_source_hash = ARGV.delete("--print-source-hash")
-platform = ARGV.first
+class IosInstallAttempt
+  attr_reader :console_output
 
-abort "Usage: #{$0} <macos|ios> [--force|-f]" unless %w[macos ios].include?(platform)
-
-deployer = platform == "ios" ? IosDeployer.new(force: force) : MacosDeployer.new(force: force)
-
-begin
-  if print_source_hash
-    puts deployer.source_hash
-  else
-    deployer.run
+  def initialize(device_id)
+    @device_id = device_id
+    @console_output = ""
   end
-rescue => error
-  abort error.message
+
+  def run
+    @console_output = +""
+    Open3.popen2e("flutter", "install", "-d", @device_id) do |_stdin, stdout_and_err, wait_thread|
+      stdout_and_err.each do |line|
+        print line
+        $stdout.flush
+        @console_output << line
+      end
+      @succeeded = wait_thread.value.success?
+    end
+    self
+  end
+
+  def succeeded?
+    @succeeded
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  force    = ARGV.delete("--force") || ARGV.delete("-f")
+  print_source_hash = ARGV.delete("--print-source-hash")
+  platform = ARGV.first
+
+  abort "Usage: #{$0} <macos|ios> [--force|-f]" unless %w[macos ios].include?(platform)
+
+  deployer = platform == "ios" ? IosDeployer.new(force: force) : MacosDeployer.new(force: force)
+
+  begin
+    if print_source_hash
+      puts deployer.source_hash
+    else
+      deployer.run
+    end
+  rescue => error
+    abort error.message
+  end
 end

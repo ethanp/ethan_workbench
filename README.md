@@ -1,6 +1,25 @@
 # Ethan Workbench
 
-Personal Flutter workbench for your app fleet: a macOS companion runs a LAN **server** that wraps `deploy.rb`, an **iOS client** triggers deploys, and Mac-side tools (line age, more later) operate on local repos.
+Personal Flutter workbench for your app fleet: a **daemon** owns the LAN
+**server** that wraps `deploy.rb`, a macOS **companion** attaches as a client
+when the daemon is up, an **iOS client** triggers deploys, and Mac-side tools
+(line age, more later) operate on local repos.
+
+## Ubiquitous language
+
+These words **are** the product. Use them in the UI, HTTP, types, tests, and
+comments. Do not invent a parallel vocabulary (for example `desk` for the
+deploy queue). Workspace rule: `.cursor/rules/ubiquitous-language.mdc`.
+
+| Term | Means |
+|---|---|
+| daemon | Headless process that owns port `8787`, the deploy queue, and local runs |
+| companion | Mac UI. Client of the daemon when the daemon is already listening |
+| deploy queue | Waiting jobs plus the one active run |
+| idle | No waiting job and no active runner |
+| job | One deploy of a project on a platform |
+| ledger | PowerSync `deploy_runs` / History tab (not the live queue) |
+| restart after queue | Daemon exits once idle; LaunchAgent brings it back |
 
 ### Screenshots
 

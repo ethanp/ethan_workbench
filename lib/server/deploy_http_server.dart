@@ -7,6 +7,7 @@ import 'package:shelf_router/shelf_router.dart';
 
 import '../deploy/deploy_pipeline.dart';
 import '../run/local_run_registry.dart';
+import 'daemon_restart_after_queue.dart';
 import 'deploy_http_routes.dart';
 import 'json_http.dart';
 import 'listening_tcp_port.dart';
@@ -20,6 +21,7 @@ class DeployHttpServer({
   required final ServerConfig config,
   required final DeployPipeline deployPipeline,
   required final LocalRunRegistry localRunRegistry,
+  required final DaemonRestartAfterQueue restartAfterQueue,
 }) {
   HttpServer? _httpServer;
 
@@ -28,7 +30,10 @@ class DeployHttpServer({
 
   Handler buildHandler() {
     final router = Router()..get('/health', _health);
-    DeployHttpRoutes(deployPipeline: deployPipeline).mount(router);
+    DeployHttpRoutes(
+      deployPipeline: deployPipeline,
+      restartAfterQueue: restartAfterQueue,
+    ).mount(router);
     LocalRunHttpRoutes(
       localRunRegistry: localRunRegistry,
       deployPipeline: deployPipeline,
@@ -78,6 +83,7 @@ class DeployHttpServer({
       'ok': true,
       'activeJobId': deployPipeline.activeJob?.jobId,
       'activeLocalRunCount': localRunRegistry.activeCount,
+      'restartAfterQueue': restartAfterQueue.scheduled,
     });
   }
 }

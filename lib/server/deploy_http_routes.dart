@@ -9,16 +9,22 @@ import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_pipeline.dart';
+import 'daemon_restart_after_queue.dart';
 import 'deploy_http_sse.dart';
 import 'json_http.dart';
 
 const _log = ELogger('ServerJobEvents');
 
-class DeployHttpRoutes({required final DeployPipeline deployPipeline}) {
+class DeployHttpRoutes({
+  required final DeployPipeline deployPipeline,
+  required final DaemonRestartAfterQueue restartAfterQueue,
+}) {
   void mount(Router router) {
     router
       ..get('/projects', _listProjects)
       ..post('/projects/evaluate-changes', _evaluateSourceChanges)
+      ..post('/daemon/restart', _enqueueDaemonRestart)
+      ..get('/daemon/restart', _daemonRestartStatus)
       ..post('/deploy', _startDeploy)
       ..get('/deploy/queue', _listDeployQueue)
       ..delete('/deploy/queue/<jobId>', _cancelQueuedDeploy)
@@ -82,9 +88,30 @@ class DeployHttpRoutes({required final DeployPipeline deployPipeline}) {
     }
   }
 
+  Future<Response> _enqueueDaemonRestart(Request request) async {
+    final beganImmediately = restartAfterQueue.enqueue();
+    return jsonOk({
+      'ok': true,
+      'beganImmediately': beganImmediately,
+      'scheduled': restartAfterQueue.scheduled || beganImmediately,
+      'waitingJobCount': deployPipeline.waitingQueue.length,
+      'activeJobId': deployPipeline.activeRunnerJobId,
+    });
+  }
+
+  Future<Response> _daemonRestartStatus(Request request) async {
+    return jsonOk({
+      'scheduled': restartAfterQueue.scheduled,
+      'idle': deployPipeline.isIdle,
+      'waitingJobCount': deployPipeline.waitingQueue.length,
+      'activeJobId': deployPipeline.activeRunnerJobId,
+    });
+  }
+
   Future<Response> _listDeployQueue(Request request) async {
     return jsonOk({
       'jobs': deployPipeline.waitingQueue.map((job) => job.toJson()).toList(),
+      'restartAfterQueue': restartAfterQueue.scheduled,
     });
   }
 
@@ -173,7 +200,7 @@ class DeployHttpRoutes({required final DeployPipeline deployPipeline}) {
       if (controller.isClosed) return;
       controller.add(
         utf8.encode(
-          'data: ${jsonEncode({'type': 'queue', 'jobs': jobs.map((job) => job.toJson()).toList()})}\n\n',
+          'data: ${jsonEncode({'type': 'queue', 'jobs': jobs.map((job) => job.toJson()).toList(), 'restartAfterQueue': restartAfterQueue.scheduled})}\n\n',
         ),
       );
     }

@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:shelf/shelf.dart';
 
+import 'daemon_restart_after_queue.dart';
 import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_pipeline.dart';
 import '../deploy/deploy_platform.dart';
+import '../deploy/deploy_queue.dart';
 import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_session_persistence.dart';
 import '../deploy/deploy_trigger.dart';
@@ -17,22 +19,31 @@ import 'deploy_http_server.dart';
 import 'server_config.dart';
 
 /// Mac façade: deploy workbench + LAN HTTP server for the iOS client.
-class DeployServer({ServerConfig? config}) {
+class DeployServer({ServerConfig? config, this.onExitRequested}) {
   this {
     _deployPipeline = DeployPipeline(
       flutterRoots: _config.flutterRoots,
       deployRbPath: _config.deployRbPath,
       persistence: DeploySessionPersistence(),
+      onBecameIdle: () => _restartAfterQueue?.becameIdle(),
     );
+    final restartAfterQueue = DaemonRestartAfterQueue(
+      isIdle: () => _deployPipeline.isIdle,
+      restartDaemon: _exitAfterHttpResponse,
+    );
+    _restartAfterQueue = restartAfterQueue;
     _localRunRegistry = MacLocalRunRegistry();
     _httpServer = DeployHttpServer(
       config: _config,
       deployPipeline: _deployPipeline,
       localRunRegistry: _localRunRegistry,
+      restartAfterQueue: restartAfterQueue,
     );
   }
 
   final ServerConfig _config = config ?? ServerConfig();
+  final void Function()? onExitRequested;
+  DaemonRestartAfterQueue? _restartAfterQueue;
   late final DeployPipeline _deployPipeline;
   late final DeployHttpServer _httpServer;
   late final MacLocalRunRegistry _localRunRegistry;
@@ -62,7 +73,7 @@ class DeployServer({ServerConfig? config}) {
       return job;
     },
     listDeployHistory: listDeployHistory,
-    fetchDeployQueue: () async => waitingQueue,
+    fetchDeployQueue: fetchDeployQueue,
     cancelQueuedDeploy: cancelQueuedDeploy,
     reorderQueuedDeploy: reorderQueuedDeploy,
     jobUpdates: jobUpdates,
@@ -97,6 +108,11 @@ class DeployServer({ServerConfig? config}) {
   Future<List<DeployRunRecord>> listDeployHistory() =>
       _deployPipeline.listRecentRuns();
 
+  Future<DeployQueue> fetchDeployQueue() async => DeployQueue(
+    waiting: waitingQueue,
+    restartAfterQueue: restartAfterQueueScheduled,
+  );
+
   Future<void> cancelQueuedDeploy(String jobId) async {
     if (!_deployPipeline.cancelWaiting(jobId)) {
       throw DeployJobNotFound(jobId);
@@ -114,6 +130,24 @@ class DeployServer({ServerConfig? config}) {
 
   void attachLedger(DeployLedger ledger) {
     _deployPipeline.attachLedger(ledger);
+  }
+
+  bool get restartAfterQueueScheduled =>
+      _restartAfterQueue?.scheduled ?? false;
+
+  /// Arm a restart once the deploy queue and active run are idle.
+  bool enqueueRestartAfterQueue() {
+    final restartAfterQueue = _restartAfterQueue;
+    if (restartAfterQueue == null) return false;
+    return restartAfterQueue.enqueue();
+  }
+
+  void _exitAfterHttpResponse() {
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 250), () {
+        onExitRequested?.call();
+      }),
+    );
   }
 
   Future<void> start({bool takeOverOccupiedPort = false}) =>

@@ -47,26 +47,16 @@ class const ProjectWorkbenchRow({
     final clusterGap = compact
         ? WorkbenchRowLayout.compactClusterGap
         : WorkbenchRowLayout.clusterGap;
-    final identity = compact
-        ? WorkbenchRowLayout.compactIdentityMaxWidth
-        : WorkbenchRowLayout.identityMaxWidth;
-    final secondary = WorkbenchSecondaryActionWidths(
-      lineAge: showLineAge ? WorkbenchRowLayout.lineAgeWidth : 0,
-      commit: showCommit ? WorkbenchRowLayout.commitWidth : 0,
-    );
-    final platforms = math.max(0, platformCount);
-    final clusters = platforms * WorkbenchRowLayout.clusterWidth;
-    final clusterGaps = math.max(0, platforms - 1) * clusterGap;
-    final afterIdentityGap =
-        platforms > 0 || secondary.occupied(clusterGap) > 0
-        ? ELayout.spaceMd
-        : 0.0;
+    final clusterCount = math.max(0, platformCount);
     return rowPadH * 2 +
-        identity +
-        afterIdentityGap +
-        secondary.occupiedWithTrailingGap(clusterGap) +
-        clusters +
-        clusterGaps;
+        WorkbenchRowSlotWidths(
+          identity: compact
+              ? WorkbenchRowLayout.compactIdentityMaxWidth
+              : WorkbenchRowLayout.identityMaxWidth,
+          lineAge: showLineAge ? WorkbenchRowLayout.lineAgeWidth : 0,
+          commit: showCommit ? WorkbenchRowLayout.commitWidth : 0,
+          cluster: clusterCount > 0 ? WorkbenchRowLayout.clusterWidth : 0,
+        ).occupied(clusterGap: clusterGap, platformCount: clusterCount);
   }
 
   @override
@@ -74,9 +64,6 @@ class const ProjectWorkbenchRow({
     final macosRunStatus = _activeRunStatus(FlutterRunDevice.macos);
     final meSimRunStatus = _activeRunStatus(FlutterRunDevice.meSim);
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
-    final clusterGap = compact
-        ? WorkbenchRowLayout.compactClusterGap
-        : WorkbenchRowLayout.clusterGap;
     final rowPadH = compact
         ? WorkbenchRowLayout.compactRowPadH
         : WorkbenchRowLayout.rowPadH;
@@ -94,157 +81,82 @@ class const ProjectWorkbenchRow({
         WorkbenchRowLayout.rowPadV,
       ),
       child: LayoutBuilder(
-        builder: (context, constraints) {
-          final widths = _slotWidths(
-            constraints.maxWidth,
-            compact: compact,
-            clusterGap: clusterGap,
-          );
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (widths.identity > 0) ...[
-                SizedBox(
-                  width: widths.identity,
-                  child: WorkbenchRowIdentity(project: project),
-                ),
-                const SizedBox(width: ELayout.spaceMd),
-              ],
-              if (widths.lineAge > 0) ...[
-                SizedBox(
-                  width: widths.lineAge,
-                  child: WorkbenchRowLineAgeAction(
-                    lineAgeSubtitle: lineAgeSubtitle,
-                    onLineAge: onLineAge,
-                  ),
-                ),
-                SizedBox(width: clusterGap),
-              ],
-              if (widths.commit > 0) ...[
-                SizedBox(
-                  width: widths.commit,
-                  child: WorkbenchRowCommitAction(
-                    uncommittedChanges: uncommittedChanges,
-                    onCommit: onCommit,
-                  ),
-                ),
-                SizedBox(width: clusterGap),
-              ],
-              for (var index = 0; index < platforms.length; index++) ...[
-                if (index > 0) SizedBox(width: clusterGap),
-                SizedBox(
-                  width: widths.cluster,
-                  child: WorkbenchRowPlatformCluster(
-                    project: project,
-                    platform: platforms[index],
-                    runStateFor: runStateFor,
-                    canRunLocally: canRunLocally,
-                    ongoingDeploy: ongoingDeploy,
-                    waitingDeploys: waitingDeploys,
-                    onDeploy: onDeploy,
-                    onRun: onRun,
-                    onStopRun: onStopRun,
-                    onOpenOngoingDeploy: onOpenOngoingDeploy,
-                  ),
-                ),
-              ],
-            ],
-          );
-        },
+        builder: (context, constraints) => _actionRow(
+          constraints.maxWidth,
+          compact: compact,
+        ),
       ),
     );
   }
 
-  /// Line age and commit hide rather than squeeze identity below
-  /// [WorkbenchRowLayout.identityMinWidth]; clusters never steal
-  /// identity to satisfy a large minimum.
-  WorkbenchRowSlotWidths _slotWidths(
-    double maxWidth, {
-    required bool compact,
-    required double clusterGap,
-  }) {
-    if (!maxWidth.isFinite || maxWidth <= 0) {
-      return const WorkbenchRowSlotWidths(
-        identity: 0,
-        lineAge: 0,
-        commit: 0,
-        cluster: 0,
-      );
-    }
-
-    final identityMax = compact
-        ? WorkbenchRowLayout.compactIdentityMaxWidth
-        : WorkbenchRowLayout.identityMaxWidth;
-
-    if (platforms.isEmpty) {
-      final secondary = _secondaryWidthsLeavingIdentityFloor(
-        budget: maxWidth,
-        clusterGap: clusterGap,
-      );
-      final identity =
-          (maxWidth - secondary.occupiedWithTrailingGap(clusterGap))
-              .clamp(0.0, identityMax);
-      return WorkbenchRowSlotWidths(
-        identity: identity,
-        lineAge: secondary.lineAge,
-        commit: secondary.commit,
-        cluster: 0,
-      );
-    }
-
-    final clusterGaps = math.max(0, platforms.length - 1) * clusterGap;
-    final clusterFloorTotal =
-        platforms.length * WorkbenchRowLayout.clusterAbsoluteFloor;
-    final afterIdentityGap = ELayout.spaceMd;
-
-    var identityBudget =
-        maxWidth - clusterGaps - clusterFloorTotal - afterIdentityGap;
-    final secondary = _secondaryWidthsLeavingIdentityFloor(
-      budget: identityBudget,
-      clusterGap: clusterGap,
+  Widget _actionRow(double maxWidth, {required bool compact}) {
+    final clusterGap = compact
+        ? WorkbenchRowLayout.compactClusterGap
+        : WorkbenchRowLayout.clusterGap;
+    final widths = WorkbenchRowSlotWidths.allocate(
+      maxWidth: maxWidth,
+      platformCount: platforms.length,
+      compact: compact,
+      showLineAge: showLineAge,
+      showCommit: showCommit,
     );
-    identityBudget -= secondary.occupiedWithTrailingGap(clusterGap);
-    if (identityBudget <= 0) {
-      return WorkbenchRowSlotWidths(
-        identity: 0,
-        lineAge: 0,
-        commit: 0,
-        cluster: ((maxWidth - clusterGaps) / platforms.length)
-            .floorToDouble()
-            .clamp(0.0, WorkbenchRowLayout.clusterWidth),
-      );
-    }
-
-    final identity = math.min(identityMax, identityBudget);
-    final cluster =
-        (((clusterFloorTotal + identityBudget - identity) / platforms.length)
-                .floorToDouble())
-            .clamp(0.0, WorkbenchRowLayout.clusterWidth);
-
-    return WorkbenchRowSlotWidths(
-      identity: identity,
-      lineAge: secondary.lineAge,
-      commit: secondary.commit,
-      cluster: cluster,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: _actionRowChildren(widths, clusterGap: clusterGap),
     );
   }
 
-  /// Line age + commit width when the pair still leaves the identity floor
-  /// inside [budget]; otherwise both hidden.
-  WorkbenchSecondaryActionWidths _secondaryWidthsLeavingIdentityFloor({
-    required double budget,
+  List<Widget> _actionRowChildren(
+    WorkbenchRowSlotWidths widths, {
     required double clusterGap,
   }) {
-    final wanted = WorkbenchSecondaryActionWidths(
-      lineAge: showLineAge ? WorkbenchRowLayout.lineAgeWidth : 0,
-      commit: showCommit ? WorkbenchRowLayout.commitWidth : 0,
-    );
-    if (wanted.occupied(clusterGap) == 0) return wanted;
-    if (budget - wanted.occupiedWithTrailingGap(clusterGap) >=
-        WorkbenchRowLayout.identityMinWidth) {
-      return wanted;
+    final children = <Widget>[];
+    var slotIndex = 0;
+    void addSlot(double width, Widget child) {
+      if (width <= 0) return;
+      final gap = WorkbenchRowSlotWidths.gapBeforeSlot(
+        slotIndex: slotIndex,
+        identityVisible: widths.identity > 0,
+        clusterGap: clusterGap,
+      );
+      if (gap > 0) children.add(SizedBox(width: gap));
+      children.add(SizedBox(width: width, child: child));
+      slotIndex++;
     }
-    return const WorkbenchSecondaryActionWidths(lineAge: 0, commit: 0);
+
+    addSlot(widths.identity, WorkbenchRowIdentity(project: project));
+    addSlot(
+      widths.lineAge,
+      WorkbenchRowLineAgeAction(
+        lineAgeSubtitle: lineAgeSubtitle,
+        onLineAge: onLineAge,
+      ),
+    );
+    addSlot(
+      widths.commit,
+      WorkbenchRowCommitAction(
+        uncommittedChanges: uncommittedChanges,
+        onCommit: onCommit,
+      ),
+    );
+    for (final platform in platforms) {
+      addSlot(
+        widths.cluster,
+        WorkbenchRowPlatformCluster(
+          project: project,
+          platform: platform,
+          runStateFor: runStateFor,
+          canRunLocally: canRunLocally,
+          ongoingDeploy: ongoingDeploy,
+          waitingDeploys: waitingDeploys,
+          onDeploy: onDeploy,
+          onRun: onRun,
+          onStopRun: onStopRun,
+          onOpenOngoingDeploy: onOpenOngoingDeploy,
+        ),
+      );
+    }
+    return children;
   }
 
   LocalRunStatus? _activeRunStatus(FlutterRunDevice device) {

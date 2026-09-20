@@ -38,7 +38,9 @@ class const WorkbenchProject({
   DeploySourceStatus sourceStatusFor(DeployPlatform platform) =>
       sourceStatus[platform] ?? DeploySourceStatus.unevaluated;
 
-  bool get hasChangedSources => platforms.any(
+  bool get hasChangedSources => changedPlatforms.isNotEmpty;
+
+  Iterable<DeployPlatform> get changedPlatforms => platforms.where(
     (platform) => sourceStatusFor(platform) == DeploySourceStatus.changed,
   );
 

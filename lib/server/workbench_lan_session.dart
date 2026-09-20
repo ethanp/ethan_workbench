@@ -4,6 +4,7 @@ import 'package:ethan_utils/ethan_utils.dart';
 
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
+import '../deploy/deploy_queue.dart';
 import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_trigger.dart';
 import '../phone/deploy_http_client.dart';
@@ -110,7 +111,7 @@ class WorkbenchLanSession({
   Future<List<DeployRunRecord>> listDeployHistory() =>
       deployServerClient.listDeployHistory();
 
-  Future<List<DeployJob>> fetchDeployQueue() =>
+  Future<DeployQueue> fetchDeployQueue() =>
       deployServerClient.fetchDeployQueue();
 
   Future<void> cancelQueuedDeploy(String jobId) =>

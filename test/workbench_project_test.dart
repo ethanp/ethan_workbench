@@ -1,5 +1,5 @@
-import 'package:ethan_workbench/deploy/deploy_job.dart';
 import 'package:ethan_workbench/deploy/deploy_platform.dart';
+import 'package:ethan_workbench/deploy/deploy_queue.dart';
 import 'package:ethan_workbench/deploy/deploy_run_record.dart';
 import 'package:ethan_workbench/deploy/deploy_trigger.dart';
 import 'package:ethan_workbench/projects/projects_catalog.dart';
@@ -27,7 +27,7 @@ class _CatalogTestScenario(final List<WorkbenchProject> suppliedProjects) {
       fetchJob: (jobId) async => throw UnimplementedError(),
       fetchActiveJob: () async => null,
       listDeployHistory: () async => const <DeployRunRecord>[],
-      fetchDeployQueue: () async => const <DeployJob>[],
+      fetchDeployQueue: () async => const DeployQueue(),
       cancelQueuedDeploy: (jobId) async {},
       reorderQueuedDeploy: ({required jobId, required toIndex}) async {},
     );

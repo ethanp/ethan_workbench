@@ -170,6 +170,30 @@ void main() {
     );
   });
 
+  test('became idle after the last waiting job finishes', () async {
+    var idleNotifications = 0;
+    final idlePipeline = DeployPipeline(
+      flutterRoots: const [],
+      deployRbPath: '/tmp/deploy.rb',
+      scriptRunner: scriptRunner,
+      resolveProject: (id) async => projects[id],
+      deployScriptExists: () async => true,
+      onBecameIdle: () => idleNotifications++,
+    );
+    addTearDown(idlePipeline.dispose);
+
+    await idlePipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await Future<void>.delayed(Duration.zero);
+    expect(idlePipeline.isIdle, isFalse);
+
+    scriptRunner.completeLatest();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(idlePipeline.isIdle, isTrue);
+    expect(idleNotifications, 1);
+  });
+
   test('same active project+platform returns the running job', () async {
     final first = await pipeline.startDeploy(
       projectId: 'a',

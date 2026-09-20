@@ -17,6 +17,7 @@ class const DeployQueuePanel({
   super.key,
   required final DeployJob? ongoing,
   required final List<DeployJob> waiting,
+  final bool restartAfterQueue = false,
   required final VoidCallback onOpenOngoing,
   required final Future<void> Function(String jobId) onCancelWaiting,
   required final Future<void> Function({
@@ -52,7 +53,8 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
   @override
   void didUpdateWidget(covariant DeployQueuePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_hasNewWaitingJob(oldWidget.waiting, widget.waiting)) {
+    if (_hasNewWaitingJob(oldWidget.waiting, widget.waiting) ||
+        (!oldWidget.restartAfterQueue && widget.restartAfterQueue)) {
       _draggedQueueHeight = null;
     }
   }
@@ -170,6 +172,7 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
         ELayout.spaceLg,
       ),
       header: _queueHeader(),
+      footer: widget.restartAfterQueue ? _restartAfterQueueTile() : null,
       itemCount: widget.waiting.length,
       onReorderItem: _reorderWaiting,
       itemBuilder: (context, index) {
@@ -205,9 +208,51 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
         ],
         Text('Up next', style: EText.label.small),
         const SizedBox(height: ELayout.spaceSm),
-        if (widget.waiting.isEmpty)
+        if (widget.waiting.isEmpty && !widget.restartAfterQueue)
           Text('Nothing queued', style: EText.caption),
       ],
+    );
+  }
+
+  Widget _restartAfterQueueTile() {
+    return Padding(
+      padding: EdgeInsets.only(
+        top: widget.waiting.isEmpty ? 0 : ELayout.spaceSm,
+      ),
+      child: ESurface(
+        kind: ESurfaceKind.tinted,
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.restart_alt_rounded,
+              size: 16,
+              color: EColors.accentGlow,
+            ),
+            const SizedBox(width: ELayout.spaceSm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Restart after queue',
+                    style: EText.label.medium.copyWith(
+                      color: EColors.textPrimary,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  Text(
+                    'Daemon exits when idle',
+                    style: EText.caption.copyWith(
+                      fontSize: ELayout.typeSize(11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

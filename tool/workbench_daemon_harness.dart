@@ -12,6 +12,7 @@ import 'package:path/path.dart' as path;
 /// Not under test/ so `flutter test` does not hang the suite.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  HttpOverrides.global = _IoHttpOverrides();
 
   test('workbench daemon listens until SIGINT/SIGTERM', () async {
     await loadAppDotEnv();
@@ -21,4 +22,12 @@ void main() {
     }
     await WorkbenchDaemonProcess.runUntilSignal();
   });
+}
+
+/// TestWidgetsFlutterBinding otherwise stubs HTTP as 400.
+class _IoHttpOverrides() extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return HttpClient(context: context);
+  }
 }

@@ -2,6 +2,7 @@ import '../projects/source_changes_progress.dart';
 import '../projects/workbench_project.dart';
 import 'deploy_job.dart';
 import 'deploy_platform.dart';
+import 'deploy_queue.dart';
 import 'deploy_run_record.dart';
 
 /// Shared entry point for the projects UI — phone (remote) or Mac (in-process).
@@ -20,7 +21,7 @@ class const DeployTrigger({
   required final Future<DeployJob> Function(String jobId) fetchJob,
   required final Future<DeployJob?> Function() fetchActiveJob,
   required final Future<List<DeployRunRecord>> Function() listDeployHistory,
-  required final Future<List<DeployJob>> Function() fetchDeployQueue,
+  required final Future<DeployQueue> Function() fetchDeployQueue,
   required final Future<void> Function(String jobId) cancelQueuedDeploy,
   required final Future<void> Function({
     required String jobId,

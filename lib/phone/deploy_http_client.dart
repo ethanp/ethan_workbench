@@ -8,6 +8,7 @@ import '../server/server_endpoint.dart';
 import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
+import '../deploy/deploy_queue.dart';
 import '../deploy/deploy_run_record.dart';
 import '../projects/workbench_project.dart';
 import '../run/local_run_state.dart';
@@ -193,18 +194,30 @@ class DeployServerClient({
     );
   }
 
-  Future<List<DeployJob>> fetchDeployQueue() async {
+  Future<DeployQueue> fetchDeployQueue() async {
     final response = await _httpClient.get(
       Uri.parse('$_baseUrl/deploy/queue'),
       headers: _headers,
     );
     _throwIfFailed(response, 'Failed to load deploy queue');
+    final queue = DeployQueue.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    return DeployQueue(
+      waiting: queue.waiting,
+      restartAfterQueue:
+          queue.restartAfterQueue || await _restartAfterQueueScheduled(),
+    );
+  }
+
+  Future<bool> _restartAfterQueueScheduled() async {
+    final response = await _httpClient.get(
+      Uri.parse('$_baseUrl/daemon/restart'),
+      headers: _headers,
+    );
+    if (response.statusCode != 200) return false;
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
-    final jobMaps = payload['jobs'] as List<dynamic>? ?? const [];
-    return [
-      for (final jobMap in jobMaps)
-        DeployJob.fromJson(jobMap as Map<String, dynamic>),
-    ];
+    return payload['scheduled'] == true;
   }
 
   Future<void> cancelQueuedDeploy(String jobId) async {

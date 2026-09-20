@@ -4,8 +4,6 @@ import 'package:ethan_sync/ethan_sync.dart';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'server/macos_companion_screen.dart';
 import 'app_identity.dart';
 import 'phone/phone_home.dart';
@@ -17,12 +15,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await loadAppDotEnv();
 
-  final preferences = await SharedPreferences.getInstance();
   final container = ProviderContainer(
     overrides: [
       if (ethanWorkbenchSyncConfigured())
         syncConfigProvider.overrideWith(
-          (ref) => buildEthanWorkbenchSyncConfig(preferences),
+          (ref) => buildEthanWorkbenchSyncConfig(),
         ),
     ],
   );

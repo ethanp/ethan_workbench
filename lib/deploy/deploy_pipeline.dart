@@ -16,7 +16,7 @@ import 'deploy_wait_queue.dart';
 import 'ruby_deploy_executor.dart';
 import 'workbench_project_directory.dart';
 
-/// Mac deploy desk: accept/cancel/restore deploys and expose live job state.
+/// Accepts, queues, and restores deploys and exposes live job state.
 ///
 /// Collaborators own the deep work — wait queue, console/log, project directory,
 /// and the active run slot.
@@ -32,6 +32,7 @@ class DeployPipeline {
     DeployLedger? ledger,
     Future<WorkbenchProject?> Function(String projectId)? resolveProject,
     this._deployScriptExists,
+    this.onBecameIdle,
   }) : _projectDirectory = WorkbenchProjectDirectory(
          flutterRoots: flutterRoots,
          resolveProject: resolveProject,
@@ -59,6 +60,7 @@ class DeployPipeline {
 
   final String deployRbPath;
   final Future<bool> Function()? _deployScriptExists;
+  final void Function()? onBecameIdle;
   final WorkbenchProjectDirectory _projectDirectory;
   late final DeployConsole _console;
   late final DeployWaitQueue _waitQueue;
@@ -69,6 +71,17 @@ class DeployPipeline {
 
   DeployJob? get activeJob => _console.job;
   List<DeployJob> get waitingQueue => _waitQueue.jobs;
+
+  bool get isIdle {
+    if (_waitQueue.isNotEmpty) return false;
+    return !(activeJob?.status.isActiveRunner ?? false);
+  }
+
+  String? get activeRunnerJobId {
+    final job = activeJob;
+    if (job == null || !job.status.isActiveRunner) return null;
+    return job.jobId;
+  }
   Stream<DeployJob> get jobUpdates => _jobUpdatedController.stream;
   Stream<List<DeployJob>> get queueUpdates => _waitQueue.updates;
 
@@ -264,6 +277,7 @@ class DeployPipeline {
       return;
     }
     unawaited(_slot.clearSession());
+    onBecameIdle?.call();
   }
 
   void _emitJob(DeployJob job) {

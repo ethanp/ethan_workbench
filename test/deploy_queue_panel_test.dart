@@ -43,4 +43,27 @@ void main() {
     expect(find.byIcon(Icons.drag_handle_rounded), findsNWidgets(2));
     expect(find.text('Nothing queued'), findsNothing);
   });
+
+  testWidgets('Restart after queue is a trailing Up next row', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DeployQueuePanel(
+            ongoing: _deployJob(jobId: 'now', status: DeployJobStatus.running),
+            waiting: [
+              _deployJob(jobId: 'first', status: DeployJobStatus.waiting),
+            ],
+            restartAfterQueue: true,
+            onOpenOngoing: () {},
+            onCancelWaiting: (_) async {},
+            onReorderWaiting: ({required jobId, required toIndex}) async {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Restart after queue'), findsOneWidget);
+    expect(find.text('Daemon exits when idle'), findsOneWidget);
+    expect(find.text('Nothing queued'), findsNothing);
+  });
 }
