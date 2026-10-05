@@ -15,13 +15,16 @@ class LocalRunConsole({
   required final LocalRunProgress _runProgress,
   required final LocalFlutterRunBinding _flutterRunBinding,
   required final LocalRunCheckpoint _checkpoint,
+  final void Function()? onAttachGaveUpOnVmService,
 }) {
   /// Ignore EXCEPTION CAUGHT dumps at or before this log offset (hot reload /
   /// restart clear). Combined with restart banners inside [FlutterRunOutput].
   int _exceptionLogFloor = 0;
+  bool _reportedAttachGaveUp = false;
 
   void resetForNewRun() {
     _exceptionLogFloor = 0;
+    _reportedAttachGaveUp = false;
   }
 
   /// Advance the exception floor past the current log (hot reload / restart).
@@ -38,18 +41,16 @@ class LocalRunConsole({
     LocalFlutterRun flutterRun, {
     required void Function(int exitCode) onExit,
   }) {
-    binding.adopt(
-      flutterRun,
-      onOutput: _interpretConsoleChunk,
-      onExit: onExit,
-    );
+    binding.adopt(flutterRun, onOutput: _interpretConsoleChunk, onExit: onExit);
   }
 
   void _interpretConsoleChunk(String chunk) {
     _runProgress.appendLog(chunk);
     _captureVmServiceUri(chunk);
+    _captureDeviceVmServiceUri(chunk);
     _captureFlutterException();
     _markReadyWhenKeyCommandsAppear(chunk);
+    _stopAttachThatCannotReachVmService(chunk);
   }
 
   void _captureVmServiceUri(String chunk) {
@@ -60,11 +61,39 @@ class LocalRunConsole({
       return;
     }
     _flutterRunBinding.vmServiceUri = parsedUri;
+    _checkpointReady();
+  }
+
+  void _captureDeviceVmServiceUri(String chunk) {
+    final String? parsedUri =
+        FlutterRunOutput.deviceVmServiceUriFrom(chunk) ??
+        FlutterRunOutput.deviceVmServiceUriFrom(_runProgress.logText);
+    if (parsedUri == null ||
+        parsedUri == _flutterRunBinding.deviceVmServiceUri) {
+      return;
+    }
+    _flutterRunBinding.deviceVmServiceUri = parsedUri;
+    _checkpointReady();
+  }
+
+  void _checkpointReady() {
     unawaited(
       _checkpoint.write(
         readyForKeyCommands: _runProgress.current.readyForKeyCommands,
       ),
     );
+  }
+
+  void _stopAttachThatCannotReachVmService(String chunk) {
+    if (_reportedAttachGaveUp) return;
+    if (_runProgress.current.readyForKeyCommands) return;
+    if (!_runProgress.current.reattached) return;
+    if (!FlutterRunOutput.attachGaveUpOnVmService(chunk) &&
+        !FlutterRunOutput.attachGaveUpOnVmService(_runProgress.logText)) {
+      return;
+    }
+    _reportedAttachGaveUp = true;
+    onAttachGaveUpOnVmService?.call();
   }
 
   void _captureFlutterException() {

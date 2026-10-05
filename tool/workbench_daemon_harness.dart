@@ -28,6 +28,6 @@ void main() {
 class _IoHttpOverrides() extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return HttpClient(context: context);
+    return super.createHttpClient(context);
   }
 }

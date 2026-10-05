@@ -4,10 +4,7 @@ import 'package:ethan_workbench/deploy/deploy_queue_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-DeployJob _deployJob({
-  required String jobId,
-  required DeployJobStatus status,
-}) {
+DeployJob _deployJob({required String jobId, required DeployJobStatus status}) {
   return DeployJob(
     jobId: jobId,
     projectId: jobId,
@@ -32,6 +29,7 @@ void main() {
               _deployJob(jobId: 'second', status: DeployJobStatus.waiting),
             ],
             onOpenOngoing: () {},
+            onCancelOngoing: () async {},
             onCancelWaiting: (_) async {},
             onReorderWaiting: ({required jobId, required toIndex}) async {},
           ),
@@ -41,10 +39,11 @@ void main() {
 
     expect(find.byType(ReorderableListView), findsOneWidget);
     expect(find.byIcon(Icons.drag_handle_rounded), findsNWidgets(2));
-    expect(find.text('Nothing queued'), findsNothing);
   });
 
-  testWidgets('Restart after queue is a trailing Up next row', (tester) async {
+  testWidgets('Now tile cancels the ongoing deploy', (tester) async {
+    var cancelCount = 0;
+    var openCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -53,8 +52,8 @@ void main() {
             waiting: [
               _deployJob(jobId: 'first', status: DeployJobStatus.waiting),
             ],
-            restartAfterQueue: true,
-            onOpenOngoing: () {},
+            onOpenOngoing: () => openCount++,
+            onCancelOngoing: () async => cancelCount++,
             onCancelWaiting: (_) async {},
             onReorderWaiting: ({required jobId, required toIndex}) async {},
           ),
@@ -62,8 +61,11 @@ void main() {
       ),
     );
 
-    expect(find.text('Restart after queue'), findsOneWidget);
-    expect(find.text('Daemon exits when idle'), findsOneWidget);
-    expect(find.text('Nothing queued'), findsNothing);
+    expect(find.byTooltip('Cancel deploy'), findsOneWidget);
+    expect(find.byTooltip('Remove from queue'), findsOneWidget);
+    await tester.tap(find.byTooltip('Cancel deploy'));
+    await tester.pump();
+    expect(cancelCount, 1);
+    expect(openCount, 0);
   });
 }

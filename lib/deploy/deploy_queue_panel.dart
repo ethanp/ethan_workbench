@@ -19,6 +19,7 @@ class const DeployQueuePanel({
   required final List<DeployJob> waiting,
   final bool restartAfterQueue = false,
   required final VoidCallback onOpenOngoing,
+  required final Future<void> Function() onCancelOngoing,
   required final Future<void> Function(String jobId) onCancelWaiting,
   required final Future<void> Function({
     required String jobId,
@@ -185,6 +186,7 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
             position: index + 1,
             reorderIndex: index,
             onCancel: () => unawaited(widget.onCancelWaiting(job.jobId)),
+            cancelTooltip: 'Remove from queue',
           ),
         );
       },
@@ -201,6 +203,8 @@ class _DeployQueuePanelState() extends State<DeployQueuePanel> {
           _QueueJobTile(
             job: widget.ongoing!,
             onActivated: widget.onOpenOngoing,
+            onCancel: () => unawaited(widget.onCancelOngoing()),
+            cancelTooltip: 'Cancel deploy',
             stageLabel: widget.ongoing!.activeStageLabel,
             remaining: widget.ongoingRemaining,
           ),
@@ -273,6 +277,7 @@ class const _QueueJobTile({
   final int? reorderIndex,
   final VoidCallback? onActivated,
   final VoidCallback? onCancel,
+  final String cancelTooltip = 'Cancel deploy',
   final String? stageLabel,
   final Duration? remaining,
 }) extends StatelessWidget {
@@ -286,7 +291,7 @@ class const _QueueJobTile({
       child: Row(
         children: [
           Expanded(child: _draggableOrStaticCaption()),
-          if (onCancel != null) _removeFromQueueButton(),
+          if (onCancel != null) _cancelButton(),
         ],
       ),
     );
@@ -384,9 +389,9 @@ class const _QueueJobTile({
     );
   }
 
-  Widget _removeFromQueueButton() {
+  Widget _cancelButton() {
     return IconButton(
-      tooltip: 'Remove from queue',
+      tooltip: cancelTooltip,
       onPressed: onCancel,
       visualDensity: VisualDensity.compact,
       style: IconButton.styleFrom(

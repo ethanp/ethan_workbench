@@ -117,6 +117,7 @@ DeployTrigger _trigger(
     listDeployHistory: () async => const <DeployRunRecord>[],
     fetchDeployQueue: () async => const DeployQueue(),
     cancelQueuedDeploy: (jobId) async {},
+    cancelOngoingDeploy: () async {},
     reorderQueuedDeploy: ({required jobId, required toIndex}) async {},
   );
 }
@@ -161,8 +162,9 @@ _StubLocalRunControls _idleControls({
   );
 }
 
-class _StubLocalRunRegistry implements LocalRunRegistry {
-  _StubLocalRunRegistry(List<_StubLocalRunControls> slots) {
+class _StubLocalRunRegistry(List<_StubLocalRunControls> slots)
+    implements LocalRunRegistry {
+  this {
     for (final slot in slots) {
       final runKey = slot.state.runKey;
       if (runKey == null) {
@@ -212,10 +214,8 @@ class _StubLocalRunRegistry implements LocalRunRegistry {
   }
 }
 
-class _StubLocalRunControls implements LocalRunControls {
-  _StubLocalRunControls(this._state);
-
-  LocalRunState _state;
+class _StubLocalRunControls(final LocalRunState _state)
+    implements LocalRunControls {
   final _updates = StreamController<LocalRunState>.broadcast();
 
   void dispose() {

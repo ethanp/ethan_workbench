@@ -23,6 +23,7 @@ class const DeployTrigger({
   required final Future<List<DeployRunRecord>> Function() listDeployHistory,
   required final Future<DeployQueue> Function() fetchDeployQueue,
   required final Future<void> Function(String jobId) cancelQueuedDeploy,
+  required final Future<void> Function() cancelOngoingDeploy,
   required final Future<void> Function({
     required String jobId,
     required int toIndex,

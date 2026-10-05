@@ -63,6 +63,7 @@ class WorkbenchLanSession({
       listDeployHistory: listDeployHistory,
       fetchDeployQueue: fetchDeployQueue,
       cancelQueuedDeploy: cancelQueuedDeploy,
+      cancelOngoingDeploy: cancelOngoingDeploy,
       reorderQueuedDeploy: reorderQueuedDeploy,
       jobUpdates: jobUpdates,
       onUnauthorized: onUnauthorized,
@@ -104,7 +105,8 @@ class WorkbenchLanSession({
     );
   }
 
-  Future<DeployJob> fetchJob(String jobId) => deployServerClient.fetchJob(jobId);
+  Future<DeployJob> fetchJob(String jobId) =>
+      deployServerClient.fetchJob(jobId);
 
   Future<DeployJob?> fetchActiveJob() => deployServerClient.fetchActiveJob();
 
@@ -116,6 +118,9 @@ class WorkbenchLanSession({
 
   Future<void> cancelQueuedDeploy(String jobId) =>
       deployServerClient.cancelQueuedDeploy(jobId);
+
+  Future<void> cancelOngoingDeploy() =>
+      deployServerClient.cancelOngoingDeploy();
 
   Future<void> reorderQueuedDeploy({
     required String jobId,

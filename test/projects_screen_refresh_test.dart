@@ -36,6 +36,7 @@ void main() {
       listDeployHistory: () async => const <DeployRunRecord>[],
       fetchDeployQueue: () async => const DeployQueue(),
       cancelQueuedDeploy: (jobId) async {},
+      cancelOngoingDeploy: () async {},
       reorderQueuedDeploy: ({required jobId, required toIndex}) async {},
     );
 

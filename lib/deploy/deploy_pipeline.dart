@@ -82,6 +82,7 @@ class DeployPipeline {
     if (job == null || !job.status.isActiveRunner) return null;
     return job.jobId;
   }
+
   Stream<DeployJob> get jobUpdates => _jobUpdatedController.stream;
   Stream<List<DeployJob>> get queueUpdates => _waitQueue.updates;
 
@@ -230,6 +231,9 @@ class DeployPipeline {
 
   /// Removes a waiting job. Returns false if [jobId] is not in the queue.
   bool cancelWaiting(String jobId) => _waitQueue.cancel(jobId);
+
+  /// Stops the active deploy. Returns false when nothing is running.
+  Future<bool> cancelOngoing() => _slot.cancelOngoing();
 
   /// Moves a waiting job in the FIFO. Returns false if [jobId] is not queued
   /// or [toIndex] is out of range.

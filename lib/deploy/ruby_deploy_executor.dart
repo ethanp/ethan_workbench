@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../run/os_process_tree.dart';
 import '../tooling/flutter_tool_environment.dart';
 import '../tooling/homebrew_ruby.dart';
 import 'deploy_platform.dart';
@@ -19,7 +20,20 @@ class DeployScriptRunner() {
     String? exitCodePath,
     String? logPath,
     void Function(int pid)? onStarted,
+    void Function(Future<void> Function() cancel)? armCancel,
   }) async {
+    var cancelRequested = false;
+    int? startedPid;
+    Future<void> cancel() async {
+      cancelRequested = true;
+      final pid = startedPid;
+      if (pid == null) return;
+      await pid.asOsProcessTree.killTillExit();
+    }
+
+    armCancel?.call(cancel);
+    if (cancelRequested) return 130;
+
     final Process process;
     if (exitCodePath == null) {
       process = await Process.start(
@@ -60,7 +74,11 @@ class DeployScriptRunner() {
       );
     }
 
+    startedPid = process.pid;
     onStarted?.call(process.pid);
+    if (cancelRequested) {
+      await process.pid.asOsProcessTree.killTillExit();
+    }
 
     final stdoutSubscription = process.stdout
         .transform(utf8.decoder)

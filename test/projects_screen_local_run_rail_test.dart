@@ -43,7 +43,6 @@ void main() {
 
     expect(find.byType(LocalRunDetail), findsOneWidget);
     expect(find.byType(LocalRunScreen), findsNothing);
-    expect(find.text('Hot reload'), findsOneWidget);
     expect(find.text('book_track · macOS'), findsOneWidget);
   });
 
@@ -84,7 +83,6 @@ void main() {
     expect(spendTrends.startCount, 1);
     expect(find.text('spend_trends · macOS'), findsOneWidget);
     expect(find.byType(LocalRunScreen), findsNothing);
-    expect(find.text('Hot reload'), findsOneWidget);
   });
 
   testWidgets('compact homescreen still pushes the run screen', (tester) async {
@@ -114,7 +112,6 @@ void main() {
     await tester.pump();
 
     expect(find.byType(LocalRunDetail), findsNothing);
-    expect(find.text('Hot reload'), findsNothing);
     expect(find.byKey(const ValueKey<String>('book_track')), findsOneWidget);
 
     await tester.tap(_runCellForProject('book_track', running: true));
@@ -122,7 +119,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.byType(LocalRunScreen), findsOneWidget);
-    expect(find.text('Hot reload'), findsOneWidget);
   });
 
   testWidgets('run and deploy stay visible as separate panes', (tester) async {
@@ -152,10 +148,8 @@ void main() {
     await tester.pump();
 
     expect(find.byType(LocalRunDetail), findsOneWidget);
-    expect(find.text('Hot reload'), findsOneWidget);
     expect(find.text('book_track · macOS'), findsOneWidget);
     expect(find.byType(DeployQueuePanel), findsOneWidget);
-    expect(find.text('Now'), findsOneWidget);
     expect(find.text('workouts'), findsOneWidget);
   });
 
@@ -194,7 +188,6 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Running'), findsOneWidget);
     expect(find.text('book_track · macOS'), findsOneWidget);
     expect(find.text('spend_trends · macOS'), findsOneWidget);
     expect(find.text('book_track vm is up'), findsOneWidget);
@@ -259,6 +252,7 @@ DeployTrigger _trigger(
     listDeployHistory: () async => const <DeployRunRecord>[],
       fetchDeployQueue: () async => const DeployQueue(),
     cancelQueuedDeploy: (jobId) async {},
+    cancelOngoingDeploy: () async {},
     reorderQueuedDeploy: ({required jobId, required toIndex}) async {},
   );
 }
@@ -304,8 +298,9 @@ _StubLocalRunControls _idleControls({
   );
 }
 
-class _StubLocalRunRegistry implements LocalRunRegistry {
-  _StubLocalRunRegistry(List<_StubLocalRunControls> slots) {
+class _StubLocalRunRegistry(List<_StubLocalRunControls> slots)
+    implements LocalRunRegistry {
+  this {
     for (final slot in slots) {
       final runKey = slot.state.runKey;
       if (runKey == null) {
@@ -355,10 +350,8 @@ class _StubLocalRunRegistry implements LocalRunRegistry {
   }
 }
 
-class _StubLocalRunControls implements LocalRunControls {
-  _StubLocalRunControls(this._state);
-
-  LocalRunState _state;
+class _StubLocalRunControls(var LocalRunState _state)
+    implements LocalRunControls {
   var startCount = 0;
   final _updates = StreamController<LocalRunState>.broadcast();
 

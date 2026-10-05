@@ -188,6 +188,7 @@ class const HomescreenDeployPane({
               onRetryStarted: onShowJob,
             ),
       onOpenOngoing: onOpenOngoing,
+      onCancelOngoing: activeDeploy.cancelOngoing,
       onCancelWaiting: (jobId) => activeDeploy.cancelWaiting(jobId),
       onReorderWaiting: activeDeploy.reorderWaiting,
     );

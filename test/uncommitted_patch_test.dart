@@ -52,6 +52,28 @@ deleted file mode 100644
     expect(files.last.removed, 1);
   });
 
+  test('binary diff keeps the golden path when git omits +++', () {
+    const diff = '''
+diff --git a/test/goldens/day_pace.png b/test/goldens/day_pace.png
+index 1111111..2222222 100644
+Binary files a/test/goldens/day_pace.png and b/test/goldens/day_pace.png differ
+''';
+    final files = UncommittedPatch.fromGitDiff(diff);
+    expect(files.single.path, 'test/goldens/day_pace.png');
+    expect(files.single.isBinary, isTrue);
+    expect(files.single.pathAtHead, isNull);
+  });
+
+  test('quoted binary diff path keeps spaces', () {
+    const diff = r'''
+diff --git "a/test/goldens/day pace.png" "b/test/goldens/day pace.png"
+index 1111111..2222222 100644
+Binary files "a/test/goldens/day pace.png" and "b/test/goldens/day pace.png" differ
+''';
+    final files = UncommittedPatch.fromGitDiff(diff);
+    expect(files.single.path, 'test/goldens/day pace.png');
+  });
+
   test('push output drops object-accounting noise', () {
     const stdout = '''
 Enumerating objects: 12, done.

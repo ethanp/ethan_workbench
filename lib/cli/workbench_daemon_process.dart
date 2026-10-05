@@ -91,6 +91,7 @@ class WorkbenchDaemonProcess() {
         await SyncLifecycle.start(
           syncContainer,
           schedulePostFrameReprobe: false,
+          followAppForeground: false,
         );
       } catch (error, stackTrace) {
         _log.warn(

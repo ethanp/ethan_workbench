@@ -48,6 +48,7 @@ class _ControllableScriptRunner() extends DeployScriptRunner {
     String? exitCodePath,
     String? logPath,
     void Function(int pid)? onStarted,
+    void Function(Future<void> Function() cancel)? armCancel,
   }) {
     final completer = Completer<int>();
     _starts.add(completer);

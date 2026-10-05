@@ -19,6 +19,7 @@ class const GitWorkingTreeFailed(
 
 /// Git checkout at [gitRoot]: uncommitted stats, diffs, commit, and push.
 class GitWorkingTree.at(final String gitRoot) {
+  static const _maxImageBytes = 8 * 1024 * 1024;
   Future<UncommittedChangeCounts> changeCounts() async {
     final porcelain = await _stdout(['status', '--porcelain']);
     if (porcelain.trim().isEmpty) return UncommittedChangeCounts.clean;
@@ -43,13 +44,17 @@ class GitWorkingTree.at(final String gitRoot) {
   }
 
   Future<List<UncommittedFileDiff>> fileDiffs() async {
-    final files = [
+    final parsed = [
       ...UncommittedPatch.fromGitDiff(
         await _stdoutAllowFail(['diff', 'HEAD', '--no-color']),
       ),
       for (final relativePath in await _untrackedPaths())
         _untrackedDiff(relativePath),
     ];
+    final files = <UncommittedFileDiff>[];
+    for (final file in parsed) {
+      files.add(await _withImagePreview(file));
+    }
     files.sort((left, right) => left.path.compareTo(right.path));
     return files;
   }
@@ -136,6 +141,45 @@ class GitWorkingTree.at(final String gitRoot) {
     final branch =
         (await _stdout(['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
     onNotice(GitCommitNotice.success('Pushed $branch'));
+  }
+
+  Future<UncommittedFileDiff> _withImagePreview(UncommittedFileDiff file) async {
+    if (!file.isRasterImage) return file;
+    final before = file.isUntracked
+        ? null
+        : await _bytesAtHead(file.pathAtHead ?? file.path);
+    final after = _bytesOnDisk(file.path);
+    if (before == null && after == null) return file;
+    return file.showingImage(
+      UncommittedImagePreview(before: before, after: after),
+    );
+  }
+
+  Future<Uint8List?> _bytesAtHead(String relativePath) async {
+    final process = await Process.run(
+      'git',
+      ['show', 'HEAD:$relativePath'],
+      workingDirectory: gitRoot,
+      stdoutEncoding: null,
+      stderrEncoding: utf8,
+    );
+    if (process.exitCode != 0) return null;
+    final stdout = process.stdout;
+    if (stdout is! Uint8List || stdout.isEmpty) return null;
+    if (stdout.length > _maxImageBytes) return null;
+    return stdout;
+  }
+
+  Uint8List? _bytesOnDisk(String relativePath) {
+    final file = File(path.join(gitRoot, relativePath));
+    try {
+      if (!file.existsSync()) return null;
+      final length = file.lengthSync();
+      if (length == 0 || length > _maxImageBytes) return null;
+      return file.readAsBytesSync();
+    } on FileSystemException {
+      return null;
+    }
   }
 
   UncommittedFileDiff _untrackedDiff(String relativePath) {

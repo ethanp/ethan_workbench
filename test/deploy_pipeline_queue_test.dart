@@ -27,9 +27,13 @@ class _ControllableScriptRunner() extends DeployScriptRunner {
     String? exitCodePath,
     String? logPath,
     void Function(int pid)? onStarted,
+    void Function(Future<void> Function() cancel)? armCancel,
   }) {
     final completer = Completer<int>();
     _starts.add(completer);
+    armCancel?.call(() async {
+      if (!completer.isCompleted) completer.complete(130);
+    });
     onStarted?.call(9000 + _starts.length);
     onOutput('fake deploy\n');
     return completer.future;
@@ -121,10 +125,7 @@ void main() {
       third.jobId,
     ]);
 
-    expect(
-      pipeline.moveWaitingJob(jobId: third.jobId, toIndex: 0),
-      isTrue,
-    );
+    expect(pipeline.moveWaitingJob(jobId: third.jobId, toIndex: 0), isTrue);
     expect(pipeline.waitingQueue.map((job) => job.jobId), [
       third.jobId,
       second.jobId,
@@ -142,10 +143,7 @@ void main() {
     await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
     await Future<void>.delayed(Duration.zero);
     await pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios);
-    expect(
-      pipeline.moveWaitingJob(jobId: 'missing', toIndex: 0),
-      isFalse,
-    );
+    expect(pipeline.moveWaitingJob(jobId: 'missing', toIndex: 0), isFalse);
   });
 
   test('cancel removes waiting job', () async {
@@ -182,7 +180,10 @@ void main() {
     );
     addTearDown(idlePipeline.dispose);
 
-    await idlePipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await idlePipeline.startDeploy(
+      projectId: 'a',
+      platform: DeployPlatform.macos,
+    );
     await Future<void>.delayed(Duration.zero);
     expect(idlePipeline.isIdle, isFalse);
 
@@ -206,5 +207,33 @@ void main() {
     );
     expect(again.jobId, first.jobId);
     expect(pipeline.waitingQueue, isEmpty);
+  });
+
+  test('cancel ongoing fails that deploy and promotes the next', () async {
+    final updates = <DeployJob>[];
+    final subscription = pipeline.jobUpdates.listen(updates.add);
+    addTearDown(subscription.cancel);
+
+    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await Future<void>.delayed(Duration.zero);
+    await pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios);
+    expect(pipeline.activeJob?.projectId, 'a');
+    expect(pipeline.waitingQueue, hasLength(1));
+
+    expect(await pipeline.cancelOngoing(), isTrue);
+
+    expect(pipeline.activeJob?.projectId, 'b');
+    expect(pipeline.activeJob?.status.isActiveRunner, isTrue);
+    expect(pipeline.waitingQueue, isEmpty);
+    expect(
+      updates.any(
+        (job) =>
+            job.projectId == 'a' &&
+            job.status.isFailed &&
+            job.log.contains('Deploy cancelled'),
+      ),
+      isTrue,
+    );
+    expect(await pipeline.cancelOngoing(), isTrue);
   });
 }

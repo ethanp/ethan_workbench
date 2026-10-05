@@ -31,6 +31,7 @@ class DeployHttpRoutes({
       ..patch('/deploy/queue/<jobId>', _reorderQueuedDeploy)
       ..get('/jobs/history', _listHistory)
       ..get('/jobs/active', _activeJob)
+      ..delete('/jobs/active', _cancelOngoingDeploy)
       ..get('/jobs/events', _streamJobEvents)
       ..get('/jobs/<jobId>', _getJob)
       ..get('/jobs/<jobId>/log', _streamLog);
@@ -145,6 +146,13 @@ class DeployHttpRoutes({
     }
     if (!deployPipeline.moveWaitingJob(jobId: jobId, toIndex: toIndex)) {
       return jsonError('toIndex is out of range', status: 400);
+    }
+    return jsonOk({'ok': true});
+  }
+
+  Future<Response> _cancelOngoingDeploy(Request request) async {
+    if (!await deployPipeline.cancelOngoing()) {
+      return jsonError('No active job', status: 404);
     }
     return jsonOk({'ok': true});
   }

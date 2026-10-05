@@ -19,7 +19,10 @@ import 'deploy_http_server.dart';
 import 'server_config.dart';
 
 /// Mac façade: deploy workbench + LAN HTTP server for the iOS client.
-class DeployServer({ServerConfig? config, this.onExitRequested}) {
+class DeployServer({
+  ServerConfig? config,
+  final void Function()? onExitRequested,
+}) {
   this {
     _deployPipeline = DeployPipeline(
       flutterRoots: _config.flutterRoots,
@@ -42,7 +45,6 @@ class DeployServer({ServerConfig? config, this.onExitRequested}) {
   }
 
   final ServerConfig _config = config ?? ServerConfig();
-  final void Function()? onExitRequested;
   DaemonRestartAfterQueue? _restartAfterQueue;
   late final DeployPipeline _deployPipeline;
   late final DeployHttpServer _httpServer;
@@ -75,6 +77,7 @@ class DeployServer({ServerConfig? config, this.onExitRequested}) {
     listDeployHistory: listDeployHistory,
     fetchDeployQueue: fetchDeployQueue,
     cancelQueuedDeploy: cancelQueuedDeploy,
+    cancelOngoingDeploy: cancelOngoingDeploy,
     reorderQueuedDeploy: reorderQueuedDeploy,
     jobUpdates: jobUpdates,
     queueUpdates: queueUpdates,
@@ -119,6 +122,10 @@ class DeployServer({ServerConfig? config, this.onExitRequested}) {
     }
   }
 
+  Future<void> cancelOngoingDeploy() async {
+    await _deployPipeline.cancelOngoing();
+  }
+
   Future<void> reorderQueuedDeploy({
     required String jobId,
     required int toIndex,
@@ -132,8 +139,7 @@ class DeployServer({ServerConfig? config, this.onExitRequested}) {
     _deployPipeline.attachLedger(ledger);
   }
 
-  bool get restartAfterQueueScheduled =>
-      _restartAfterQueue?.scheduled ?? false;
+  bool get restartAfterQueueScheduled => _restartAfterQueue?.scheduled ?? false;
 
   /// Arm a restart once the deploy queue and active run are idle.
   bool enqueueRestartAfterQueue() {

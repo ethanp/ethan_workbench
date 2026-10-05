@@ -12,6 +12,9 @@ class LocalFlutterRunBinding() {
   StreamSubscription<String>? _outputSubscription;
   int? trackedPid;
   String? vmServiceUri;
+
+  /// App-printed VM service URL. Simulator attach forwards this port.
+  String? deviceVmServiceUri;
   int _generation = 0;
 
   bool get hasFlutterRun => _flutterRun != null;
@@ -79,6 +82,7 @@ class LocalFlutterRunBinding() {
       }
       trackedPid = null;
       vmServiceUri = null;
+      deviceVmServiceUri = null;
       return 0;
     }
 
@@ -113,6 +117,7 @@ class LocalFlutterRunBinding() {
   void clearIdentity() {
     trackedPid = null;
     vmServiceUri = null;
+    deviceVmServiceUri = null;
   }
 
   bool owns(LocalFlutterRun flutterRun) => identical(_flutterRun, flutterRun);
@@ -122,6 +127,7 @@ class LocalFlutterRunBinding() {
     _flutterRun = null;
     trackedPid = null;
     vmServiceUri = null;
+    deviceVmServiceUri = null;
     final outputSubscription = _outputSubscription;
     _outputSubscription = null;
     await outputSubscription?.cancel();

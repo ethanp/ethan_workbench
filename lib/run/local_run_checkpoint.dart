@@ -39,6 +39,7 @@ class LocalRunCheckpoint({
         deviceLabel: deviceLabel,
         flutterDeviceId: flutterDeviceId,
         vmServiceUri: _flutterRunBinding.vmServiceUri,
+        deviceVmServiceUri: _flutterRunBinding.deviceVmServiceUri,
       ),
     );
   }

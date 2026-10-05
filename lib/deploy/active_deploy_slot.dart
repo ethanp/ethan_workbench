@@ -36,6 +36,9 @@ class ActiveDeploySlot({
 
   int? _pid;
   String? _projectPath;
+  bool _cancelRequested = false;
+  Future<void> Function()? _cancelOngoing;
+  Completer<void>? _runSettled;
   String? _exitCodePath;
   String? _logPath;
   DeployLogFileFollow? _logFollow;
@@ -53,6 +56,18 @@ class ActiveDeploySlot({
 
   /// Start the ruby deploy for [job].
   Future<void> start(DeployJob job, WorkbenchProject project) async {
+    _cancelRequested = false;
+    _cancelOngoing = null;
+    final settled = Completer<void>();
+    _runSettled = settled;
+    try {
+      await _runUntilExit(job, project);
+    } finally {
+      if (!settled.isCompleted) settled.complete();
+    }
+  }
+
+  Future<void> _runUntilExit(DeployJob job, WorkbenchProject project) async {
     _projectPath = project.path;
     final startedAt = DateTime.now();
     _console.updateStatusWithoutNewLog(
@@ -62,13 +77,7 @@ class ActiveDeploySlot({
       ),
     );
     unawaited(checkpoint());
-
-    _console.append(
-      'Starting ${job.platform.label} deploy for ${project.name}\n'
-      'cwd: ${project.path}\n'
-      'ruby $deployRbPath ${job.platform.scriptArgument}'
-      '${job.force ? ' --force' : ''}\n\n',
-    );
+    _appendLaunchBanner(job, project);
 
     final persistence = _persistence;
     final exitCodePath = persistence == null
@@ -79,11 +88,29 @@ class ActiveDeploySlot({
         : await persistence.logPathFor(job.jobId);
     _exitCodePath = exitCodePath;
     _logPath = logPath;
+    if (_cancelRequested) {
+      await _finishCancelled(project.path);
+      return;
+    }
 
+    await _runScript(
+      job: job,
+      projectPath: project.path,
+      exitCodePath: exitCodePath,
+      logPath: logPath,
+    );
+  }
+
+  Future<void> _runScript({
+    required DeployJob job,
+    required String projectPath,
+    required String? exitCodePath,
+    required String? logPath,
+  }) async {
     try {
       final exitCode = await _scriptRunner.runDeploy(
         deployRbPath: deployRbPath,
-        projectPath: project.path,
+        projectPath: projectPath,
         platform: job.platform,
         force: job.force,
         onOutput: _console.append,
@@ -93,16 +120,39 @@ class ActiveDeploySlot({
           _pid = pid;
           unawaited(checkpoint());
         },
+        armCancel: _armCancel,
       );
       await _completion.finish(
         exitCode: exitCode,
-        projectPath: project.path,
+        projectPath: projectPath,
+        cancelled: _cancelRequested,
       );
     } catch (error, stackTrace) {
+      if (_cancelRequested) {
+        await _finishCancelled(projectPath);
+        return;
+      }
       _console.flush();
       _console.append('\n✗ Deploy crashed: $error\n$stackTrace\n');
-      await _completion.finish(exitCode: -1, projectPath: project.path);
+      await _completion.finish(exitCode: -1, projectPath: projectPath);
     }
+  }
+
+  void _appendLaunchBanner(DeployJob job, WorkbenchProject project) {
+    _console.append(
+      'Starting ${job.platform.label} deploy for ${project.name}\n'
+      'cwd: ${project.path}\n'
+      'ruby $deployRbPath ${job.platform.scriptArgument}'
+      '${job.force ? ' --force' : ''}\n\n',
+    );
+  }
+
+  Future<void> _finishCancelled(String projectPath) {
+    return _completion.finish(
+      exitCode: 130,
+      projectPath: projectPath,
+      cancelled: true,
+    );
   }
 
   /// Adopt a process still running after workbench restart; resume log follow.
@@ -203,7 +253,46 @@ class ActiveDeploySlot({
     await persistence.clear(exitCodePath: exitCodePath, logPath: logPath);
   }
 
+  /// Stops the active deploy. Returns false when nothing is running.
+  ///
+  /// The next waiting job still promotes, the same as a failed run.
+  Future<bool> cancelOngoing() async {
+    if (!hasActiveRunner) return false;
+    final jobId = job?.jobId;
+    final settled = _runSettled;
+    _cancelRequested = true;
+    final cancelRun = _cancelOngoing;
+    if (cancelRun != null) {
+      await cancelRun();
+      await settled?.future;
+      return true;
+    }
+    final pid = _pid;
+    if (pid == null) {
+      await settled?.future;
+      return true;
+    }
+    _pidWatch.cancel();
+    await pid.asOsProcessTree.killTillExit();
+    final projectPath = this.projectPath;
+    if (job?.jobId != jobId || !hasActiveRunner || projectPath == null) {
+      return true;
+    }
+    await _completion.finish(
+      exitCode: 130,
+      projectPath: projectPath,
+      cancelled: true,
+    );
+    return true;
+  }
+
+  void _armCancel(Future<void> Function() cancel) {
+    _cancelOngoing = cancel;
+    if (_cancelRequested) unawaited(cancel());
+  }
+
   void clearProcessHandles() {
+    _cancelOngoing = null;
     _pid = null;
     _exitCodePath = null;
     _logPath = null;

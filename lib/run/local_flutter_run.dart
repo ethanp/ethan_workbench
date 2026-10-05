@@ -14,6 +14,13 @@ abstract final class FlutterRunOutput() {
     caseSensitive: false,
   );
 
+  /// Printed by the app inside the simulator. This port is what
+  /// `flutter attach --debug-url` forwards — not the host "available at" URL.
+  static final _deviceVmServiceUriPattern = RegExp(
+    r'The Dart VM service is listening on (https?://\S+)',
+    caseSensitive: false,
+  );
+
   static final _exceptionHeaderPattern = RegExp(
     r'EXCEPTION CAUGHT BY\s+(.+?)\s*╞',
     caseSensitive: false,
@@ -32,10 +39,7 @@ abstract final class FlutterRunOutput() {
     multiLine: true,
   );
 
-  static final _eventPattern = RegExp(
-    r'^Event:\s*\n\s*(.+)$',
-    multiLine: true,
-  );
+  static final _eventPattern = RegExp(r'^Event:\s*\n\s*(.+)$', multiLine: true);
 
   static final _targetPattern = RegExp(
     r'^Target:\s*\n\s*(.+)$',
@@ -102,12 +106,28 @@ abstract final class FlutterRunOutput() {
   static String? vmServiceUriFrom(String text) {
     final match = _vmServiceUriPattern.firstMatch(text);
     if (match == null) return null;
-    var uri = match.group(1)!;
-    // Flutter sometimes trails the URL with punctuation.
-    while (uri.endsWith('.') || uri.endsWith(')') || uri.endsWith(',')) {
-      uri = uri.substring(0, uri.length - 1);
+    return _withoutTrailingPunctuation(match.group(1)!);
+  }
+
+  /// Newest device VM service URL in [text] (a later launch replaces an older one).
+  static String? deviceVmServiceUriFrom(String text) {
+    final matches = _deviceVmServiceUriPattern.allMatches(text);
+    if (matches.isEmpty) return null;
+    return _withoutTrailingPunctuation(matches.last.group(1)!);
+  }
+
+  /// Flutter prints this once attach has been refused long enough to be stuck.
+  static bool attachGaveUpOnVmService(String text) =>
+      text.contains('--host-vmservice-port');
+
+  static String _withoutTrailingPunctuation(String uri) {
+    var trimmed = uri;
+    while (trimmed.endsWith('.') ||
+        trimmed.endsWith(')') ||
+        trimmed.endsWith(',')) {
+      trimmed = trimmed.substring(0, trimmed.length - 1);
     }
-    return uri;
+    return trimmed;
   }
 
   /// Parses the newest high-signal EXCEPTION CAUGHT dump from [logText].

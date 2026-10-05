@@ -17,6 +17,9 @@ class const LocalRunRecord({
   required final String deviceLabel,
   required final String flutterDeviceId,
   final String? vmServiceUri,
+
+  /// VM service URL printed by the app ("listening on"), used as `--debug-url`.
+  final String? deviceVmServiceUri,
 }) {
   LocalRunKey get runKey =>
       LocalRunKey(projectId: projectId, deviceKey: deviceKey);
@@ -31,6 +34,7 @@ class const LocalRunRecord({
     'deviceLabel': deviceLabel,
     'flutterDeviceId': flutterDeviceId,
     if (vmServiceUri != null) 'vmServiceUri': vmServiceUri,
+    if (deviceVmServiceUri != null) 'deviceVmServiceUri': deviceVmServiceUri,
   };
 
   factory fromJson(Map<String, dynamic> json) {
@@ -44,6 +48,7 @@ class const LocalRunRecord({
       deviceLabel: json['deviceLabel'] as String? ?? 'macOS',
       flutterDeviceId: json['flutterDeviceId'] as String? ?? 'macos',
       vmServiceUri: json['vmServiceUri'] as String?,
+      deviceVmServiceUri: json['deviceVmServiceUri'] as String?,
     );
   }
 }

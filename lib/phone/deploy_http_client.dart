@@ -228,6 +228,15 @@ class DeployServerClient({
     _throwIfFailed(response, 'Failed to cancel queued deploy');
   }
 
+  Future<void> cancelOngoingDeploy() async {
+    final response = await _httpClient.delete(
+      Uri.parse('$_baseUrl/jobs/active'),
+      headers: _headers,
+    );
+    if (response.statusCode == 404) return;
+    _throwIfFailed(response, 'Failed to cancel deploy');
+  }
+
   Future<void> reorderQueuedDeploy({
     required String jobId,
     required int toIndex,

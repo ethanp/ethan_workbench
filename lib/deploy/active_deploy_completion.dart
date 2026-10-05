@@ -11,27 +11,54 @@ class ActiveDeployCompletion({
   required final Future<void> Function() _clearSession,
   required final Future<void> Function() _onPromoteNext,
 }) {
+  bool _finishInFlight = false;
+
   Future<void> finish({
     required int exitCode,
     required String projectPath,
+    bool cancelled = false,
+  }) async {
+    if (_finishInFlight) return;
+    final currentJob = _console.job;
+    if (currentJob == null || currentJob.status.isTerminal) return;
+    _finishInFlight = true;
+    try {
+      await _finishJob(
+        currentJob: currentJob,
+        exitCode: exitCode,
+        projectPath: projectPath,
+        cancelled: cancelled,
+      );
+    } finally {
+      _finishInFlight = false;
+    }
+  }
+
+  Future<void> _finishJob({
+    required DeployJob currentJob,
+    required int exitCode,
+    required String projectPath,
+    required bool cancelled,
   }) async {
     await _stopLogFollow();
     _console.flush();
-    final succeeded = exitCode == 0;
+    final succeeded = !cancelled && exitCode == 0;
     _console.append(
-      succeeded
+      cancelled
+          ? '\n✗ Deploy cancelled\n'
+          : succeeded
           ? '\n✓ Deploy finished successfully\n'
           : '\n✗ Deploy failed (exit $exitCode)\n',
     );
-    final currentJob = _console.job!;
+    final finishedJob = _console.job ?? currentJob;
     final finishedAt = DateTime.now();
     await _recordTerminalAndPromote(
-      finishedJob: currentJob.copyWith(
+      finishedJob: finishedJob.copyWith(
         status: succeeded ? DeployJobStatus.succeeded : DeployJobStatus.failed,
         finishedAt: finishedAt,
         exitCode: exitCode,
         checklist: DeployChecklist.advanceToPhase(
-          currentJob.checklist,
+          finishedJob.checklist,
           succeeded ? 'done' : 'failed',
           at: finishedAt,
         ),
@@ -41,6 +68,25 @@ class ActiveDeployCompletion({
   }
 
   Future<void> failInterrupted({
+    required DeployJob job,
+    required String projectPath,
+    required String message,
+  }) async {
+    if (_finishInFlight) return;
+    if (job.status.isTerminal) return;
+    _finishInFlight = true;
+    try {
+      await _failInterrupted(
+        job: job,
+        projectPath: projectPath,
+        message: message,
+      );
+    } finally {
+      _finishInFlight = false;
+    }
+  }
+
+  Future<void> _failInterrupted({
     required DeployJob job,
     required String projectPath,
     required String message,

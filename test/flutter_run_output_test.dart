@@ -18,6 +18,30 @@ void main() {
       );
     });
 
+    test('deviceVmServiceUriFrom keeps the newest simulator listening URL', () {
+      const log = '''
+The Dart VM service is listening on http://127.0.0.1:111/old=/
+The Dart VM service is listening on http://127.0.0.1:222/new=/.
+''';
+      expect(
+        FlutterRunOutput.deviceVmServiceUriFrom(log),
+        'http://127.0.0.1:222/new=/',
+      );
+    });
+
+    test('attachGaveUpOnVmService matches the flutter tools hint', () {
+      expect(
+        FlutterRunOutput.attachGaveUpOnVmService(
+          'try re-running with --host-vmservice-port to use a specific port',
+        ),
+        isTrue,
+      );
+      expect(
+        FlutterRunOutput.attachGaveUpOnVmService('Still starting'),
+        isFalse,
+      );
+    });
+
     test('vmServiceUriFrom strips trailing punctuation', () {
       const line =
           'A Dart VM Service on macOS is available at: '
@@ -91,8 +115,10 @@ Another exception was thrown: RenderBox was not laid out: RenderIntrinsicWidth#c
       expect(prompt, contains('Another exception was thrown:'));
     });
 
-    test('exceptionFrom extracts assertion and app frame from gesture dumps', () {
-      const dump = '''
+    test(
+      'exceptionFrom extracts assertion and app frame from gesture dumps',
+      () {
+        const dump = '''
 ══╡ EXCEPTION CAUGHT BY GESTURE LIBRARY ╞═══════════════════════════════════════════════════════════
 The following assertion was thrown while dispatching a pointer event:
 setState() called after dispose(): ZoomPanViewState#939e6(lifecycle state: defunct, not mounted)
@@ -112,44 +138,53 @@ Target:
 ════════════════════════════════════════════════════════════════════════════════════════════════════
 ''';
 
-      final exception = FlutterRunOutput.exceptionFrom(dump);
-      expect(exception, isNotNull);
-      expect(exception!.library, 'GESTURE LIBRARY');
-      expect(exception.thrownDuring, 'while dispatching a pointer event');
-      expect(
-        exception.assertion,
-        'setState() called after dispose(): ZoomPanViewState#939e6(lifecycle state: defunct, not mounted)',
-      );
-      expect(exception.appFrameSymbol, 'ZoomPanViewState._forgetPointerContact');
-      expect(
-        exception.packageUri,
-        'package:viant_core/widgets/zoom_pan_view.dart:215:5',
-      );
-      expect(
-        exception.displayLocation,
-        'viant_core/widgets/zoom_pan_view.dart:215:5',
-      );
-      expect(
-        exception.event,
-        'PointerUpEvent#90a75(position: Offset(575.7, 1267.5))',
-      );
-      expect(exception.target, 'RenderPointerListener#72fe6 DISPOSED');
+        final exception = FlutterRunOutput.exceptionFrom(dump);
+        expect(exception, isNotNull);
+        expect(exception!.library, 'GESTURE LIBRARY');
+        expect(exception.thrownDuring, 'while dispatching a pointer event');
+        expect(
+          exception.assertion,
+          'setState() called after dispose(): ZoomPanViewState#939e6(lifecycle state: defunct, not mounted)',
+        );
+        expect(
+          exception.appFrameSymbol,
+          'ZoomPanViewState._forgetPointerContact',
+        );
+        expect(
+          exception.packageUri,
+          'package:viant_core/widgets/zoom_pan_view.dart:215:5',
+        );
+        expect(
+          exception.displayLocation,
+          'viant_core/widgets/zoom_pan_view.dart:215:5',
+        );
+        expect(
+          exception.event,
+          'PointerUpEvent#90a75(position: Offset(575.7, 1267.5))',
+        );
+        expect(exception.target, 'RenderPointerListener#72fe6 DISPOSED');
 
-      final prompt = exception.promptText;
-      expect(prompt, contains('Flutter exception in GESTURE LIBRARY.'));
-      expect(
-        prompt,
-        contains('The following assertion was thrown while dispatching a pointer event:'),
-      );
-      expect(prompt, contains('setState() called after dispose()'));
-      expect(prompt, contains('ZoomPanViewState._forgetPointerContact'));
-      expect(
-        prompt,
-        contains('package:viant_core/widgets/zoom_pan_view.dart:215:5'),
-      );
-      expect(prompt, contains('Event: PointerUpEvent#90a75'));
-      expect(prompt, contains('Target: RenderPointerListener#72fe6 DISPOSED'));
-    });
+        final prompt = exception.promptText;
+        expect(prompt, contains('Flutter exception in GESTURE LIBRARY.'));
+        expect(
+          prompt,
+          contains(
+            'The following assertion was thrown while dispatching a pointer event:',
+          ),
+        );
+        expect(prompt, contains('setState() called after dispose()'));
+        expect(prompt, contains('ZoomPanViewState._forgetPointerContact'));
+        expect(
+          prompt,
+          contains('package:viant_core/widgets/zoom_pan_view.dart:215:5'),
+        );
+        expect(prompt, contains('Event: PointerUpEvent#90a75'));
+        expect(
+          prompt,
+          contains('Target: RenderPointerListener#72fe6 DISPOSED'),
+        );
+      },
+    );
 
     test('exceptionFrom returns null when log has no dump', () {
       expect(

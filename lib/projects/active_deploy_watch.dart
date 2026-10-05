@@ -195,6 +195,11 @@ class ActiveDeployWatch({
     await refresh();
   }
 
+  Future<void> cancelOngoing() async {
+    await trigger.cancelOngoingDeploy();
+    await refresh();
+  }
+
   Future<void> reorderWaiting({
     required String jobId,
     required int toIndex,

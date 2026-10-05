@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -123,6 +125,8 @@ class _FileDiffCardState() extends State<_FileDiffCard> {
   }
 
   Widget _fileBody() {
+    final image = widget.file.image;
+    if (image != null) return _imageDiff(image);
     if (widget.file.isBinary) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -160,6 +164,69 @@ class _FileDiffCardState() extends State<_FileDiffCard> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _imageDiff(UncommittedImagePreview image) {
+    final before = image.before;
+    final after = image.after;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        ELayout.spaceLg,
+        0,
+        ELayout.spaceMd,
+        ELayout.spaceMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (before != null) _imageSide(after != null ? 'before' : null, before),
+          if (before != null && after != null)
+            const SizedBox(height: ELayout.spaceSm),
+          if (after != null) _imageSide(before != null ? 'after' : null, after),
+        ],
+      ),
+    );
+  }
+
+  Widget _imageSide(String? caption, Uint8List bytes) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (caption != null) ...[
+          Text(caption, style: EText.caption),
+          const SizedBox(height: ELayout.spaceXs),
+        ],
+        DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: EColors.border),
+            borderRadius: ELayout.borderRadiusSm,
+            color: EColors.surface,
+          ),
+          child: ClipRRect(
+            borderRadius: ELayout.borderRadiusSm,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Image.memory(
+                  bytes,
+                  width: constraints.maxWidth,
+                  fit: BoxFit.contain,
+                  alignment: Alignment.topLeft,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Padding(
+                      padding: const EdgeInsets.all(ELayout.spaceSm),
+                      child: Text(
+                        'Could not decode image',
+                        style: EText.caption,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 

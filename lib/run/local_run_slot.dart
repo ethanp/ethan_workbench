@@ -34,6 +34,9 @@ class LocalRunSlot({
       runProgress: _runProgress,
       flutterRunBinding: _flutterRunBinding,
       checkpoint: _checkpoint,
+      onAttachGaveUpOnVmService: () {
+        unawaited(_stopAttachThatCannotReachVmService());
+      },
     );
     _reclaimer = LocalRunReclaimer(
       runKey: _runKey,
@@ -83,6 +86,7 @@ class LocalRunSlot({
     _runProgress.clearLog();
     _console.resetForNewRun();
     _flutterRunBinding.vmServiceUri = null;
+    _flutterRunBinding.deviceVmServiceUri = null;
     _runProgress.emit(
       LocalRunState(
         status: LocalRunStatus.starting,
@@ -200,6 +204,17 @@ class LocalRunSlot({
         );
       }
     }
+  }
+
+  Future<void> _stopAttachThatCannotReachVmService() async {
+    if (!_runProgress.current.reattached) return;
+    if (_runProgress.current.readyForKeyCommands) return;
+    if (_runProgress.current.status != LocalRunStatus.starting) return;
+    _runProgress.appendLog(
+      'flutter attach kept retrying a VM service that refused the connection. '
+      'Stopping it.\n',
+    );
+    await stop();
   }
 
   @override
