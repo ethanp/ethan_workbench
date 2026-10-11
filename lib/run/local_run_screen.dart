@@ -161,25 +161,21 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
         EStatusChip(
           label: _state.status.chipLabel,
           tone: _state.status.chipTone,
-          uppercase: true,
         ),
         if (_state.readyForKeyCommands)
           const EStatusChip(
-            label: 'ready',
+            label: 'Ready',
             tone: EStatusTone.success,
-            uppercase: true,
           ),
         if (_state.flutterException != null)
           const EStatusChip(
-            label: 'exception',
+            label: 'Exception',
             tone: EStatusTone.danger,
-            uppercase: true,
           ),
         if (_state.reattached)
           const EStatusChip(
-            label: 'reattached',
+            label: 'Reattached',
             tone: EStatusTone.warning,
-            uppercase: true,
           ),
         if (_state.exitCode != null)
           Text('Exit ${_state.exitCode}', style: EText.caption),

@@ -8,6 +8,22 @@ void main() {
       expect(FlutterRunOutput.looksReady('building…'), isFalse);
     });
 
+    test('looksLikeExceptionDump matches Flutter dump banners', () {
+      expect(
+        FlutterRunOutput.looksLikeExceptionDump(
+          '══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞══',
+        ),
+        isTrue,
+      );
+      expect(
+        FlutterRunOutput.looksLikeExceptionDump(
+          'Another exception was thrown: RenderBox was not laid out',
+        ),
+        isTrue,
+      );
+      expect(FlutterRunOutput.looksLikeExceptionDump('building…'), isFalse);
+    });
+
     test('vmServiceUriFrom extracts http URI', () {
       const line =
           'A Dart VM Service on macOS is available at: '

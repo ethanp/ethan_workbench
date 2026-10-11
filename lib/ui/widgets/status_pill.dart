@@ -23,6 +23,6 @@ class const StatusPill({
 
   @override
   Widget build(BuildContext context) {
-    return EStatusChip(label: label, tone: tone, uppercase: true);
+    return EStatusChip(label: label, tone: tone);
   }
 }

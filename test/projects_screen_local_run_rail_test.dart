@@ -6,6 +6,7 @@ import 'package:ethan_workbench/deploy/deploy_queue.dart';
 import 'package:ethan_workbench/deploy/deploy_queue_panel.dart';
 import 'package:ethan_workbench/deploy/deploy_run_record.dart';
 import 'package:ethan_workbench/deploy/deploy_trigger.dart';
+import 'package:ethan_workbench/deploy/job_screen.dart';
 import 'package:ethan_workbench/projects/projects_screen.dart';
 import 'package:ethan_workbench/projects/source_changes_progress.dart';
 import 'package:ethan_workbench/projects/workbench_project.dart';
@@ -200,6 +201,93 @@ void main() {
     expect(find.text('book_track vm is up'), findsNothing);
     expect(find.byType(LocalRunScreen), findsNothing);
   });
+
+  testWidgets('starting the simulator closes a finished deploy pane', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final liveDeploy = _LiveDeploy(_runningIosJob('book_track'));
+    addTearDown(liveDeploy.dispose);
+    final registry = _StubLocalRunRegistry([
+      _idleControls(
+        projectId: 'book_track',
+        projectName: 'book_track',
+        device: FlutterRunDevice.meSim,
+      ),
+    ]);
+    addTearDown(registry.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProjectsScreen(
+          trigger: _trigger(
+            [_iosProject('book_track')],
+            liveDeploy: liveDeploy,
+          ),
+          localRunRegistry: registry,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Deploy · In progress'));
+    await tester.pump();
+    expect(find.byType(DeployJobDetail), findsOneWidget);
+
+    liveDeploy.succeed();
+    await tester.pump();
+    expect(find.byType(DeployJobDetail), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Run · Simulator'));
+    await tester.pump();
+
+    expect(find.byType(DeployJobDetail), findsNothing);
+    expect(find.byType(DeployQueuePanel), findsNothing);
+    expect(find.byType(LocalRunDetail), findsOneWidget);
+    expect(find.byType(LocalRunScreen), findsNothing);
+  });
+
+  testWidgets('starting the simulator keeps an in-progress deploy pane', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1600, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final liveDeploy = _LiveDeploy(_runningIosJob('book_track'));
+    addTearDown(liveDeploy.dispose);
+    final registry = _StubLocalRunRegistry([
+      _idleControls(
+        projectId: 'book_track',
+        projectName: 'book_track',
+        device: FlutterRunDevice.meSim,
+      ),
+    ]);
+    addTearDown(registry.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProjectsScreen(
+          trigger: _trigger(
+            [_iosProject('book_track')],
+            liveDeploy: liveDeploy,
+          ),
+          localRunRegistry: registry,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Deploy · In progress'));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Run · Simulator'));
+    await tester.pump();
+
+    expect(find.byType(DeployJobDetail), findsOneWidget);
+    expect(find.byType(LocalRunDetail), findsOneWidget);
+  });
 }
 
 Finder _runCellForProject(String projectId, {required bool running}) {
@@ -215,6 +303,34 @@ WorkbenchProject _macosProject(String name) => WorkbenchProject(
   path: '/tmp/$name',
   platforms: {DeployPlatform.macos},
 );
+
+WorkbenchProject _iosProject(String name) => WorkbenchProject(
+  projectId: name,
+  name: name,
+  path: '/tmp/$name',
+  platforms: {DeployPlatform.ios},
+);
+
+class _LiveDeploy(DeployJob initial) {
+  DeployJob job = initial;
+  DeployJob? activeJob = initial;
+  final updates = StreamController<DeployJob>.broadcast();
+
+  void succeed() {
+    job = job.copyWith(
+      status: DeployJobStatus.succeeded,
+      log: 'deployed',
+      finishedAt: DateTime(2026, 1, 1, 0, 5),
+      exitCode: 0,
+    );
+    activeJob = null;
+    updates.add(job);
+  }
+
+  void dispose() {
+    unawaited(updates.close());
+  }
+}
 
 DeployJob _runningIosJob(String projectName) {
   return DeployJob(
@@ -232,6 +348,7 @@ DeployJob _runningIosJob(String projectName) {
 DeployTrigger _trigger(
   List<WorkbenchProject> projects, {
   DeployJob? activeJob,
+  _LiveDeploy? liveDeploy,
 }) {
   return DeployTrigger(
     listProjects: () async => projects,
@@ -245,12 +362,15 @@ DeployTrigger _trigger(
       bool force = false,
     }) async => throw UnimplementedError(),
     fetchJob: (jobId) async {
+      final liveJob = liveDeploy?.job;
+      if (liveJob != null && liveJob.jobId == jobId) return liveJob;
       if (activeJob?.jobId == jobId) return activeJob!;
       throw UnimplementedError();
     },
-    fetchActiveJob: () async => activeJob,
+    fetchActiveJob: () async => liveDeploy?.activeJob ?? activeJob,
+    jobUpdates: liveDeploy?.updates.stream,
     listDeployHistory: () async => const <DeployRunRecord>[],
-      fetchDeployQueue: () async => const DeployQueue(),
+    fetchDeployQueue: () async => const DeployQueue(),
     cancelQueuedDeploy: (jobId) async {},
     cancelOngoingDeploy: () async {},
     reorderQueuedDeploy: ({required jobId, required toIndex}) async {},
@@ -307,6 +427,7 @@ class _StubLocalRunRegistry(List<_StubLocalRunControls> slots)
         throw StateError('stub run is missing projectId/deviceKey');
       }
       _slots[runKey] = slot;
+      _listenTo(slot);
     }
   }
 
@@ -343,10 +464,19 @@ class _StubLocalRunRegistry(List<_StubLocalRunControls> slots)
 
   @override
   LocalRunControls controlsFor(LocalRunKey runKey) {
-    return _slots.putIfAbsent(
-      runKey,
-      () => _StubLocalRunControls(LocalRunState.idle),
-    );
+    return _slots.putIfAbsent(runKey, () {
+      final slot = _StubLocalRunControls(LocalRunState.idle);
+      _listenTo(slot);
+      return slot;
+    });
+  }
+
+  void _listenTo(_StubLocalRunControls slot) {
+    slot.updates.listen((state) {
+      if (!_stateUpdates.isClosed) {
+        _stateUpdates.add(state);
+      }
+    });
   }
 }
 

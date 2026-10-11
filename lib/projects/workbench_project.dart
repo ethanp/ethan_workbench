@@ -6,8 +6,8 @@ import '../deploy/deploy_platform.dart';
 enum DeploySourceStatus({required final String? chipLabel}) {
   unevaluated(chipLabel: null),
   neverDeployed(chipLabel: null),
-  unchanged(chipLabel: 'current'),
-  changed(chipLabel: 'changed');
+  unchanged(chipLabel: 'Current'),
+  changed(chipLabel: 'Changed');
 
   static DeploySourceStatus fromName(String name) {
     return DeploySourceStatus.values.firstWhere(

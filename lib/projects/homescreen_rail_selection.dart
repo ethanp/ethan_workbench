@@ -99,10 +99,27 @@ class HomescreenRailSelection({required final void Function() onChanged}) {
     onChanged();
   }
 
-  void showRunInSideRail(LocalRunControls controls) {
+  void showRunInSideRail(
+    LocalRunControls controls, {
+    required DeployJob? ongoingDeploy,
+  }) {
     runRailClosedByUser = false;
     inlineRun = controls;
+    _closeFinishedDeployPane(ongoingDeploy);
     onChanged();
+  }
+
+  void _closeFinishedDeployPane(DeployJob? ongoingDeploy) {
+    final job = inlineJob;
+    if (job == null) return;
+    if (_inlineJobIsActiveRunner(job, ongoingDeploy)) return;
+    inlineJob = null;
+  }
+
+  bool _inlineJobIsActiveRunner(DeployJob job, DeployJob? ongoingDeploy) {
+    if (ongoingDeploy == null) return false;
+    if (ongoingDeploy.jobId != job.jobId) return false;
+    return ongoingDeploy.status.isActiveRunner;
   }
 
   void closeInlineRun() {

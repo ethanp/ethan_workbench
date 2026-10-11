@@ -66,7 +66,7 @@ class ActiveDeployWatch({
 
   void _setNowJobFromStream(DeployJob job) {
     if (job.status.isWaiting) return;
-    final was = ongoing?.debugSummary ?? 'none';
+    final previous = ongoing;
     ongoing = job.status.isTerminal ? null : job;
     if (ongoing == null) {
       ongoingTypicalDuration = null;
@@ -74,10 +74,12 @@ class ActiveDeployWatch({
     } else {
       unawaited(_ensureTypicalDuration(ongoing!));
     }
-    if (was != (ongoing?.debugSummary ?? 'none')) {
-      _log.log('stream update was=$was now=${ongoing?.debugSummary ?? 'none'}');
-    }
     _notifyIfFinished(job);
+    if (_sameQueueChrome(previous, ongoing)) return;
+    _log.log(
+      'stream update was=${previous?.debugSummary ?? 'none'} '
+      'now=${ongoing?.debugSummary ?? 'none'}',
+    );
     onActiveDeployChanged();
   }
 
@@ -158,7 +160,7 @@ class ActiveDeployWatch({
       if (previousOngoing != null && previousOngoing.jobId != next?.jobId) {
         await _notifyFinishedFromRefresh(previousOngoing.jobId);
       }
-      if (was == now && !waitingChanged) return;
+      if (_sameQueueChrome(previousOngoing, next) && !waitingChanged) return;
       onActiveDeployChanged();
     } on ServerRequestException catch (error) {
       _log.warn('refresh failed: ${error.message}', error);
@@ -206,6 +208,11 @@ class ActiveDeployWatch({
   }) async {
     await trigger.reorderQueuedDeploy(jobId: jobId, toIndex: toIndex);
     await refresh();
+  }
+
+  static bool _sameQueueChrome(DeployJob? left, DeployJob? right) {
+    if (left == null || right == null) return left == right;
+    return left.sameQueueChromeAs(right);
   }
 
   static bool _sameWaitingJobs(List<DeployJob> left, List<DeployJob> right) {

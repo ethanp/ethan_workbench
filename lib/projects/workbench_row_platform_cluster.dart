@@ -53,7 +53,7 @@ class const WorkbenchRowPlatformCluster({
                       : runStatus.subtitleGivenIdle(idleSubtitle))
                 : idleSubtitle,
             condensedLabel: 'Run',
-            statusLabel: runHasException ? 'exception' : runStatus?.chipLabel,
+            statusLabel: runHasException ? 'Exception' : runStatus?.chipLabel,
             statusTone: runHasException
                 ? EStatusTone.danger
                 : runStatus?.chipTone,

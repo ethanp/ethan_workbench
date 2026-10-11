@@ -8,9 +8,13 @@ import 'local_run_state.dart';
 ///
 /// One job: hold [LocalRunState], append log lines, and broadcast changes.
 class LocalRunProgress({required final LocalRunKey runKey}) {
+  static const logSnapshotInterval = Duration(milliseconds: 200);
+
   LocalRunState _current = LocalRunState.idle;
   final _changes = StreamController<LocalRunState>.broadcast();
   final _log = StringBuffer();
+  Timer? _logSnapshotTimer;
+  var _logDirty = false;
   bool _closed = false;
 
   LocalRunState get current => _current;
@@ -18,24 +22,24 @@ class LocalRunProgress({required final LocalRunKey runKey}) {
   bool get isActive => _current.status.isActive;
   bool get isClosed => _closed;
   String get logText => _log.toString();
+  int get logLength => _log.length;
 
   void clearLog() {
     _log.clear();
+    _cancelLogSnapshot();
     unawaited(LocalRunCursorMirror.clearLog(runKey));
+    _publish(_current.copyWith(log: ''));
   }
 
   void emit(LocalRunState state) {
-    _current = state;
-    LocalRunCursorMirror.scheduleStatus(runKey, state);
-    if (!_closed) {
-      _changes.add(state);
-    }
+    _cancelLogSnapshot();
+    _publish(state.copyWith(log: _log.toString()));
   }
 
   void appendLog(String chunk) {
     _log.write(chunk);
     unawaited(LocalRunCursorMirror.appendLog(runKey, chunk));
-    emit(_current.copyWith(log: _log.toString()));
+    _scheduleLogSnapshot();
   }
 
   /// After [stop], wait until status leaves `stopping` (or force-exit on timeout).
@@ -75,7 +79,35 @@ class LocalRunProgress({required final LocalRunKey runKey}) {
   }
 
   Future<void> close() async {
+    _flushLogSnapshot();
     _closed = true;
     await _changes.close();
+  }
+
+  void _scheduleLogSnapshot() {
+    if (_closed) return;
+    _logDirty = true;
+    _logSnapshotTimer ??= Timer(logSnapshotInterval, _flushLogSnapshot);
+  }
+
+  void _flushLogSnapshot() {
+    _logSnapshotTimer = null;
+    if (!_logDirty || _closed) return;
+    _logDirty = false;
+    _publish(_current.copyWith(log: _log.toString()));
+  }
+
+  void _cancelLogSnapshot() {
+    _logSnapshotTimer?.cancel();
+    _logSnapshotTimer = null;
+    _logDirty = false;
+  }
+
+  void _publish(LocalRunState state) {
+    _current = state;
+    LocalRunCursorMirror.scheduleStatus(runKey, state);
+    if (!_closed) {
+      _changes.add(state);
+    }
   }
 }

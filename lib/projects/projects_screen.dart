@@ -50,7 +50,8 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   late final HomescreenRailSelection _rails;
 
   Timer? _sourceChangesRefreshTimer;
-  StreamSubscription<void>? _localRunSubscription;
+  StreamSubscription<LocalRunState>? _localRunSubscription;
+  final _rowChromeByRunKey = <LocalRunKey, LocalRunState>{};
 
   @override
   void initState() {
@@ -97,9 +98,11 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
 
     final localRunRegistry = widget.localRunRegistry;
     if (localRunRegistry != null) {
+      _rememberRowChrome(localRunRegistry.knownStates);
       _rails.adoptRestoredActiveRunInRail(localRunRegistry);
-      _localRunSubscription = localRunRegistry.changes.listen((_) {
+      _localRunSubscription = localRunRegistry.stateUpdates.listen((runState) {
         if (!mounted) return;
+        if (!_rowChromeChanged(runState)) return;
         setState(() => _rails.adoptRestoredActiveRunInRail(localRunRegistry));
       });
     }
@@ -118,6 +121,23 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     unawaited(_activeDeploy.dispose());
     _catalog.dispose();
     super.dispose();
+  }
+
+  void _rememberRowChrome(List<LocalRunState> runStates) {
+    for (final runState in runStates) {
+      final runKey = runState.runKey;
+      if (runKey == null) continue;
+      _rowChromeByRunKey[runKey] = runState;
+    }
+  }
+
+  bool _rowChromeChanged(LocalRunState runState) {
+    final runKey = runState.runKey;
+    if (runKey == null) return false;
+    final previous = _rowChromeByRunKey[runKey];
+    if (previous != null && previous.sameRowChromeAs(runState)) return false;
+    _rowChromeByRunKey[runKey] = runState;
+    return true;
   }
 
   Future<void> _reload({
@@ -205,7 +225,10 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       );
       return;
     }
-    _rails.showRunInSideRail(controls);
+    _rails.showRunInSideRail(
+      controls,
+      ongoingDeploy: _activeDeploy.ongoing,
+    );
   }
 
   void _selectRunInPane(LocalRunKey runKey) {

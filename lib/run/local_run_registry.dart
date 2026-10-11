@@ -22,6 +22,7 @@ class MacLocalRunRegistry({LocalRunPersistence? persistence})
   final LocalRunPersistence _persistence = persistence ?? LocalRunPersistence();
   final Map<LocalRunKey, LocalRunSlot> _slots = {};
   final Map<LocalRunKey, StreamSubscription<LocalRunState>> _subscriptions = {};
+  final Map<LocalRunKey, LocalRunState> _rowChrome = {};
   final _changes = StreamController<void>.broadcast();
   final _stateUpdates = StreamController<LocalRunState>.broadcast();
 
@@ -52,8 +53,12 @@ class MacLocalRunRegistry({LocalRunPersistence? persistence})
     final slot = LocalRunSlot(runKey: runKey, persistence: _persistence);
     _slots[runKey] = slot;
     _subscriptions[runKey] = slot.updates.listen((state) {
-      if (!_changes.isClosed) {
-        _changes.add(null);
+      final previousChrome = _rowChrome[runKey];
+      if (previousChrome == null || !previousChrome.sameRowChromeAs(state)) {
+        _rowChrome[runKey] = state;
+        if (!_changes.isClosed) {
+          _changes.add(null);
+        }
       }
       if (!_stateUpdates.isClosed) {
         _stateUpdates.add(state);

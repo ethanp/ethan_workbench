@@ -17,19 +17,20 @@ class LocalRunConsole({
   required final LocalRunCheckpoint _checkpoint,
   final void Function()? onAttachGaveUpOnVmService,
 }) {
-  /// Ignore EXCEPTION CAUGHT dumps at or before this log offset (hot reload /
-  /// restart clear). Combined with restart banners inside [FlutterRunOutput].
-  int _exceptionLogFloor = 0;
   bool _reportedAttachGaveUp = false;
+  var _exceptionParsePending = false;
+  String _scanTail = '';
 
   void resetForNewRun() {
-    _exceptionLogFloor = 0;
     _reportedAttachGaveUp = false;
+    _exceptionParsePending = false;
+    _scanTail = '';
   }
 
-  /// Advance the exception floor past the current log (hot reload / restart).
+  /// Drop a prior dump after hot reload / restart.
   void clearFlutterException() {
-    _exceptionLogFloor = _runProgress.logText.length;
+    _exceptionParsePending = false;
+    _scanTail = '';
     if (_runProgress.current.flutterException == null) return;
     _runProgress.emit(
       _runProgress.current.copyWith(clearFlutterException: true),
@@ -46,9 +47,10 @@ class LocalRunConsole({
 
   void _interpretConsoleChunk(String chunk) {
     _runProgress.appendLog(chunk);
+    _scanTail = _appendScanTail(_scanTail, chunk);
     _captureVmServiceUri(chunk);
     _captureDeviceVmServiceUri(chunk);
-    _captureFlutterException();
+    _captureFlutterException(chunk);
     _markReadyWhenKeyCommandsAppear(chunk);
     _stopAttachThatCannotReachVmService(chunk);
   }
@@ -56,7 +58,7 @@ class LocalRunConsole({
   void _captureVmServiceUri(String chunk) {
     final parsedUri =
         FlutterRunOutput.vmServiceUriFrom(chunk) ??
-        FlutterRunOutput.vmServiceUriFrom(_runProgress.logText);
+        FlutterRunOutput.vmServiceUriFrom(_scanTail);
     if (parsedUri == null || parsedUri == _flutterRunBinding.vmServiceUri) {
       return;
     }
@@ -67,7 +69,7 @@ class LocalRunConsole({
   void _captureDeviceVmServiceUri(String chunk) {
     final String? parsedUri =
         FlutterRunOutput.deviceVmServiceUriFrom(chunk) ??
-        FlutterRunOutput.deviceVmServiceUriFrom(_runProgress.logText);
+        FlutterRunOutput.deviceVmServiceUriFrom(_scanTail);
     if (parsedUri == null ||
         parsedUri == _flutterRunBinding.deviceVmServiceUri) {
       return;
@@ -89,24 +91,21 @@ class LocalRunConsole({
     if (_runProgress.current.readyForKeyCommands) return;
     if (!_runProgress.current.reattached) return;
     if (!FlutterRunOutput.attachGaveUpOnVmService(chunk) &&
-        !FlutterRunOutput.attachGaveUpOnVmService(_runProgress.logText)) {
+        !FlutterRunOutput.attachGaveUpOnVmService(_scanTail)) {
       return;
     }
     _reportedAttachGaveUp = true;
     onAttachGaveUpOnVmService?.call();
   }
 
-  void _captureFlutterException() {
-    final parsedException = FlutterRunOutput.exceptionFrom(
-      _runProgress.logText,
-      floor: _exceptionLogFloor,
-    );
-    final scanStart = FlutterRunOutput.exceptionScanStart(
-      _runProgress.logText,
-      floor: _exceptionLogFloor,
-    );
-    if (scanStart > _exceptionLogFloor) {
-      _exceptionLogFloor = scanStart;
+  void _captureFlutterException(String chunk) {
+    final hasMarker =
+        FlutterRunOutput.looksLikeExceptionDump(chunk) ||
+        FlutterRunOutput.sessionResetPattern.hasMatch(chunk);
+    if (!hasMarker && !_exceptionParsePending) return;
+    _exceptionParsePending = FlutterRunOutput.looksLikeExceptionDump(chunk);
+    final parsedException = FlutterRunOutput.exceptionFrom(_scanTail);
+    if (FlutterRunOutput.sessionResetPattern.hasMatch(chunk)) {
       if (_runProgress.current.flutterException != null &&
           parsedException == null) {
         _runProgress.emit(
@@ -138,7 +137,7 @@ class LocalRunConsole({
       return;
     }
     if (!FlutterRunOutput.looksReady(chunk) &&
-        !FlutterRunOutput.looksReady(_runProgress.logText)) {
+        !FlutterRunOutput.looksReady(_scanTail)) {
       return;
     }
     _runProgress.emit(
@@ -149,5 +148,15 @@ class LocalRunConsole({
       ),
     );
     unawaited(_checkpoint.write(readyForKeyCommands: true));
+  }
+
+  static String _appendScanTail(String tail, String chunk) {
+    final combined = tail + chunk;
+    if (combined.length <= FlutterRunOutput.exceptionScanWindowChars) {
+      return combined;
+    }
+    return combined.substring(
+      combined.length - FlutterRunOutput.exceptionScanWindowChars,
+    );
   }
 }

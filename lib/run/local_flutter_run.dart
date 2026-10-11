@@ -103,6 +103,10 @@ abstract final class FlutterRunOutput() {
         text.contains('Syncing files to device');
   }
 
+  static bool looksLikeExceptionDump(String text) =>
+      text.contains('EXCEPTION CAUGHT') ||
+      text.contains('Another exception was thrown');
+
   static String? vmServiceUriFrom(String text) {
     final match = _vmServiceUriPattern.firstMatch(text);
     if (match == null) return null;

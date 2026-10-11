@@ -159,9 +159,12 @@ class RemoteLocalRunRegistry({
   void adopt(LocalRunState runState) {
     final runKey = runState.runKey;
     if (runKey == null) return;
+    final previous = _states[runKey];
     _states[runKey] = runState;
-    if (!_changes.isClosed) {
-      _changes.add(null);
+    if (previous == null || !previous.sameRowChromeAs(runState)) {
+      if (!_changes.isClosed) {
+        _changes.add(null);
+      }
     }
     if (!_stateUpdates.isClosed) {
       _stateUpdates.add(runState);

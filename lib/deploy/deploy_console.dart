@@ -15,9 +15,12 @@ class DeployConsole({
   String _lineBuffer = '';
   DeployLedger? _ledger;
   Timer? _ledgerFlushTimer;
+  Timer? _jobSnapshotTimer;
+  var _jobSnapshotDirty = false;
   int _logCharsAtLastFlush = 0;
   final _logListeners = <String, Set<StreamController<String>>>{};
 
+  static const jobSnapshotInterval = Duration(milliseconds: 200);
   static const _ledgerFlushInterval = Duration(seconds: 2);
   static const _ledgerFlushMinChars = 4096;
 
@@ -30,6 +33,7 @@ class DeployConsole({
 
   /// Bind a fresh job for a new run and kick off Cursor/ledger side effects.
   void begin(DeployJob job, {required String projectPath}) {
+    _cancelJobSnapshot();
     _job = job;
     _projectPath = projectPath;
     _lineBuffer = '';
@@ -42,6 +46,7 @@ class DeployConsole({
 
   /// Rewrite mirror from an in-memory job (e.g. after reclaim).
   void seed(DeployJob job, {required String projectPath}) {
+    _cancelJobSnapshot();
     _job = job;
     _projectPath = projectPath;
     _lineBuffer = '';
@@ -54,8 +59,7 @@ class DeployConsole({
 
   /// Status / checklist update without new log text.
   void updateStatusWithoutNewLog(DeployJob job) {
-    _job = job;
-    onJobUpdated(job);
+    _publishJobNow(job);
     DeployCursorMirror.scheduleStatus(job, projectPath: _projectPath);
     if (!job.status.isTerminal) {
       scheduleLedgerFlush();
@@ -78,6 +82,7 @@ class DeployConsole({
   }
 
   Future<void> finalize(DeployJob job) async {
+    _flushJobSnapshot();
     _cancelLedgerFlush();
     _job = job;
     onJobUpdated(job);
@@ -146,6 +151,7 @@ class DeployConsole({
   }
 
   Future<void> dispose() async {
+    _cancelJobSnapshot();
     _cancelLedgerFlush();
     for (final listeners in _logListeners.values) {
       for (final controller in listeners) {
@@ -180,15 +186,42 @@ class DeployConsole({
     if (currentJob == null) return;
     final updatedJob = currentJob.copyWith(log: currentJob.log + chunk);
     _job = updatedJob;
-    onJobUpdated(updatedJob);
     unawaited(DeployCursorMirror.appendLog(chunk));
     DeployCursorMirror.scheduleStatus(updatedJob, projectPath: _projectPath);
     scheduleLedgerFlush();
     final listeners = _logListeners[currentJob.jobId];
-    if (listeners == null) return;
-    for (final controller in listeners) {
-      if (!controller.isClosed) controller.add(chunk);
+    if (listeners != null) {
+      for (final controller in listeners) {
+        if (!controller.isClosed) controller.add(chunk);
+      }
     }
+    _scheduleJobSnapshot();
+  }
+
+  void _publishJobNow(DeployJob job) {
+    _cancelJobSnapshot();
+    _job = job;
+    onJobUpdated(job);
+  }
+
+  void _scheduleJobSnapshot() {
+    _jobSnapshotDirty = true;
+    _jobSnapshotTimer ??= Timer(jobSnapshotInterval, _flushJobSnapshot);
+  }
+
+  void _flushJobSnapshot() {
+    _jobSnapshotTimer = null;
+    if (!_jobSnapshotDirty) return;
+    _jobSnapshotDirty = false;
+    final job = _job;
+    if (job == null) return;
+    onJobUpdated(job);
+  }
+
+  void _cancelJobSnapshot() {
+    _jobSnapshotTimer?.cancel();
+    _jobSnapshotTimer = null;
+    _jobSnapshotDirty = false;
   }
 
   void _cancelLedgerFlush() {

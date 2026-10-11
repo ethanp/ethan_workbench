@@ -1,19 +1,21 @@
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'flutter_run_exception.dart';
 import 'local_run_key.dart';
 
 /// Lifecycle of a local `flutter run` session.
 enum LocalRunStatus({
-  required final String chipLabel,
-
   /// Fixed plate subtitle while active; null means use the idle caption.
   required final String? actionSubtitle,
 }) {
-  idle(chipLabel: 'idle', actionSubtitle: null),
-  starting(chipLabel: 'starting', actionSubtitle: 'Starting…'),
-  running(chipLabel: 'running', actionSubtitle: 'Open'),
-  stopping(chipLabel: 'stopping', actionSubtitle: 'Stopping…'),
-  exited(chipLabel: 'exited', actionSubtitle: null),
-  failed(chipLabel: 'failed', actionSubtitle: null);
+  idle(actionSubtitle: null),
+  starting(actionSubtitle: 'Starting…'),
+  running(actionSubtitle: 'Open'),
+  stopping(actionSubtitle: 'Stopping…'),
+  exited(actionSubtitle: null),
+  failed(actionSubtitle: null);
+
+  String get chipLabel => nameAsCapitalizedWords;
 
   bool get isActive =>
       this == LocalRunStatus.starting ||
@@ -62,6 +64,15 @@ class const LocalRunState({
     if (projectId == null || deviceKey == null) return null;
     return LocalRunKey(projectId: projectId, deviceKey: deviceKey);
   }
+
+  /// Row/chip chrome: status, ready, exception, error. Ignores log text.
+  bool sameRowChromeAs(LocalRunState other) =>
+      status == other.status &&
+      readyForKeyCommands == other.readyForKeyCommands &&
+      errorMessage == other.errorMessage &&
+      flutterException == other.flutterException &&
+      runKey == other.runKey &&
+      reattached == other.reattached;
 
   String get projectAndDeviceLabel {
     final projectName = this.projectName ?? 'App';

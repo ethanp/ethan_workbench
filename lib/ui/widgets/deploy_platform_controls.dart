@@ -30,7 +30,7 @@ EActionClusterCell deployActionCell({
       title: 'Deploy',
       subtitle: 'In progress',
       condensedLabel: '…',
-      statusLabel: ongoing.status.name,
+      statusLabel: ongoing.status.pillLabel,
       statusTone: ongoing.status.statusTone,
       live: true,
       onActivated: onOpenOngoing ?? () {},
@@ -40,7 +40,7 @@ EActionClusterCell deployActionCell({
   final String? statusLabel;
   final EStatusTone? statusTone;
   if (waitingDeploy != null && waitingDeploy.platform == platform) {
-    statusLabel = 'queued';
+    statusLabel = 'Queued';
     statusTone = waitingDeploy.status.statusTone;
   } else {
     statusLabel = sourceStatus.chipLabel;
@@ -72,7 +72,6 @@ class const DeployPlatformBadge({
     return EStatusChip(
       label: platform.label,
       tone: platform.badgeTone,
-      uppercase: true,
     );
   }
 }

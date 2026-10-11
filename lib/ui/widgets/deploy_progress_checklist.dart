@@ -120,10 +120,10 @@ class _DeployProgressChecklistState() extends State<DeployProgressChecklist> {
         size: 18,
         color: EColors.danger,
       ),
-      DeployChecklistItemStatus.active => const SizedBox(
-        width: 18,
-        height: 18,
-        child: CircularProgressIndicator(strokeWidth: 2),
+      DeployChecklistItemStatus.active => const Icon(
+        Icons.timelapse_rounded,
+        size: 18,
+        color: EColors.accentGlow,
       ),
       DeployChecklistItemStatus.skipped => const Icon(
         Icons.remove_circle_outline_rounded,

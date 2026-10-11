@@ -121,6 +121,20 @@ class const DeployJob({
     );
   }
 
+  /// Queue / row chrome: job id, status, checklist. Ignores log text.
+  bool sameQueueChromeAs(DeployJob other) {
+    if (jobId != other.jobId || status != other.status) return false;
+    if (checklist.length != other.checklist.length) return false;
+    for (var index = 0; index < checklist.length; index++) {
+      final item = checklist[index];
+      final otherItem = other.checklist[index];
+      if (item.id != otherItem.id || item.status != otherItem.status) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /// Compact snapshot for deploy-stream diagnostics.
   String get debugSummary {
     final checklistSummary = checklist.isEmpty
