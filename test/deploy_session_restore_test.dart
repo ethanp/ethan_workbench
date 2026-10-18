@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:ethan_workbench/deploy/deploy_job.dart';
 import 'package:ethan_workbench/deploy/deploy_platform.dart';
 import 'package:ethan_workbench/deploy/deploy_pipeline.dart';
+import 'package:ethan_workbench/deploy/deploy.dart';
 import 'package:ethan_workbench/deploy/deploy_session_persistence.dart';
 import 'package:ethan_workbench/deploy/ruby_deploy_executor.dart';
 import 'package:ethan_workbench/projects/workbench_project.dart';
@@ -44,6 +45,7 @@ class _ControllableScriptRunner() extends DeployScriptRunner {
     required String projectPath,
     required DeployPlatform platform,
     required bool force,
+    required Deploy deploy,
     required void Function(String chunk) onOutput,
     String? exitCodePath,
     String? logPath,
@@ -92,7 +94,10 @@ void main() {
       deployScriptExists: () async => true,
     );
 
-    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await pipeline.startDeploy(
+      projectId: 'a',
+      deploy: Deploy.full(platform: DeployPlatform.macos),
+    );
     await Future<void>.delayed(Duration.zero);
 
     expect(persistence.record, isNotNull);

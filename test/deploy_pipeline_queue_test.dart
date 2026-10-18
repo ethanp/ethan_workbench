@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:ethan_workbench/deploy/deploy_errors.dart';
 import 'package:ethan_workbench/deploy/deploy_job.dart';
 import 'package:ethan_workbench/deploy/deploy_pipeline.dart';
+import 'package:ethan_workbench/deploy/deploy.dart';
 import 'package:ethan_workbench/deploy/deploy_platform.dart';
 import 'package:ethan_workbench/deploy/ruby_deploy_executor.dart';
 import 'package:ethan_workbench/projects/workbench_project.dart';
@@ -10,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _ControllableScriptRunner() extends DeployScriptRunner {
   final _starts = <Completer<int>>[];
+  Deploy? lastDeploy;
 
   int get startedCount => _starts.length;
 
@@ -23,12 +25,14 @@ class _ControllableScriptRunner() extends DeployScriptRunner {
     required String projectPath,
     required DeployPlatform platform,
     required bool force,
+    required Deploy deploy,
     required void Function(String chunk) onOutput,
     String? exitCodePath,
     String? logPath,
     void Function(int pid)? onStarted,
     void Function(Future<void> Function() cancel)? armCancel,
   }) {
+    lastDeploy = deploy;
     final completer = Completer<int>();
     _starts.add(completer);
     armCancel?.call(() async {
@@ -77,7 +81,7 @@ void main() {
   test('second start enqueues while first is running', () async {
     final first = await pipeline.startDeploy(
       projectId: 'a',
-      platform: DeployPlatform.macos,
+      deploy: Deploy.full(platform: DeployPlatform.macos),
     );
     expect(first.status, DeployJobStatus.queued);
     await Future<void>.delayed(Duration.zero);
@@ -86,7 +90,7 @@ void main() {
 
     final second = await pipeline.startDeploy(
       projectId: 'b',
-      platform: DeployPlatform.ios,
+      deploy: Deploy.full(platform: DeployPlatform.ios),
     );
     expect(second.status, DeployJobStatus.waiting);
     expect(pipeline.waitingQueue, hasLength(1));
@@ -94,9 +98,15 @@ void main() {
   });
 
   test('finish promotes next waiting job', () async {
-    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await pipeline.startDeploy(
+      projectId: 'a',
+      deploy: Deploy.full(platform: DeployPlatform.macos),
+    );
     await Future<void>.delayed(Duration.zero);
-    await pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios);
+    await pipeline.startDeploy(
+      projectId: 'b',
+      deploy: Deploy.full(platform: DeployPlatform.ios),
+    );
     expect(pipeline.waitingQueue, hasLength(1));
 
     scriptRunner.completeLatest();
@@ -110,15 +120,18 @@ void main() {
   });
 
   test('reorder waiting job then promote uses new order', () async {
-    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await pipeline.startDeploy(
+      projectId: 'a',
+      deploy: Deploy.full(platform: DeployPlatform.macos),
+    );
     await Future<void>.delayed(Duration.zero);
     final second = await pipeline.startDeploy(
       projectId: 'b',
-      platform: DeployPlatform.ios,
+      deploy: Deploy.full(platform: DeployPlatform.ios),
     );
     final third = await pipeline.startDeploy(
       projectId: 'c',
-      platform: DeployPlatform.macos,
+      deploy: Deploy.full(platform: DeployPlatform.macos),
     );
     expect(pipeline.waitingQueue.map((job) => job.jobId), [
       second.jobId,
@@ -140,18 +153,27 @@ void main() {
   });
 
   test('moveWaitingJob returns false for unknown id', () async {
-    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await pipeline.startDeploy(
+      projectId: 'a',
+      deploy: Deploy.full(platform: DeployPlatform.macos),
+    );
     await Future<void>.delayed(Duration.zero);
-    await pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios);
+    await pipeline.startDeploy(
+      projectId: 'b',
+      deploy: Deploy.full(platform: DeployPlatform.ios),
+    );
     expect(pipeline.moveWaitingJob(jobId: 'missing', toIndex: 0), isFalse);
   });
 
   test('cancel removes waiting job', () async {
-    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await pipeline.startDeploy(
+      projectId: 'a',
+      deploy: Deploy.full(platform: DeployPlatform.macos),
+    );
     await Future<void>.delayed(Duration.zero);
     final waiting = await pipeline.startDeploy(
       projectId: 'b',
-      platform: DeployPlatform.ios,
+      deploy: Deploy.full(platform: DeployPlatform.ios),
     );
     expect(pipeline.cancelWaiting(waiting.jobId), isTrue);
     expect(pipeline.waitingQueue, isEmpty);
@@ -159,11 +181,20 @@ void main() {
   });
 
   test('duplicate waiting throws DeployAlreadyQueued', () async {
-    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await pipeline.startDeploy(
+      projectId: 'a',
+      deploy: Deploy.full(platform: DeployPlatform.macos),
+    );
     await Future<void>.delayed(Duration.zero);
-    await pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios);
+    await pipeline.startDeploy(
+      projectId: 'b',
+      deploy: Deploy.full(platform: DeployPlatform.ios),
+    );
     expect(
-      () => pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios),
+      () => pipeline.startDeploy(
+        projectId: 'b',
+        deploy: Deploy.full(platform: DeployPlatform.ios),
+      ),
       throwsA(isA<DeployAlreadyQueued>()),
     );
   });
@@ -182,7 +213,7 @@ void main() {
 
     await idlePipeline.startDeploy(
       projectId: 'a',
-      platform: DeployPlatform.macos,
+      deploy: Deploy.full(platform: DeployPlatform.macos),
     );
     await Future<void>.delayed(Duration.zero);
     expect(idlePipeline.isIdle, isFalse);
@@ -198,12 +229,12 @@ void main() {
   test('same active project+platform returns the running job', () async {
     final first = await pipeline.startDeploy(
       projectId: 'a',
-      platform: DeployPlatform.macos,
+      deploy: Deploy.full(platform: DeployPlatform.macos),
     );
     await Future<void>.delayed(Duration.zero);
     final again = await pipeline.startDeploy(
       projectId: 'a',
-      platform: DeployPlatform.macos,
+      deploy: Deploy.full(platform: DeployPlatform.macos),
     );
     expect(again.jobId, first.jobId);
     expect(pipeline.waitingQueue, isEmpty);
@@ -214,9 +245,15 @@ void main() {
     final subscription = pipeline.jobUpdates.listen(updates.add);
     addTearDown(subscription.cancel);
 
-    await pipeline.startDeploy(projectId: 'a', platform: DeployPlatform.macos);
+    await pipeline.startDeploy(
+      projectId: 'a',
+      deploy: Deploy.full(platform: DeployPlatform.macos),
+    );
     await Future<void>.delayed(Duration.zero);
-    await pipeline.startDeploy(projectId: 'b', platform: DeployPlatform.ios);
+    await pipeline.startDeploy(
+      projectId: 'b',
+      deploy: Deploy.full(platform: DeployPlatform.ios),
+    );
     expect(pipeline.activeJob?.projectId, 'a');
     expect(pipeline.waitingQueue, hasLength(1));
 
@@ -235,5 +272,18 @@ void main() {
       isTrue,
     );
     expect(await pipeline.cancelOngoing(), isTrue);
+  });
+
+  test('install retry skips the build', () async {
+    final deploy = Deploy.retryingInstall(platform: DeployPlatform.ios);
+    final job = await pipeline.startDeploy(projectId: 'a', deploy: deploy);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(job.asDeploy.modeLabel, 'Retry install');
+    expect(job.checklist.map((item) => item.id), ['installing', 'recording']);
+    expect(job.checklist.first.label, 'Install on iPhone');
+    final arguments = <String>[];
+    scriptRunner.lastDeploy?.install.addScriptArguments(arguments);
+    expect(arguments, ['--from-install']);
   });
 }

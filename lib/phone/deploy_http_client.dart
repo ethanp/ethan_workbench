@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import '../server/server_endpoint.dart';
 import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
-import '../deploy/deploy_platform.dart';
+import '../deploy/deploy.dart';
 import '../deploy/deploy_queue.dart';
 import '../deploy/deploy_run_record.dart';
 import '../projects/workbench_project.dart';
@@ -114,17 +114,12 @@ class DeployServerClient({
 
   Future<DeployJob> startDeploy({
     required String projectId,
-    required DeployPlatform platform,
-    bool force = false,
+    required Deploy deploy,
   }) async {
     final response = await _httpClient.post(
       Uri.parse('$_baseUrl/deploy'),
       headers: _headers,
-      body: jsonEncode({
-        'projectId': projectId,
-        'platform': platform.name,
-        'force': force,
-      }),
+      body: jsonEncode({'projectId': projectId, 'deploy': deploy.toJson()}),
     );
     if (response.statusCode == 409) {
       final alreadyQueued = _deployAlreadyQueuedFromConflict(response);

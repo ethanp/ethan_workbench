@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:ethan_workbench/deploy/deploy_job.dart';
+import 'package:ethan_workbench/deploy/deploy.dart';
 import 'package:ethan_workbench/deploy/deploy_platform.dart';
 import 'package:ethan_workbench/deploy/deploy_queue.dart';
 import 'package:ethan_workbench/deploy/deploy_run_record.dart';
@@ -104,11 +105,8 @@ DeployTrigger _trigger(
         ({void Function(SourceChangesProgress progress)? onProgress}) async {
           return projects;
         },
-    startDeploy: ({
-      required String projectId,
-      required DeployPlatform platform,
-      bool force = false,
-    }) async => throw UnimplementedError(),
+    startDeploy: ({required String projectId, required Deploy deploy}) async =>
+        throw UnimplementedError(),
     fetchJob: (jobId) async {
       if (activeJob?.jobId == jobId) return activeJob!;
       throw UnimplementedError();
@@ -198,8 +196,7 @@ class _StubLocalRunRegistry(List<_StubLocalRunControls> slots)
   ];
 
   @override
-  int get activeCount =>
-      _slots.values.where((slot) => slot.isActive).length;
+  int get activeCount => _slots.values.where((slot) => slot.isActive).length;
 
   @override
   LocalRunState stateFor(LocalRunKey runKey) =>

@@ -8,6 +8,7 @@ import 'package:shelf_router/shelf_router.dart';
 import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
+import '../deploy/deploy.dart';
 import '../deploy/deploy_pipeline.dart';
 import 'daemon_restart_after_queue.dart';
 import 'deploy_http_sse.dart';
@@ -66,10 +67,16 @@ class DeployHttpRoutes({
           platformName != DeployPlatform.macos.name) {
         return jsonError('platform must be ios or macos', status: 400);
       }
+      final deployJson = body['deploy'];
+      final deploy = deployJson is Map<String, dynamic>
+          ? Deploy.fromJson(deployJson)
+          : Deploy.full(
+              platform: DeployPlatform.fromName(platformName),
+              force: force,
+            );
       final job = await deployPipeline.startDeploy(
         projectId: projectId,
-        platform: DeployPlatform.fromName(platformName),
-        force: force,
+        deploy: deploy,
       );
       return jsonOk(job.toJson());
     } on DeployAlreadyQueued catch (error) {

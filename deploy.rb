@@ -1,6 +1,6 @@
 #!/opt/homebrew/opt/ruby/bin/ruby
 # Usage (from any Flutter app directory):
-#   ruby /path/to/ethan_workbench/deploy.rb <macos|ios> [--force|-f]
+#   ruby /path/to/ethan_workbench/deploy.rb <macos|ios> [--force|-f] [--from-install]
 # Or from a sibling app: ruby ../ethan_workbench/deploy.rb ios
 
 
@@ -94,11 +94,16 @@ class LocalPathDependencyClosure
 end
 
 class Deployer
-  def initialize(force:)
+  def initialize(force:, from_install: false)
     @force = force
+    @from_install = from_install
   end
 
   def run
+    if @from_install
+      resume_from_install
+      return
+    end
     unless @force
       phase 'checking'
       unless source_changed?
@@ -123,6 +128,17 @@ class Deployer
   def phase(id)
     puts "DEPLOY_PHASE:#{id}"
     $stdout.flush
+  end
+
+  # Install the build already on disk. Skips the change check, pub get, and
+  # compile — used when the last deploy failed at install.
+  def resume_from_install
+    phase 'installing'
+    install_existing_build
+    phase 'recording'
+    save_hash
+    phase 'done'
+    puts finished_message
   end
 
   # Only `flutter pub get` when dependency manifests change. Keeps build/
@@ -246,7 +262,15 @@ class MacosDeployer < Deployer
     phase 'recording'
     save_hash
     phase 'done'
-    puts "✓ Installed to /Applications/#{app_name}.app"
+    puts finished_message
+  end
+
+  def install_existing_build
+    copy_to_applications
+  end
+
+  def finished_message
+    "✓ Installed to /Applications/#{app_name}.app"
   end
 
   def build_macos
@@ -254,9 +278,7 @@ class MacosDeployer < Deployer
   end
 
   def copy_to_applications
-    built_app = Dir["build/macos/Build/Products/Profile/*.app"].first or raise "No .app bundle found"
-    FileUtils.rm_rf "/Applications/#{app_name}.app"
-    FileUtils.cp_r   built_app, "/Applications/#{app_name}.app"
+    MacosInstall.new(app_name).run
   end
 
   def app_name      = File.basename(Dir.pwd)
@@ -275,15 +297,15 @@ class IosDeployer < Deployer
     phase 'recording'
     save_hash
     phase 'done'
-    puts "✓ Deployed to iPhone"
+    puts finished_message
   end
 
-  def find_ios_device
-    line = `flutter devices`.lines.grep(/ios/i).reject { |l| l.include?("simulator") }.first
-    raise "No physical iPhone connected" unless line
-    device_id = line.split("•")[1]&.strip or raise "Could not parse device ID"
-    puts "Found device: #{device_id}"
-    device_id
+  def install_existing_build
+    IosInstall.new.run_existing_build
+  end
+
+  def finished_message
+    "✓ Deployed to iPhone"
   end
 
   def build_ios
@@ -293,19 +315,18 @@ class IosDeployer < Deployer
   end
 
   def install_to_device
-    device_id = find_ios_device
-    puts "Installing on iPhone..."
-    first_attempt = install_with_retry(device_id)
-    return if first_attempt.succeeded?
-    raise "No target device found" if first_attempt.console_output.include?("No target device found")
+    install = IosInstall.new
+    attempt = install.run
+    return if attempt.succeeded?
+    raise "No target device found" if attempt.console_output.include?("No target device found")
 
-    install_after_clean_rebuild(device_id)
+    install_after_clean_rebuild(install)
   end
 
-  def install_after_clean_rebuild(device_id)
+  def install_after_clean_rebuild(install)
     puts "Install failed, retrying after clean rebuild..."
     clean_and_rebuild_ios
-    after_clean = install_with_retry(device_id)
+    after_clean = install.run_again
     return if after_clean.succeeded?
 
     raise "Install failed after clean rebuild"
@@ -320,21 +341,64 @@ class IosDeployer < Deployer
     phase 'installing'
   end
 
-  def install_with_retry(device_id)
-    first_attempt = IosInstallAttempt.new(device_id).run
-    return first_attempt if first_attempt.succeeded?
-
-    retry_install(device_id)
-  end
-
-  def retry_install(device_id)
-    puts "Retrying in 3s..."
-    sleep 3
-    IosInstallAttempt.new(device_id).run
-  end
-
   def platform_dir  = "ios/Runner"
   def platform_name = "ios"
+end
+
+class MacosInstall
+  def initialize(app_name)
+    @app_name = app_name
+  end
+
+  def run
+    built_app = Dir["build/macos/Build/Products/Profile/*.app"].first or raise "No .app bundle found"
+    destination = "/Applications/#{@app_name}.app"
+    FileUtils.rm_rf destination
+    FileUtils.cp_r built_app, destination
+  end
+end
+
+class IosInstall
+  def run
+    puts "Installing on iPhone..."
+    run_again
+  end
+
+  def run_again
+    install_with_retry(device_id)
+  end
+
+  def run_existing_build
+    puts "Installing existing build on iPhone..."
+    attempt = install_with_retry(device_id)
+    return if attempt.succeeded?
+    raise "No target device found" if attempt.console_output.include?("No target device found")
+
+    raise "Install failed"
+  end
+
+  private
+
+  def device_id
+    @device_id ||= find_device
+  end
+
+  def find_device
+    line = `flutter devices`.lines.grep(/ios/i).reject { |l| l.include?("simulator") }.first
+    raise "No physical iPhone connected" unless line
+    id = line.split("•")[1]&.strip or raise "Could not parse device ID"
+    puts "Found device: #{id}"
+    id
+  end
+
+  def install_with_retry(id)
+    first_attempt = IosInstallAttempt.new(id).run
+    return first_attempt if first_attempt.succeeded?
+
+    puts "Retrying in 3s..."
+    sleep 3
+    IosInstallAttempt.new(id).run
+  end
 end
 
 class IosInstallAttempt
@@ -365,12 +429,13 @@ end
 
 if $PROGRAM_NAME == __FILE__
   force    = ARGV.delete("--force") || ARGV.delete("-f")
+  from_install = ARGV.delete("--from-install")
   print_source_hash = ARGV.delete("--print-source-hash")
   platform = ARGV.first
 
-  abort "Usage: #{$0} <macos|ios> [--force|-f]" unless %w[macos ios].include?(platform)
+  abort "Usage: #{$0} <macos|ios> [--force|-f] [--from-install]" unless %w[macos ios].include?(platform)
 
-  deployer = platform == "ios" ? IosDeployer.new(force: force) : MacosDeployer.new(force: force)
+  deployer = platform == "ios" ? IosDeployer.new(force: force, from_install: from_install) : MacosDeployer.new(force: force, from_install: from_install)
 
   begin
     if print_source_hash

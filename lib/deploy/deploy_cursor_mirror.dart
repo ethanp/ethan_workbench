@@ -133,6 +133,7 @@ abstract final class DeployCursorMirror() {
       'projectPath': ?projectPath,
       'platform': job.platform.name,
       'force': job.force,
+      'deploy': ?job.deploy?.toJson(),
       'status': job.status.name,
       'exitCode': job.exitCode,
       'createdAt': job.createdAt.toIso8601String(),

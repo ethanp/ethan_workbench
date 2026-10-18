@@ -10,6 +10,7 @@ import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_queue.dart';
 import '../deploy/deploy_run_record.dart';
 import '../deploy/deploy_session_persistence.dart';
+import '../deploy/deploy.dart';
 import '../deploy/deploy_trigger.dart';
 import '../projects/source_changes_progress.dart';
 import '../projects/workbench_project.dart';
@@ -96,14 +97,9 @@ class DeployServer({
 
   Future<DeployJob> startDeploy({
     required String projectId,
-    required DeployPlatform platform,
-    bool force = false,
+    required Deploy deploy,
   }) {
-    return _deployPipeline.startDeploy(
-      projectId: projectId,
-      platform: platform,
-      force: force,
-    );
+    return _deployPipeline.startDeploy(projectId: projectId, deploy: deploy);
   }
 
   Future<DeployJob> fetchJob(String jobId) => _deployPipeline.fetchJob(jobId);

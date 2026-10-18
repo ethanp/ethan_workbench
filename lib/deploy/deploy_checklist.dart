@@ -1,4 +1,5 @@
 import 'deploy_platform.dart';
+import 'install.dart';
 
 enum DeployChecklistItemStatus() {
   pending,
@@ -93,14 +94,16 @@ class const DeployChecklistItem({
 abstract final class DeployChecklist() {
   static const phasePrefix = 'DEPLOY_PHASE:';
 
+  static const recording = DeployChecklistItem(
+    id: 'recording',
+    label: 'Save deploy hash',
+    status: DeployChecklistItemStatus.pending,
+  );
+
   static List<DeployChecklistItem> planned({
     required DeployPlatform platform,
     required bool force,
   }) {
-    final installLabel = switch (platform) {
-      DeployPlatform.ios => 'Install on iPhone',
-      DeployPlatform.macos => 'Install to Applications',
-    };
     return [
       if (!force)
         const DeployChecklistItem(
@@ -118,16 +121,8 @@ abstract final class DeployChecklist() {
         label: 'Build app',
         status: DeployChecklistItemStatus.pending,
       ),
-      DeployChecklistItem(
-        id: 'installing',
-        label: installLabel,
-        status: DeployChecklistItemStatus.pending,
-      ),
-      const DeployChecklistItem(
-        id: 'recording',
-        label: 'Save deploy hash',
-        status: DeployChecklistItemStatus.pending,
-      ),
+      InstallStep.pending(platform).toChecklistItem(),
+      recording,
     ];
   }
 

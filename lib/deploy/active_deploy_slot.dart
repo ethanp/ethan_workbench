@@ -113,6 +113,7 @@ class ActiveDeploySlot({
         projectPath: projectPath,
         platform: job.platform,
         force: job.force,
+        deploy: job.asDeploy,
         onOutput: _console.append,
         exitCodePath: exitCodePath,
         logPath: logPath,
@@ -143,7 +144,8 @@ class ActiveDeploySlot({
       'Starting ${job.platform.label} deploy for ${project.name}\n'
       'cwd: ${project.path}\n'
       'ruby $deployRbPath ${job.platform.scriptArgument}'
-      '${job.force ? ' --force' : ''}\n\n',
+      '${job.force ? ' --force' : ''}'
+      '${job.asDeploy.install.scriptSuffix}\n\n',
     );
   }
 

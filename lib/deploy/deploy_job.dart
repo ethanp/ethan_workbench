@@ -2,8 +2,10 @@ import 'dart:math';
 
 import 'package:ethan_utils/ethan_utils.dart';
 
+import 'deploy.dart';
 import 'deploy_checklist.dart';
 import 'deploy_platform.dart';
+import 'install.dart';
 
 enum DeployJobStatus() {
   /// Waiting in the FIFO behind the active deploy.
@@ -42,6 +44,8 @@ class const DeployJob({
   required final String projectName,
   required final DeployPlatform platform,
   required final bool force,
+
+  final Deploy? deploy,
   required final DeployJobStatus status,
   required final String log,
   required final DateTime createdAt,
@@ -69,6 +73,9 @@ class const DeployJob({
         json['platform'] as String? ?? DeployPlatform.ios.name,
       ),
       force: json['force'] as bool? ?? false,
+      deploy: json['deploy'] == null
+          ? null
+          : Deploy.fromJson(json['deploy'] as Map<String, dynamic>),
       status: DeployJobStatus.fromName(json['status'] as String),
       log: json['log'] as String? ?? '',
       createdAt: DateTime.parse(json['createdAt'] as String),
@@ -91,6 +98,7 @@ class const DeployJob({
     'projectName': projectName,
     'platform': platform.name,
     'force': force,
+    'deploy': ?deploy?.toJson(),
     'status': status.name,
     'log': log,
     'createdAt': createdAt.toIso8601String(),
@@ -112,6 +120,7 @@ class const DeployJob({
       projectName: projectName,
       platform: platform,
       force: force,
+      deploy: deploy,
       status: status ?? this.status,
       log: log ?? this.log,
       createdAt: createdAt,
@@ -143,6 +152,16 @@ class const DeployJob({
     return '$jobId $projectName/${platform.name} ${status.name} '
         'log=${log.length}c checklist=[$checklistSummary]';
   }
+
+  /// This job as a [Deploy]. Older records without one are a full deploy.
+  Deploy get asDeploy =>
+      deploy ?? Deploy.full(platform: platform, force: force);
+
+  String get modeLabel => asDeploy.modeLabel;
+
+  /// Live install step from the checklist, including a failure.
+  InstallStep? get installStep =>
+      InstallStep.onChecklist(checklist: checklist, platform: platform);
 
   /// Label of the checklist step currently marked active, if any.
   String? get activeStageLabel {

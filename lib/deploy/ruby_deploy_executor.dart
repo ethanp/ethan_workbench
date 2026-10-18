@@ -4,6 +4,7 @@ import 'dart:io';
 import '../run/os_process_tree.dart';
 import '../tooling/flutter_tool_environment.dart';
 import '../tooling/homebrew_ruby.dart';
+import 'deploy.dart';
 import 'deploy_platform.dart';
 
 /// Runs `deploy.rb <ios|macos>` for a project and streams build output.
@@ -16,6 +17,7 @@ class DeployScriptRunner() {
     required String projectPath,
     required DeployPlatform platform,
     required bool force,
+    required Deploy deploy,
     required void Function(String chunk) onOutput,
     String? exitCodePath,
     String? logPath,
@@ -38,7 +40,12 @@ class DeployScriptRunner() {
     if (exitCodePath == null) {
       process = await Process.start(
         HomebrewRuby.executable,
-        [deployRbPath, platform.scriptArgument, if (force) '--force'],
+        _rubyArguments(
+          deployRbPath: deployRbPath,
+          platform: platform,
+          force: force,
+          deploy: deploy,
+        ),
         workingDirectory: projectPath,
         environment: flutterToolEnvironment()..['PYTHONUNBUFFERED'] = '1',
         runInShell: false,
@@ -52,16 +59,19 @@ class DeployScriptRunner() {
         '/bin/bash',
         [
           '-c',
-          // $0/$1[/ $2] are deploy.rb args; EXIT_FILE / LOG_FILE survive restart.
+          // $0 is deploy.rb, $1 is the platform, and ${@:2} is flags from the install.
           durableLog == null
-              ? '${HomebrewRuby.executable} "\$0" "\$1" \${2+"\$2"}; '
+              ? '${HomebrewRuby.executable} "\$0" "\$1" \${@:2}; '
                     r'ec=$?; printf %s "$ec" > "$EXIT_FILE"; exit $ec'
-              : '${HomebrewRuby.executable} "\$0" "\$1" \${2+"\$2"} 2>&1 | '
+              : '${HomebrewRuby.executable} "\$0" "\$1" \${@:2} 2>&1 | '
                     r'tee -a "$LOG_FILE"; '
                     r'ec=${PIPESTATUS[0]}; printf %s "$ec" > "$EXIT_FILE"; exit $ec',
-          deployRbPath,
-          platform.scriptArgument,
-          if (force) '--force',
+          ..._rubyArguments(
+            deployRbPath: deployRbPath,
+            platform: platform,
+            force: force,
+            deploy: deploy,
+          ),
         ],
         workingDirectory: projectPath,
         environment: {
@@ -93,5 +103,20 @@ class DeployScriptRunner() {
       await stdoutSubscription.cancel();
       await stderrSubscription.cancel();
     }
+  }
+
+  List<String> _rubyArguments({
+    required String deployRbPath,
+    required DeployPlatform platform,
+    required bool force,
+    required Deploy deploy,
+  }) {
+    final arguments = [
+      deployRbPath,
+      platform.scriptArgument,
+      if (force) '--force',
+    ];
+    deploy.install.addScriptArguments(arguments);
+    return arguments;
   }
 }

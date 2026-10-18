@@ -17,7 +17,10 @@ deploy queue). Workspace rule: `.cursor/rules/ubiquitous-language.mdc`.
 | companion | Mac UI. Client of the daemon when the daemon is already listening |
 | deploy queue | Waiting jobs plus the one active run |
 | idle | No waiting job and no active runner |
-| job | One deploy of a project on a platform |
+| job | Queue record of one deploy |
+| deploy | A project on a platform, including its install step |
+| install step | The deploy step that puts the built app on the iPhone or into /Applications |
+| install | Performs an install step. A failed install step can be performed again without rebuilding |
 | ledger | PowerSync `deploy_runs` / History tab (not the live queue) |
 | restart after queue | Daemon exits once idle; LaunchAgent brings it back |
 

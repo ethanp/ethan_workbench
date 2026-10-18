@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:shelf/shelf.dart';
 
+import '../deploy/deploy.dart';
+
 const _log = ELogger('DeployHttp');
 
 /// Logs meaningful traffic; skips noisy job/health polls from the phone UI.
@@ -63,9 +65,19 @@ String? _deployRequestDetailForLog(String path, String? body) {
     final projectId = payload['projectId'] as String?;
     if (projectId == null || projectId.isEmpty) return null;
     final platform = payload['platform'] as String? ?? 'ios';
-    final force = payload['force'] as bool? ?? false;
-    final detail = '$projectId $platform';
-    return force ? '$detail force' : detail;
+    final deployJson = payload['deploy'];
+    final deploy = deployJson is Map<String, dynamic>
+        ? Deploy.fromJson(deployJson)
+        : null;
+    final force = deploy?.force ?? (payload['force'] as bool? ?? false);
+    final detail = '$projectId ${deploy?.platform.name ?? platform}';
+    final flags = [
+      if (force) 'force',
+      if (deploy != null && deploy.installStep.existingBuild)
+        deploy.install.logDetail,
+    ].join(' ');
+    if (flags.isEmpty) return detail;
+    return '$detail $flags';
   } catch (_) {
     return null;
   }

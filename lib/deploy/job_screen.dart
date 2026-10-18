@@ -9,6 +9,7 @@ import '../ui/workbench_domain_appearance.dart';
 import '../ui/widgets/deploy_platform_controls.dart';
 import '../ui/widgets/deploy_progress_checklist.dart';
 import '../ui/widgets/status_pill.dart';
+import 'deploy.dart';
 import 'deploy_errors.dart';
 import 'deploy_job.dart';
 import 'deploy_trigger.dart';
@@ -46,6 +47,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
   var _streamEventCount = 0;
   var _reportedTerminal = false;
   var _retrying = false;
+  var _retryingInstall = false;
 
   @override
   void initState() {
@@ -176,17 +178,20 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
     });
   }
 
-  Future<void> _retryDeploy() async {
+  Future<void> _retryDeploy(Deploy deploy) async {
     if (_retrying || !_job.status.isFailed) return;
-    setState(() => _retrying = true);
+    setState(() {
+      _retrying = true;
+      _retryingInstall = deploy.installStep.existingBuild;
+    });
     _log.log(
-      'retry ${_job.projectId} ${_job.platform.name} force=${_job.force}',
+      'retry ${_job.projectId} ${_job.platform.name} '
+      'force=${deploy.force} ${deploy.installStep.existingBuild ? deploy.install.logDetail : 'full'}',
     );
     try {
       final job = await widget.trigger.startDeploy(
         projectId: _job.projectId,
-        platform: _job.platform,
-        force: _job.force,
+        deploy: deploy,
       );
       if (!mounted) return;
       if (job.status.isWaiting) {
@@ -376,7 +381,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
           ],
           if (_job.status.isFailed) ...[
             const SizedBox(height: ELayout.spaceMd + 2),
-            _retryAction(),
+            _retryActions(),
           ],
         ],
       ),
@@ -394,10 +399,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                _job.force ? 'Force rebuild' : 'Incremental deploy',
-                style: EText.body.medium,
-              ),
+              Text(_job.modeLabel, style: EText.body.medium),
               if (_job.exitCode != null)
                 Text('Exit ${_job.exitCode}', style: EText.caption),
             ],
@@ -407,16 +409,53 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
     );
   }
 
-  Widget _retryAction() {
+  Widget _retryActions() {
+    final retry = _job.installStep?.install.retry(force: _job.force);
+    final full = Deploy.full(platform: _job.platform, force: _job.force);
+    if (retry == null) {
+      return _retryButton(
+        icon: Icons.replay_rounded,
+        title: 'Retry',
+        subtitle: '${_job.platform.label} deploy',
+        deploy: full,
+      );
+    }
+    return Column(
+      children: [
+        _retryButton(
+          icon: Icons.replay_rounded,
+          title: 'Retry',
+          subtitle: retry.installStep.label,
+          deploy: retry,
+        ),
+        const SizedBox(height: ELayout.spaceSm),
+        _retryButton(
+          icon: Icons.refresh_rounded,
+          title: 'Full retry',
+          subtitle: _job.force ? 'Force rebuild' : 'Rebuild and install',
+          deploy: full,
+        ),
+      ],
+    );
+  }
+
+  Widget _retryButton({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Deploy deploy,
+  }) {
     final platform = _job.platform;
+    final thisButtonBusy =
+        _retrying && _retryingInstall == deploy.installStep.existingBuild;
     final accent = _retrying ? EColors.textMuted : platform.accent;
     return ETintedAction.compact(
       accent: accent,
-      icon: Icons.replay_rounded,
-      title: 'Retry',
-      subtitle: '${platform.label} deploy',
-      onActivated: _retrying ? null : () => unawaited(_retryDeploy()),
-      trailing: _retrying
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      onActivated: _retrying ? null : () => unawaited(_retryDeploy(deploy)),
+      trailing: thisButtonBusy
           ? SizedBox(
               width: 14,
               height: 14,

@@ -1,6 +1,7 @@
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
+import '../deploy/deploy.dart';
 import '../deploy/deploy_errors.dart';
 import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
@@ -74,8 +75,7 @@ class ProjectDeployFlow({
       try {
         final job = await trigger.startDeploy(
           projectId: changedDeploy.project.projectId,
-          platform: changedDeploy.platform,
-          force: false,
+          deploy: Deploy.full(platform: changedDeploy.platform),
         );
         if (job.status.isWaiting) {
           queuedCount++;
@@ -155,8 +155,7 @@ class ProjectDeployFlow({
     try {
       final job = await trigger.startDeploy(
         projectId: project.projectId,
-        platform: platform,
-        force: false,
+        deploy: Deploy.full(platform: platform),
       );
       if (!context.mounted) return;
       if (job.status.isWaiting) {

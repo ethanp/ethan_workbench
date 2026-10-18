@@ -1,4 +1,5 @@
 import 'package:ethan_workbench/deploy/deploy_platform.dart';
+import 'package:ethan_workbench/deploy/deploy.dart';
 import 'package:ethan_workbench/deploy/deploy_queue.dart';
 import 'package:ethan_workbench/deploy/deploy_run_record.dart';
 import 'package:ethan_workbench/deploy/deploy_trigger.dart';
@@ -28,8 +29,7 @@ void main() {
           },
       startDeploy: ({
         required String projectId,
-        required DeployPlatform platform,
-        bool force = false,
+        required Deploy deploy,
       }) async => throw UnimplementedError(),
       fetchJob: (jobId) async => throw UnimplementedError(),
       fetchActiveJob: () async => null,

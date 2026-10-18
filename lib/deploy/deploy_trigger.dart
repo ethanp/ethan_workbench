@@ -1,5 +1,6 @@
 import '../projects/source_changes_progress.dart';
 import '../projects/workbench_project.dart';
+import 'deploy.dart';
 import 'deploy_job.dart';
 import 'deploy_platform.dart';
 import 'deploy_queue.dart';
@@ -14,8 +15,7 @@ class const DeployTrigger({
   evaluateSourceChanges,
   required final Future<DeployJob> Function({
     required String projectId,
-    required DeployPlatform platform,
-    bool force,
+    required Deploy deploy,
   })
   startDeploy,
   required final Future<DeployJob> Function(String jobId) fetchJob,

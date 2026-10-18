@@ -5,11 +5,10 @@ import '../projects/source_changes_progress.dart';
 import '../projects/workbench_project.dart';
 import '../sync/deploy_ledger.dart';
 import 'active_deploy_slot.dart';
-import 'deploy_checklist.dart';
+import 'deploy.dart';
 import 'deploy_console.dart';
 import 'deploy_errors.dart';
 import 'deploy_job.dart';
-import 'deploy_platform.dart';
 import 'deploy_run_record.dart';
 import 'deploy_session_persistence.dart';
 import 'deploy_wait_queue.dart';
@@ -165,9 +164,9 @@ class DeployPipeline {
 
   Future<DeployJob> startDeploy({
     required String projectId,
-    required DeployPlatform platform,
-    bool force = false,
+    required Deploy deploy,
   }) async {
+    final platform = deploy.platform;
     final project = await findProject(projectId);
     if (project == null) {
       throw UnknownProject(projectId);
@@ -203,11 +202,12 @@ class DeployPipeline {
         projectId: project.projectId,
         projectName: project.name,
         platform: platform,
-        force: force,
+        force: deploy.force,
+        deploy: deploy,
         status: DeployJobStatus.waiting,
         log: '',
         createdAt: DateTime.now(),
-        checklist: DeployChecklist.planned(platform: platform, force: force),
+        checklist: deploy.plannedChecklist(),
       );
       _waitQueue.enqueue(waitingJob);
       return waitingJob;
@@ -218,11 +218,12 @@ class DeployPipeline {
       projectId: project.projectId,
       projectName: project.name,
       platform: platform,
-      force: force,
+      force: deploy.force,
+      deploy: deploy,
       status: DeployJobStatus.queued,
       log: '',
       createdAt: DateTime.now(),
-      checklist: DeployChecklist.planned(platform: platform, force: force),
+      checklist: deploy.plannedChecklist(),
     );
     _console.begin(job, projectPath: project.path);
     unawaited(_slot.start(job, project));
@@ -271,10 +272,7 @@ class DeployPipeline {
       }
       final starting = next.copyWith(
         status: DeployJobStatus.queued,
-        checklist: DeployChecklist.planned(
-          platform: next.platform,
-          force: next.force,
-        ),
+        checklist: next.asDeploy.plannedChecklist(),
       );
       _console.begin(starting, projectPath: project.path);
       unawaited(_slot.start(starting, project));

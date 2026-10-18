@@ -176,6 +176,12 @@ class ActiveDeployWatch({
   }
 
   Future<void> _ensureTypicalDuration(DeployJob job) async {
+    if (job.asDeploy.installStep.existingBuild) {
+      ongoingTypicalDuration = null;
+      _typicalDurationCacheKey =
+          '${job.projectId}:${job.platform.name}:existingBuild';
+      return;
+    }
     final cacheKey = '${job.projectId}:${job.platform.name}:${job.force}';
     if (cacheKey == _typicalDurationCacheKey) return;
     try {

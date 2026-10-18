@@ -6,6 +6,7 @@ import '../deploy/deploy_job.dart';
 import '../deploy/deploy_platform.dart';
 import '../deploy/deploy_queue.dart';
 import '../deploy/deploy_run_record.dart';
+import '../deploy/deploy.dart';
 import '../deploy/deploy_trigger.dart';
 import '../phone/deploy_http_client.dart';
 import '../projects/source_changes_progress.dart';
@@ -95,14 +96,9 @@ class WorkbenchLanSession({
 
   Future<DeployJob> startDeploy({
     required String projectId,
-    required DeployPlatform platform,
-    bool force = false,
+    required Deploy deploy,
   }) {
-    return deployServerClient.startDeploy(
-      projectId: projectId,
-      platform: platform,
-      force: force,
-    );
+    return deployServerClient.startDeploy(projectId: projectId, deploy: deploy);
   }
 
   Future<DeployJob> fetchJob(String jobId) =>

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ethan_workbench/deploy/deploy_job.dart';
+import 'package:ethan_workbench/deploy/deploy.dart';
 import 'package:ethan_workbench/deploy/deploy_platform.dart';
 import 'package:ethan_workbench/deploy/deploy_queue.dart';
 import 'package:ethan_workbench/deploy/deploy_queue_panel.dart';
@@ -138,10 +139,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ProjectsScreen(
-          trigger: _trigger(
-            [_macosProject('book_track')],
-            activeJob: _runningIosJob('workouts'),
-          ),
+          trigger: _trigger([
+            _macosProject('book_track'),
+          ], activeJob: _runningIosJob('workouts')),
           localRunRegistry: registry,
         ),
       ),
@@ -222,10 +222,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ProjectsScreen(
-          trigger: _trigger(
-            [_iosProject('book_track')],
-            liveDeploy: liveDeploy,
-          ),
+          trigger: _trigger([
+            _iosProject('book_track'),
+          ], liveDeploy: liveDeploy),
           localRunRegistry: registry,
         ),
       ),
@@ -269,10 +268,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ProjectsScreen(
-          trigger: _trigger(
-            [_iosProject('book_track')],
-            liveDeploy: liveDeploy,
-          ),
+          trigger: _trigger([
+            _iosProject('book_track'),
+          ], liveDeploy: liveDeploy),
           localRunRegistry: registry,
         ),
       ),
@@ -356,11 +354,8 @@ DeployTrigger _trigger(
         ({void Function(SourceChangesProgress progress)? onProgress}) async {
           return projects;
         },
-    startDeploy: ({
-      required String projectId,
-      required DeployPlatform platform,
-      bool force = false,
-    }) async => throw UnimplementedError(),
+    startDeploy: ({required String projectId, required Deploy deploy}) async =>
+        throw UnimplementedError(),
     fetchJob: (jobId) async {
       final liveJob = liveDeploy?.job;
       if (liveJob != null && liveJob.jobId == jobId) return liveJob;
@@ -455,8 +450,7 @@ class _StubLocalRunRegistry(List<_StubLocalRunControls> slots)
   ];
 
   @override
-  int get activeCount =>
-      _slots.values.where((slot) => slot.isActive).length;
+  int get activeCount => _slots.values.where((slot) => slot.isActive).length;
 
   @override
   LocalRunState stateFor(LocalRunKey runKey) =>
