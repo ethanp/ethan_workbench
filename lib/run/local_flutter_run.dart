@@ -277,6 +277,7 @@ class LocalFlutterRun._(final Process _process) {
       ['run', '-d', deviceId],
       workingDirectory: projectPath,
       environment: _flutterEnvironment(),
+      includeParentEnvironment: false,
       runInShell: false,
     );
     return LocalFlutterRun._(process);
@@ -297,6 +298,7 @@ class LocalFlutterRun._(final Process _process) {
       arguments,
       workingDirectory: projectPath,
       environment: _flutterEnvironment(),
+      includeParentEnvironment: false,
       runInShell: false,
     );
     return LocalFlutterRun._(process);

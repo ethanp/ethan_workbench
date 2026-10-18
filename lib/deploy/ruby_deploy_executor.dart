@@ -48,6 +48,7 @@ class DeployScriptRunner() {
         ),
         workingDirectory: projectPath,
         environment: flutterToolEnvironment()..['PYTHONUNBUFFERED'] = '1',
+        includeParentEnvironment: false,
         runInShell: false,
       );
     } else {
@@ -80,6 +81,7 @@ class DeployScriptRunner() {
           'EXIT_FILE': exitCodePath,
           'LOG_FILE': ?durableLog,
         },
+        includeParentEnvironment: false,
         runInShell: false,
       );
     }

@@ -34,6 +34,10 @@ class WorkbenchCli() {
         await deploy(arguments.skip(1).toList());
       case 'job':
         await job(arguments.skip(1).toList());
+      case 'runs':
+        await runs();
+      case 'run':
+        await localRun(arguments.skip(1).toList());
       case 'daemon':
         await daemon(arguments.skip(1).toList());
       case '-h':
@@ -210,6 +214,180 @@ class WorkbenchCli() {
     final response = await _get('/jobs/$jobId');
     if (response == null) return;
     _printJob(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<void> runs() async {
+    final response = await _get('/runs');
+    if (response == null) return;
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final runList = payload['runs'] as List<dynamic>? ?? const [];
+    if (runList.isEmpty) {
+      stdout.writeln('no local runs');
+      return;
+    }
+    for (final entry in runList) {
+      _printLocalRun(entry as Map<String, dynamic>);
+    }
+  }
+
+  Future<void> localRun(List<String> arguments) async {
+    if (arguments.isEmpty) {
+      _runUsage();
+      exitCode = 1;
+      return;
+    }
+    final subcommand = arguments.first;
+    if (subcommand == 'status' && arguments.length == 1) {
+      await runs();
+      return;
+    }
+    final rest = arguments.skip(1).toList();
+    var deviceKey = 'macos';
+    String? projectId;
+    for (final argument in rest) {
+      switch (argument) {
+        case '--macos':
+        case 'macos':
+          deviceKey = 'macos';
+        case '--meSim':
+        case '--mesim':
+        case 'meSim':
+          deviceKey = 'meSim';
+        default:
+          if (argument.startsWith('-')) {
+            stderr.writeln('Unknown flag: $argument');
+            exitCode = 1;
+            return;
+          }
+          projectId ??= argument;
+      }
+    }
+    if (projectId == null || projectId.isEmpty) {
+      _runUsage();
+      exitCode = 1;
+      return;
+    }
+    switch (subcommand) {
+      case 'status':
+        await _showLocalRunStatus(projectId: projectId, deviceKey: deviceKey);
+      case 'log':
+        await _showLocalRunLog(projectId: projectId, deviceKey: deviceKey);
+      case 'start':
+        await _postLocalRunCommand(
+          endpoint: '/runs/start',
+          projectId: projectId,
+          deviceKey: deviceKey,
+        );
+      case 'stop':
+        await _postLocalRunCommand(
+          endpoint: '/runs/stop',
+          projectId: projectId,
+          deviceKey: deviceKey,
+        );
+      case 'hot-reload':
+      case 'reload':
+        await _postLocalRunCommand(
+          endpoint: '/runs/hot-reload',
+          projectId: projectId,
+          deviceKey: deviceKey,
+        );
+      case 'hot-restart':
+        await _postLocalRunCommand(
+          endpoint: '/runs/hot-restart',
+          projectId: projectId,
+          deviceKey: deviceKey,
+        );
+      case 'full-restart':
+        await _postLocalRunCommand(
+          endpoint: '/runs/full-restart',
+          projectId: projectId,
+          deviceKey: deviceKey,
+        );
+      default:
+        stderr.writeln('Unknown run command: $subcommand');
+        _runUsage();
+        exitCode = 1;
+    }
+  }
+
+  Future<void> _showLocalRunStatus({
+    required String projectId,
+    required String deviceKey,
+  }) async {
+    final response = await _get('/runs');
+    if (response == null) return;
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final runList = payload['runs'] as List<dynamic>? ?? const [];
+    for (final entry in runList) {
+      final runMap = entry as Map<String, dynamic>;
+      if (runMap['projectId'] == projectId &&
+          runMap['deviceKey'] == deviceKey) {
+        _printLocalRun(runMap);
+        return;
+      }
+    }
+    stdout.writeln('$projectId\t$deviceKey\tidle\tready=false');
+  }
+
+  Future<void> _showLocalRunLog({
+    required String projectId,
+    required String deviceKey,
+  }) async {
+    final query = Uri(
+      queryParameters: {'projectId': projectId, 'deviceKey': deviceKey},
+    ).query;
+    final response = await _get('/runs/log?$query');
+    if (response == null) return;
+    stdout.write(response.body);
+    if (!response.body.endsWith('\n')) stdout.writeln();
+  }
+
+  Future<void> _postLocalRunCommand({
+    required String endpoint,
+    required String projectId,
+    required String deviceKey,
+  }) async {
+    http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('$_baseUrl$endpoint'),
+        headers: _headers,
+        body: jsonEncode({'projectId': projectId, 'deviceKey': deviceKey}),
+      );
+    } on SocketException {
+      stderr.writeln(_daemonDownHint);
+      exitCode = 1;
+      return;
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      _printHttpError(response);
+      exitCode = 1;
+      return;
+    }
+    _printLocalRun(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  void _printLocalRun(Map<String, dynamic> runMap) {
+    final projectId = runMap['projectId'] ?? '-';
+    final deviceKey = runMap['deviceKey'] ?? '-';
+    final status = runMap['status'] ?? 'idle';
+    final ready = runMap['readyForKeyCommands'] == true;
+    final reattached = runMap['reattached'] == true;
+    final errorMessage = runMap['errorMessage'] as String?;
+    final extras = <String>[
+      'ready=$ready',
+      if (reattached) 'reattached=true',
+      if (errorMessage != null && errorMessage.isNotEmpty)
+        'error=$errorMessage',
+    ];
+    stdout.writeln('$projectId\t$deviceKey\t$status\t${extras.join(' ')}');
+  }
+
+  void _runUsage() {
+    stderr.writeln(
+      'Usage: workbench run <status|start|stop|hot-reload|hot-restart|'
+      'full-restart|log> <projectId> [--macos|--meSim]',
+    );
   }
 
   Future<void> daemon(List<String> arguments) async {
@@ -531,6 +709,8 @@ Usage: workbench <command>
   projects
   deploy <projectId> [projectId ...] [--ios|--macos] [--force] [--wait]
   job [jobId]
+  runs
+  run <status|start|stop|hot-reload|hot-restart|full-restart|log> <projectId> [--macos|--meSim]
   daemon start|stop|restart|status|install
 ''');
   }

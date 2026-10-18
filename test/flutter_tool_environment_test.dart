@@ -23,4 +23,21 @@ void main() {
     expect(environment.containsKey('GIT_CONFIG_KEY_0'), isFalse);
     expect(environment.containsKey('GIT_CONFIG_VALUE_0'), isFalse);
   });
+
+  test('strips flutter test harness vars so child apps use DynamicLibrary.process()', () {
+    final environment = flutterToolEnvironment({
+      'PATH': '/usr/bin',
+      'FLUTTER_TEST': 'true',
+      'UNIT_TEST_ASSETS': '/tmp/unit_test_assets',
+      'FONTCONFIG_FILE': '/tmp/fonts.conf',
+      'APP_NAME': 'ethan_workbench',
+      'SERVER_PORT': '59790',
+    });
+
+    expect(environment.containsKey('FLUTTER_TEST'), isFalse);
+    expect(environment.containsKey('UNIT_TEST_ASSETS'), isFalse);
+    expect(environment.containsKey('FONTCONFIG_FILE'), isFalse);
+    expect(environment.containsKey('APP_NAME'), isFalse);
+    expect(environment.containsKey('SERVER_PORT'), isFalse);
+  });
 }
