@@ -25,6 +25,7 @@ class ActiveDeployWatch({
   Duration? ongoingTypicalDuration;
 
   Timer? _poll;
+  var _refreshInFlight = false;
   StreamSubscription<DeployJob>? _jobSubscription;
   StreamSubscription<List<DeployJob>>? _queueSubscription;
   String? _typicalDurationCacheKey;
@@ -135,6 +136,8 @@ class ActiveDeployWatch({
   }
 
   Future<void> refresh() async {
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
     try {
       final previousOngoing = ongoing;
       final job = await trigger.fetchActiveJob();
@@ -152,13 +155,13 @@ class ActiveDeployWatch({
         ongoingTypicalDuration = null;
         _typicalDurationCacheKey = null;
       } else {
-        await _ensureTypicalDuration(next);
+        unawaited(_ensureTypicalDuration(next));
       }
       if (was != now) {
         _log.log('refresh $was → $now waiting=${queue.waiting.length}');
       }
       if (previousOngoing != null && previousOngoing.jobId != next?.jobId) {
-        await _notifyFinishedFromRefresh(previousOngoing.jobId);
+        unawaited(_notifyFinishedFromRefresh(previousOngoing.jobId));
       }
       if (_sameQueueChrome(previousOngoing, next) && !waitingChanged) return;
       onActiveDeployChanged();
@@ -170,8 +173,12 @@ class ActiveDeployWatch({
         return;
       }
       // Transient errors: keep the last known banner / queue.
+    } on TimeoutException catch (error, stackTrace) {
+      _log.warn('status poll timed out', error, stackTrace);
     } catch (error, stackTrace) {
       _log.warn('refresh failed', error, stackTrace);
+    } finally {
+      _refreshInFlight = false;
     }
   }
 
@@ -193,6 +200,7 @@ class ActiveDeployWatch({
         force: job.force,
       );
       _typicalDurationCacheKey = cacheKey;
+      if (ongoing?.jobId == job.jobId) onActiveDeployChanged();
     } catch (error, stackTrace) {
       _log.warn('typical duration lookup failed', error, stackTrace);
     }

@@ -50,6 +50,10 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   late final HomescreenRailSelection _rails;
 
   Timer? _sourceChangesRefreshTimer;
+  // Quick refreshes finish before this fires, so the app bar never flickers.
+  static const _refreshBusyRevealDelay = Duration(seconds: 2);
+  Timer? _refreshBusyRevealTimer;
+  var _refreshBusyRevealed = false;
   StreamSubscription<LocalRunState>? _localRunSubscription;
   final _rowChromeByRunKey = <LocalRunKey, LocalRunState>{};
 
@@ -69,7 +73,9 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     _catalog = ProjectsCatalog(
       trigger: widget.trigger,
       onCatalogChanged: () {
-        if (mounted) setState(() {});
+        if (!mounted) return;
+        _syncRefreshBusyReveal();
+        setState(() {});
       },
     );
     _activeDeploy = ActiveDeployWatch(
@@ -116,11 +122,28 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   @override
   void dispose() {
     _sourceChangesRefreshTimer?.cancel();
+    _refreshBusyRevealTimer?.cancel();
     _sourceCache.stopListeningToUncommittedChanges();
     unawaited(_localRunSubscription?.cancel());
     unawaited(_activeDeploy.dispose());
     _catalog.dispose();
     super.dispose();
+  }
+
+  void _syncRefreshBusyReveal() {
+    final isBusy = _catalog.loading || _catalog.evaluatingChanges;
+    if (!isBusy) {
+      _refreshBusyRevealTimer?.cancel();
+      _refreshBusyRevealTimer = null;
+      _refreshBusyRevealed = false;
+      return;
+    }
+    if (_refreshBusyRevealed || _refreshBusyRevealTimer != null) return;
+    _refreshBusyRevealTimer = Timer(_refreshBusyRevealDelay, () {
+      _refreshBusyRevealTimer = null;
+      if (!mounted) return;
+      setState(() => _refreshBusyRevealed = true);
+    });
   }
 
   void _rememberRowChrome(List<LocalRunState> runStates) {
@@ -225,10 +248,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       );
       return;
     }
-    _rails.showRunInSideRail(
-      controls,
-      ongoingDeploy: _activeDeploy.ongoing,
-    );
+    _rails.showRunInSideRail(controls, ongoingDeploy: _activeDeploy.ongoing);
   }
 
   void _selectRunInPane(LocalRunKey runKey) {
@@ -360,10 +380,8 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     final gitRoot = LineAgeAnalyzer.findGitRoot(project.path) ?? project.path;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => CommitScreen(
-          gitRoot: gitRoot,
-          repoName: path.basename(gitRoot),
-        ),
+        builder: (context) =>
+            CommitScreen(gitRoot: gitRoot, repoName: path.basename(gitRoot)),
       ),
     );
     await UncommittedChangesCache.instance.refresh(gitRoot);
@@ -451,14 +469,16 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   Widget _refreshChangedStatusAction(SourceChangesProgress? progress) {
     final lastCheckedLabel = _lastChangesCheckedLabel(progress);
     final isBusy = _catalog.loading || _catalog.evaluatingChanges;
+    // Until the busy state is revealed, the button keeps its idle look and
+    // presses are ignored rather than greying it out.
     final onPressed = isBusy
-        ? null
+        ? (_refreshBusyRevealed ? null : () {})
         : () => unawaited(_reload(evaluateChanges: true));
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
     final tooltip = lastCheckedLabel == null
         ? 'Refresh changed status'
         : 'Refresh changed status · $lastCheckedLabel';
-    final progressIndicator = _catalog.evaluatingChanges
+    final progressIndicator = _catalog.evaluatingChanges && _refreshBusyRevealed
         ? SizedBox(
             width: compact ? 18 : 14,
             height: compact ? 18 : 14,
@@ -491,7 +511,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   }
 
   String? _lastChangesCheckedLabel(SourceChangesProgress? progress) {
-    if (_catalog.evaluatingChanges) {
+    if (_catalog.evaluatingChanges && _refreshBusyRevealed) {
       return progress?.caption ?? 'Checking…';
     }
     final lastCheckedAt = _catalog.lastChangesCheckedAt;

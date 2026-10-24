@@ -48,6 +48,7 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
   var _reportedTerminal = false;
   var _retrying = false;
   var _retryingInstall = false;
+  var _refreshInFlight = false;
 
   @override
   void initState() {
@@ -123,6 +124,8 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
   }
 
   Future<void> _refreshJob() async {
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
     try {
       final job = await widget.trigger.fetchJob(_job.jobId);
       if (!mounted) return;
@@ -149,10 +152,15 @@ class _DeployJobDetailState() extends State<DeployJobDetail> {
         return;
       }
       setState(() => _errorMessage = error.message);
+    } on TimeoutException catch (error, stackTrace) {
+      if (!mounted) return;
+      _log.warn('status poll timed out', error, stackTrace);
     } catch (error, stackTrace) {
       if (!mounted) return;
       _log.warn('poll refresh failed', error, stackTrace);
       setState(() => _errorMessage = error.toString());
+    } finally {
+      _refreshInFlight = false;
     }
   }
 

@@ -15,6 +15,8 @@ import '../run/local_run_state.dart';
 
 const _log = ELogger('DeployServerClient');
 
+const _statusPollTimeout = Duration(seconds: 5);
+
 class const ServerRequestException(
   final String message, {
   final int? statusCode,
@@ -167,10 +169,9 @@ class DeployServerClient({
   }
 
   Future<DeployJob> fetchJob(String jobId) async {
-    final response = await _httpClient.get(
-      Uri.parse('$_baseUrl/jobs/$jobId'),
-      headers: _headers,
-    );
+    final response = await _httpClient
+        .get(Uri.parse('$_baseUrl/jobs/$jobId'), headers: _headers)
+        .timeout(_statusPollTimeout);
     _throwIfFailed(response, 'Failed to load job');
     return DeployJob.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
@@ -178,10 +179,9 @@ class DeployServerClient({
   }
 
   Future<DeployJob?> fetchActiveJob() async {
-    final response = await _httpClient.get(
-      Uri.parse('$_baseUrl/jobs/active'),
-      headers: _headers,
-    );
+    final response = await _httpClient
+        .get(Uri.parse('$_baseUrl/jobs/active'), headers: _headers)
+        .timeout(_statusPollTimeout);
     if (response.statusCode == 404) return null;
     _throwIfFailed(response, 'Failed to load active job');
     return DeployJob.fromJson(
@@ -190,10 +190,9 @@ class DeployServerClient({
   }
 
   Future<DeployQueue> fetchDeployQueue() async {
-    final response = await _httpClient.get(
-      Uri.parse('$_baseUrl/deploy/queue'),
-      headers: _headers,
-    );
+    final response = await _httpClient
+        .get(Uri.parse('$_baseUrl/deploy/queue'), headers: _headers)
+        .timeout(_statusPollTimeout);
     _throwIfFailed(response, 'Failed to load deploy queue');
     final queue = DeployQueue.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,

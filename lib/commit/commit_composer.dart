@@ -18,34 +18,66 @@ class const CommitComposer({
     return ESurface(
       kind: ESurfaceKind.panel,
       padding: const EdgeInsets.all(ELayout.spaceMd),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (notices.isNotEmpty) ...[
-            _notices(),
+      child: _composerColumn(),
+    );
+  }
+
+  Widget _composerColumn() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final Widget draft = _draftAndNotices();
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (constraints.hasBoundedHeight)
+              Flexible(
+                child: SingleChildScrollView(primary: false, child: draft),
+              )
+            else
+              draft,
             const SizedBox(height: ELayout.spaceMd),
+            _submitButton(),
           ],
-          TextField(
-            controller: messageController,
-            enabled: messageEnabled,
-            onChanged: onMessageChanged,
-            minLines: 3,
-            maxLines: 8,
-            textCapitalization: TextCapitalization.sentences,
-            style: EText.body.medium,
-            decoration: EInput.filled(
-              hintText: 'Commit message',
-              fillColor: EColors.surfaceInset,
-            ),
-          ),
+        );
+      },
+    );
+  }
+
+  Widget _draftAndNotices() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (notices.isNotEmpty) ...[
+          _noticeLines(),
           const SizedBox(height: ELayout.spaceMd),
-          FilledButton(
-            onPressed: actionEnabled ? onSubmit : null,
-            child: running ? _runningLabel() : Text(actionLabel),
-          ),
         ],
+        _messageField(),
+      ],
+    );
+  }
+
+  Widget _messageField() {
+    return TextField(
+      controller: messageController,
+      enabled: messageEnabled,
+      onChanged: onMessageChanged,
+      minLines: messageEnabled ? 3 : 1,
+      maxLines: 8,
+      textCapitalization: TextCapitalization.sentences,
+      style: EText.body.medium,
+      decoration: EInput.filled(
+        hintText: 'Commit message',
+        fillColor: EColors.surfaceInset,
       ),
+    );
+  }
+
+  Widget _submitButton() {
+    return FilledButton(
+      onPressed: actionEnabled ? onSubmit : null,
+      child: running ? _runningLabel() : Text(actionLabel),
     );
   }
 
@@ -64,8 +96,9 @@ class const CommitComposer({
     );
   }
 
-  Widget _notices() {
+  Widget _noticeLines() {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var index = 0; index < notices.length; index++) ...[

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
@@ -185,29 +186,66 @@ class _CommitScreenState() extends State<CommitScreen> {
         ),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(child: CommitDiffPane(files: _files)),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            ELayout.spaceLg,
-            0,
-            ELayout.spaceLg,
-            ELayout.spaceLg,
-          ),
-          child: CommitComposer(
-            messageController: _messageController,
-            notices: _notices,
-            actionLabel: _actionLabel,
-            actionEnabled: _actionEnabled,
-            messageEnabled: _messageEnabled,
-            running: _running,
-            onSubmit: _actionEnabled ? () => unawaited(_submit()) : null,
-            onMessageChanged: (_) => setState(() {}),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: CommitDiffPane(files: _files)),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: _composerMaxHeight(constraints.maxHeight),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  ELayout.spaceLg,
+                  0,
+                  ELayout.spaceLg,
+                  ELayout.spaceLg,
+                ),
+                child: _composer(),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
+
+  Widget _composer() {
+    return CommitComposer(
+      messageController: _messageController,
+      notices: _notices,
+      actionLabel: _actionLabel,
+      actionEnabled: _actionEnabled,
+      messageEnabled: _messageEnabled,
+      running: _running,
+      onSubmit: _actionEnabled ? () => unawaited(_submit()) : null,
+      onMessageChanged: (_) => setState(() {}),
+    );
+  }
+
+  double _composerMaxHeight(double bodyHeight) {
+    final double pinnedComposer = _messageEnabled
+        ? _WorkingTreeConfirmationRoom.draftComposerHeight
+        : _WorkingTreeConfirmationRoom.committedComposerHeight;
+    final double confirmationRoom = bodyHeight - pinnedComposer;
+    if (confirmationRoom > _WorkingTreeConfirmationRoom.preferredHeight) {
+      return bodyHeight - _WorkingTreeConfirmationRoom.preferredHeight;
+    }
+    return math.min(
+      bodyHeight,
+      math.max(
+        pinnedComposer,
+        bodyHeight - _WorkingTreeConfirmationRoom.heightWhenTheBodyIsShort,
+      ),
+    );
+  }
+}
+
+abstract final class _WorkingTreeConfirmationRoom() {
+  static const preferredHeight = 280.0;
+  static const heightWhenTheBodyIsShort = 160.0;
+  static const committedComposerHeight = 220.0;
+  static const draftComposerHeight = 280.0;
 }

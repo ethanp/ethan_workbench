@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -202,7 +203,11 @@ class WorkbenchCli() {
   Future<void> job(List<String> arguments) async {
     final jobId = arguments.isEmpty ? null : arguments.first;
     if (jobId == null) {
-      final response = await _get('/jobs/active', notFoundOk: true);
+      final response = await _get(
+        '/jobs/active',
+        notFoundOk: true,
+        timeout: const Duration(seconds: 5),
+      );
       if (response == null) return;
       if (response.statusCode == 404) {
         stdout.writeln('no active job');
@@ -211,7 +216,10 @@ class WorkbenchCli() {
       _printJob(jsonDecode(response.body) as Map<String, dynamic>);
       return;
     }
-    final response = await _get('/jobs/$jobId');
+    final response = await _get(
+      '/jobs/$jobId',
+      timeout: const Duration(seconds: 5),
+    );
     if (response == null) return;
     _printJob(jsonDecode(response.body) as Map<String, dynamic>);
   }
@@ -486,13 +494,32 @@ class WorkbenchCli() {
 
   Future<bool> _waitUntilDeployQueueIdle() async {
     while (true) {
-      final queueResponse = await _get('/deploy/queue');
-      if (queueResponse == null) return false;
+      final queueResponse = await _get(
+        '/deploy/queue',
+        timeout: const Duration(seconds: 5),
+        retryAfterTimeout: true,
+      );
+      if (queueResponse == null) {
+        if (exitCode != 0) return false;
+        stdout.writeln('status poll timed out; retrying');
+        await Future<void>.delayed(const Duration(seconds: 2));
+        continue;
+      }
       final queuePayload =
           jsonDecode(queueResponse.body) as Map<String, dynamic>;
       final waitingJobs = queuePayload['jobs'] as List<dynamic>? ?? const [];
-      final activeResponse = await _get('/jobs/active', notFoundOk: true);
-      if (activeResponse == null) return false;
+      final activeResponse = await _get(
+        '/jobs/active',
+        notFoundOk: true,
+        timeout: const Duration(seconds: 5),
+        retryAfterTimeout: true,
+      );
+      if (activeResponse == null) {
+        if (exitCode != 0) return false;
+        stdout.writeln('status poll timed out; retrying');
+        await Future<void>.delayed(const Duration(seconds: 2));
+        continue;
+      }
       if (waitingJobs.isEmpty && activeResponse.statusCode == 404) return true;
       stdout.writeln(
         'waiting for idle (queue=${waitingJobs.length} '
@@ -509,12 +536,17 @@ class WorkbenchCli() {
     }
   }
 
-  Future<http.Response?> _get(String path, {bool notFoundOk = false}) async {
+  Future<http.Response?> _get(
+    String path, {
+    bool notFoundOk = false,
+    Duration? timeout,
+    bool retryAfterTimeout = false,
+  }) async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl$path'),
-        headers: _headers,
-      );
+      final pending = http.get(Uri.parse('$_baseUrl$path'), headers: _headers);
+      final response = timeout == null
+          ? await pending
+          : await pending.timeout(timeout);
       if (notFoundOk && response.statusCode == 404) return response;
       if (response.statusCode < 200 || response.statusCode >= 300) {
         _printHttpError(response);
@@ -522,6 +554,11 @@ class WorkbenchCli() {
         return null;
       }
       return response;
+    } on TimeoutException {
+      if (retryAfterTimeout) return null;
+      stderr.writeln('Timed out waiting for $_baseUrl$path');
+      exitCode = 1;
+      return null;
     } on SocketException {
       stderr.writeln(_daemonDownHint);
       exitCode = 1;
@@ -557,8 +594,17 @@ class WorkbenchCli() {
 
   Future<void> _waitForJob(String jobId) async {
     while (true) {
-      final response = await _get('/jobs/$jobId');
-      if (response == null) return;
+      final response = await _get(
+        '/jobs/$jobId',
+        timeout: const Duration(seconds: 5),
+        retryAfterTimeout: true,
+      );
+      if (response == null) {
+        if (exitCode != 0) return;
+        stdout.writeln('status poll timed out; retrying');
+        await Future<void>.delayed(const Duration(seconds: 2));
+        continue;
+      }
       final job = jsonDecode(response.body) as Map<String, dynamic>;
       final status = job['status'] as String? ?? '';
       stdout.writeln(status);

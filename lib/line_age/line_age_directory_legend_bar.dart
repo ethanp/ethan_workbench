@@ -13,54 +13,31 @@ class const LineAgeDirectoryLegendBar({
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 56, right: 8),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 6,
-        children: [
+      child: EChartLegend(
+        entries: [
           for (final key in legend.orderedKeys)
-            MouseRegion(
-              onEnter: (_) => onHoverDirectory(key),
-              onExit: (_) => onHoverDirectory(null),
-              child: _chip(
-                key: key,
-                color: legend.colorForKey(key),
-                emphasized:
-                    emphasizedDirectory == null || emphasizedDirectory == key,
-              ),
-            ),
+            _directoryEntry(key),
         ],
       ),
     );
   }
 
-  Widget _chip({
-    required String key,
-    required Color color,
-    required bool emphasized,
-  }) {
-    return Opacity(
-      opacity: emphasized ? 1 : 0.35,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            key,
-            style: EText.caption.copyWith(
-              color: EColors.textSecondary,
-              fontSize: 11,
-            ),
-          ),
-        ],
+  EChartLegendEntry _directoryEntry(String key) {
+    final dimmed = emphasizedDirectory != null && emphasizedDirectory != key;
+    final color = legend.colorForKey(key);
+    return EChartLegendEntry(
+      swatch: Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          color: dimmed ? color.withValues(alpha: 0.35) : color,
+          borderRadius: BorderRadius.circular(2),
+        ),
       ),
+      label: key,
+      labelStyle: EText.caption.copyWith(color: EColors.textSecondary),
+      dimmed: dimmed,
+      onHoverChanged: (hovering) => onHoverDirectory(hovering ? key : null),
     );
   }
 }

@@ -21,12 +21,25 @@ abstract final class DeployCursorMirror() {
   static const lastFailedLogFileName = 'last_failed_deploy.log';
   static const lastFailedStatusFileName = 'last_failed_deploy_status.json';
 
+  static const _statusCoalesce = Duration(milliseconds: 150);
+
   static Timer? _statusDebounce;
   static DeployJob? _pendingJob;
   static String? _pendingProjectPath;
+  static var _statusGeneration = 0;
+
+  /// Test hook — drops a pending status write.
+  static void resetForTest() {
+    _statusDebounce?.cancel();
+    _statusDebounce = null;
+    _pendingJob = null;
+    _pendingProjectPath = null;
+    _statusGeneration = 0;
+  }
 
   /// Clear live log and write the starting status for a new deploy.
   static Future<void> beginJob(DeployJob job, {String? projectPath}) async {
+    _beginStatusGeneration();
     await WorkbenchCursorDirs.ensureResolved();
     for (final directory in WorkbenchCursorDirs.directories) {
       await WorkbenchCursorDirs.writeSafely(
@@ -49,23 +62,40 @@ abstract final class DeployCursorMirror() {
     }
   }
 
-  /// Debounced status sidecar (no full log — see [logFileName]).
+  /// Status sidecar (no full log — see [logFileName]).
+  ///
+  /// Coalesces a burst of log lines into one write. Further lines update the
+  /// pending job but do not postpone that write, so a busy build still
+  /// publishes status. A newer generation drops a write that resumed late.
   static void scheduleStatus(DeployJob job, {String? projectPath}) {
     _pendingJob = job;
     _pendingProjectPath = projectPath;
-    _statusDebounce?.cancel();
-    _statusDebounce = Timer(const Duration(milliseconds: 150), () {
+    if (_statusDebounce?.isActive ?? false) return;
+    final generation = _statusGeneration;
+    _statusDebounce = Timer(_statusCoalesce, () {
+      _statusDebounce = null;
       final pending = _pendingJob;
-      if (pending == null) return;
-      unawaited(writeStatus(pending, projectPath: _pendingProjectPath));
+      final pendingPath = _pendingProjectPath;
+      if (pending == null || generation != _statusGeneration) return;
+      unawaited(
+        writeStatus(pending, projectPath: pendingPath, generation: generation),
+      );
     });
   }
 
-  static Future<void> writeStatus(DeployJob job, {String? projectPath}) async {
+  static Future<void> writeStatus(
+    DeployJob job, {
+    String? projectPath,
+    int? generation,
+  }) async {
+    final writeGeneration = generation ?? _statusGeneration;
     await WorkbenchCursorDirs.ensureResolved();
-    final encoded = const JsonEncoder.withIndent('  ')
-        .convert(_statusPayload(job, projectPath: projectPath));
+    if (writeGeneration != _statusGeneration) return;
+    final encoded = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(_statusPayload(job, projectPath: projectPath));
     for (final directory in WorkbenchCursorDirs.directories) {
+      if (writeGeneration != _statusGeneration) return;
       await WorkbenchCursorDirs.writeSafely(
         File(path.join(directory.path, statusFileName)),
         encoded,
@@ -75,6 +105,7 @@ abstract final class DeployCursorMirror() {
 
   /// Rewrite the live log from an in-memory job (e.g. after reclaim).
   static Future<void> seedJob(DeployJob job, {String? projectPath}) async {
+    _beginStatusGeneration();
     await WorkbenchCursorDirs.ensureResolved();
     for (final directory in WorkbenchCursorDirs.directories) {
       await WorkbenchCursorDirs.writeSafely(
@@ -89,7 +120,7 @@ abstract final class DeployCursorMirror() {
   /// stable last-failed paths Cursor should open first. The in-memory log is
   /// authoritative; the live log file is not reused for this.
   static Future<void> finalize(DeployJob job, {String? projectPath}) async {
-    _statusDebounce?.cancel();
+    _beginStatusGeneration();
     await writeStatus(job, projectPath: projectPath);
     if (job.status != DeployJobStatus.failed) return;
 
@@ -111,6 +142,14 @@ abstract final class DeployCursorMirror() {
         failedStatus,
       );
     }
+  }
+
+  static void _beginStatusGeneration() {
+    _statusGeneration += 1;
+    _statusDebounce?.cancel();
+    _statusDebounce = null;
+    _pendingJob = null;
+    _pendingProjectPath = null;
   }
 
   static Map<String, Object?> _statusPayload(
