@@ -245,4 +245,13 @@ class _StubLocalRunControls(final LocalRunState _state)
 
   @override
   Future<void> fullRestart() async {}
+
+  @override
+  Future<void> setInfoLogs(bool enabled) async {}
+
+  @override
+  Future<String> evaluateInApp(
+    String expression, {
+    String? librarySuffix,
+  }) async => '';
 }

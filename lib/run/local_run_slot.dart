@@ -12,6 +12,7 @@ import 'local_run_persistence.dart';
 import 'local_run_progress.dart';
 import 'local_run_reclaimer.dart';
 import 'local_run_state.dart';
+import 'running_app_vm.dart';
 
 /// Session policy for one local `flutter run`: start/stop/reclaim.
 ///
@@ -37,6 +38,10 @@ class LocalRunSlot({
       onAttachGaveUpOnVmService: () {
         unawaited(_stopAttachThatCannotReachVmService());
       },
+      onVmServiceUriCaptured: () {
+        if (!_runProgress.current.infoLogs) return;
+        unawaited(_reconnectInfoLogs());
+      },
     );
     _reclaimer = LocalRunReclaimer(
       runKey: _runKey,
@@ -57,6 +62,8 @@ class LocalRunSlot({
   late final LocalRunConsole _console;
   late final LocalRunReclaimer _reclaimer;
   bool _disposed = false;
+  RunningAppVm? _infoLogsVm;
+  StreamSubscription<String>? _infoLogsSubscription;
 
   @override
   LocalRunState get state => _runProgress.current;
@@ -149,7 +156,120 @@ class LocalRunSlot({
   @override
   Future<void> hotRestart() async {
     _console.clearFlutterException();
+    final int logLengthBeforeRestart = _runProgress.current.log.length;
     await _sendKeyCommand('R');
+    unawaited(_killIsolatesLeftFromBeforeRestart(logLengthBeforeRestart));
+  }
+
+  /// Once the restart banner prints, kills isolates the old run left behind
+  /// (PowerSync's sync isolate survives a hot restart and keeps working).
+  Future<void> _killIsolatesLeftFromBeforeRestart(
+    int logLengthBeforeRestart,
+  ) async {
+    final String? vmServiceUri = _flutterRunBinding.vmServiceUri;
+    if (vmServiceUri == null) return;
+    try {
+      await _runProgress.changes
+          .firstWhere(
+            (runState) =>
+                runState.log.indexOf(
+                  'Restarted application in',
+                  logLengthBeforeRestart,
+                ) >=
+                0,
+          )
+          .timeout(const Duration(minutes: 1));
+      final runningAppVm = await RunningAppVm.connect(vmServiceUri);
+      try {
+        final List<String> killedNames = await runningAppVm
+            .killIsolatesLeftFromBeforeRestart();
+        if (killedNames.isEmpty) return;
+        _runProgress.appendLog(
+          'Killed isolates left from before the restart: '
+          '${killedNames.join(', ')}\n',
+        );
+      } finally {
+        await runningAppVm.dispose();
+      }
+    } catch (error) {
+      _runProgress.appendLog(
+        'Could not clean up isolates after restart: $error\n',
+      );
+    }
+  }
+
+  @override
+  Future<String> evaluateInApp(
+    String expression, {
+    String? librarySuffix,
+  }) async {
+    final String? vmServiceUri = _flutterRunBinding.vmServiceUri;
+    if (vmServiceUri == null) {
+      throw StateError('This run has no VM service yet');
+    }
+    final runningAppVm = await RunningAppVm.connect(vmServiceUri);
+    try {
+      return await runningAppVm.evaluateInMainIsolate(
+        expression,
+        librarySuffix: librarySuffix ?? RunningAppVm.appLogBufferLibrarySuffix,
+      );
+    } finally {
+      await runningAppVm.dispose();
+    }
+  }
+
+  @override
+  Future<void> setInfoLogs(bool enabled) async {
+    if (_runProgress.current.infoLogs != enabled) {
+      _runProgress.emit(_runProgress.current.copyWith(infoLogs: enabled));
+    }
+    if (!enabled) {
+      await _stopInfoLogs();
+      return;
+    }
+    await _streamInfoLogs();
+  }
+
+  /// Appends each app log line to the run log as the app writes it. Waits
+  /// silently until `flutter run` has printed the VM service URI; the console
+  /// calls back then.
+  Future<void> _streamInfoLogs() async {
+    final String? vmServiceUri = _flutterRunBinding.vmServiceUri;
+    if (vmServiceUri == null || _infoLogsVm != null) return;
+    try {
+      final runningAppVm = await RunningAppVm.connect(vmServiceUri);
+      if (!_runProgress.current.infoLogs || _infoLogsVm != null) {
+        await runningAppVm.dispose();
+        return;
+      }
+      _infoLogsVm = runningAppVm;
+      _infoLogsSubscription = runningAppVm.appLogLines().listen(
+        (line) => _runProgress.appendLog(line.endsWith('\n') ? line : '$line\n'),
+        onError: (Object error) {
+          _runProgress.appendLog('Info logs stopped: $error\n');
+          unawaited(_stopInfoLogs());
+        },
+        onDone: () => unawaited(_stopInfoLogs()),
+      );
+      _runProgress.appendLog('Info logs on.\n');
+    } catch (error) {
+      _runProgress.appendLog('Could not stream info logs: $error\n');
+    }
+  }
+
+  /// A full restart prints a new VM service URI; follow it.
+  Future<void> _reconnectInfoLogs() async {
+    await _stopInfoLogs();
+    await _streamInfoLogs();
+  }
+
+  Future<void> _stopInfoLogs() async {
+    final StreamSubscription<String>? subscription = _infoLogsSubscription;
+    final RunningAppVm? runningAppVm = _infoLogsVm;
+    _infoLogsSubscription = null;
+    _infoLogsVm = null;
+    await subscription?.cancel();
+    await runningAppVm?.dispose();
   }
 
   @override
@@ -272,6 +392,7 @@ class LocalRunSlot({
   /// Detach without killing the app so a workbench hot restart can reclaim.
   Future<void> dispose() async {
     _disposed = true;
+    await _stopInfoLogs();
     _flutterRunBinding.invalidate();
     _reclaimer.cancelLiveness();
     await _flutterRunBinding.detachLeavingApp();
@@ -301,6 +422,7 @@ class LocalRunSlot({
   }) async {
     if (!_flutterRunBinding.owns(flutterRun)) return;
     _reclaimer.cancelLiveness();
+    await _stopInfoLogs();
     await _flutterRunBinding.releaseAfterExit(flutterRun);
 
     if (!_disposed) {

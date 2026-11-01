@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../ui/workbench_action_accents.dart';
 import 'flutter_line_age.dart';
 import 'line_age_analysis.dart';
+import 'line_age_analysis_cancelled.dart';
 import 'line_age_blame_progress.dart';
 import 'line_age_chart.dart';
 import 'line_age_directory_groups.dart';
@@ -22,9 +23,7 @@ class const LineAgeScreen({required final LineAgeAnalysis analysis})
   }
 
   factory flutterFleet({required List<String> flutterRoots}) {
-    return LineAgeScreen(
-      analysis: FlutterLineAge(flutterRoots: flutterRoots),
-    );
+    return LineAgeScreen(analysis: FlutterLineAge(flutterRoots: flutterRoots));
   }
 
   @override
@@ -77,6 +76,9 @@ class _LineAgeScreenState() extends State<LineAgeScreen> {
         _keepSelectedMonthIfStillPresent(report);
         _running = false;
       });
+    } on LineAgeAnalysisCancelled {
+      if (!mounted) return;
+      setState(() => _running = false);
     } catch (error) {
       if (!mounted) return;
       setState(() {

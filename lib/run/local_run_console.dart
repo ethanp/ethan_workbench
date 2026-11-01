@@ -7,6 +7,7 @@ import 'local_flutter_run_binding.dart';
 import 'local_run_checkpoint.dart';
 import 'local_run_progress.dart';
 import 'local_run_state.dart';
+import 'run_log_noise_filter.dart';
 
 const _log = ELogger('LocalRunConsole');
 
@@ -16,15 +17,20 @@ class LocalRunConsole({
   required final LocalFlutterRunBinding _flutterRunBinding,
   required final LocalRunCheckpoint _checkpoint,
   final void Function()? onAttachGaveUpOnVmService,
+
+  /// `flutter run` printed a (new) VM service URI; it is now on the binding.
+  final void Function()? onVmServiceUriCaptured,
 }) {
   bool _reportedAttachGaveUp = false;
   var _exceptionParsePending = false;
   String _scanTail = '';
+  final _runLogNoiseFilter = RunLogNoiseFilter();
 
   void resetForNewRun() {
     _reportedAttachGaveUp = false;
     _exceptionParsePending = false;
     _scanTail = '';
+    _runLogNoiseFilter.reset();
   }
 
   /// Drop a prior dump after hot reload / restart.
@@ -46,7 +52,8 @@ class LocalRunConsole({
   }
 
   void _interpretConsoleChunk(String chunk) {
-    _runProgress.appendLog(chunk);
+    final String meaningfulText = _runLogNoiseFilter.meaningfulText(chunk);
+    if (meaningfulText.isNotEmpty) _runProgress.appendLog(meaningfulText);
     _scanTail = _appendScanTail(_scanTail, chunk);
     _captureVmServiceUri(chunk);
     _captureDeviceVmServiceUri(chunk);
@@ -64,6 +71,7 @@ class LocalRunConsole({
     }
     _flutterRunBinding.vmServiceUri = parsedUri;
     _checkpointReady();
+    onVmServiceUriCaptured?.call();
   }
 
   void _captureDeviceVmServiceUri(String chunk) {

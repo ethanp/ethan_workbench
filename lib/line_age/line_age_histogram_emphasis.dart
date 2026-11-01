@@ -18,7 +18,9 @@ class const LineAgeHistogramEmphasis({
     required String yearMonth,
   }) {
     var alpha = directoryEmphasized ? 0.92 : 0.18;
-    if (!isSelected(yearMonth) && !isHovered(yearMonth) && selectedMonth != null) {
+    if (!isSelected(yearMonth) &&
+        !isHovered(yearMonth) &&
+        selectedMonth != null) {
       alpha *= 0.55;
     }
     if (isHovered(yearMonth) && directoryEmphasized) {

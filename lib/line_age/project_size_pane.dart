@@ -41,10 +41,7 @@ class const ProjectSizePane({
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    label.paint(
-      canvas,
-      Offset(plot.right - label.width, titleY),
-    );
+    label.paint(canvas, Offset(plot.right - label.width, titleY));
   }
 
   String? _asOfTodayOrMonthEndCaption() {
@@ -80,7 +77,11 @@ class const ProjectSizePane({
 
   List<_MonthEndProjectSize> _monthEnds() {
     final monthEnds = <_MonthEndProjectSize>[];
-    for (var monthIndex = 0; monthIndex < report.timelineMonths.length; monthIndex++) {
+    for (
+      var monthIndex = 0;
+      monthIndex < report.timelineMonths.length;
+      monthIndex++
+    ) {
       final month = report.timelineMonths[monthIndex];
       final projectSize = report.projectSizeByMonth.at(month.month);
       if (projectSize == null || projectSize <= 0) continue;
@@ -171,7 +172,9 @@ class const ProjectSizePane({
         text: TextSpan(
           text: monthEnd.projectSize.asCompactCount,
           style: TextStyle(
-            color: selected || hovered ? EColors.textPrimary : EColors.textMuted,
+            color: selected || hovered
+                ? EColors.textPrimary
+                : EColors.textMuted,
             fontSize: 11,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
           ),
@@ -180,10 +183,7 @@ class const ProjectSizePane({
       )..layout();
       label.paint(
         canvas,
-        Offset(
-          monthEnd.at.dx - label.width / 2,
-          monthEnd.at.dy - 16,
-        ),
+        Offset(monthEnd.at.dx - label.width / 2, monthEnd.at.dy - 16),
       );
     }
   }

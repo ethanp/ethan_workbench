@@ -120,6 +120,14 @@ class const ProjectSizeByMonth({
 }) {
   int? at(String yearMonth) => linesByYearMonth[yearMonth];
 
+  /// Only the months strictly before [yearMonth] (YYYY-MM keys sort by date).
+  ProjectSizeByMonth monthsBefore(String yearMonth) => ProjectSizeByMonth(
+    linesByYearMonth: {
+      for (final entry in linesByYearMonth.entries)
+        if (entry.key.compareTo(yearMonth) < 0) entry.key: entry.value,
+    },
+  );
+
   int get peak {
     if (linesByYearMonth.isEmpty) return 0;
     return linesByYearMonth.values.reduce(
@@ -154,6 +162,18 @@ class const LineAgeReport({
   final ProjectSizeByMonth projectSizeByMonth = const ProjectSizeByMonth(),
 }) {
   List<String> get filesByTotalLines => totalLinesByFile.keys.toList();
+
+  /// Relative path → last-touched month → line count.
+  Map<String, Map<String, int>> get lastTouchedLinesByFile {
+    final linesByFile = <String, Map<String, int>>{};
+    for (final month in months) {
+      for (final segment in month.segments) {
+        linesByFile.putIfAbsent(segment.file, () => {})[month.month] =
+            segment.lineCount;
+      }
+    }
+    return linesByFile;
+  }
 
   /// First last-touched month through the later of last last-touched and today.
   List<LineAgeMonth> get timelineMonths {
@@ -280,15 +300,13 @@ class const LineAgeReport({
           (count) => count + month.totalLines,
           ifAbsent: () => month.totalLines,
         );
-        segmentsByMonth
-            .putIfAbsent(month.month, () => [])
-            .addAll([
-              for (final segment in month.segments)
-                LineAgeSegment(
-                  file: _prefixedFile(report.repoName, segment.file),
-                  lineCount: segment.lineCount,
-                ),
-            ]);
+        segmentsByMonth.putIfAbsent(month.month, () => []).addAll([
+          for (final segment in month.segments)
+            LineAgeSegment(
+              file: _prefixedFile(report.repoName, segment.file),
+              lineCount: segment.lineCount,
+            ),
+        ]);
       }
     }
     final monthKeys = totalsByMonth.keys.toList()..sort();

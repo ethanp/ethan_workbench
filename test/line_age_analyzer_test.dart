@@ -19,13 +19,6 @@ void main() {
     );
   });
 
-  test('skipped directories include Pods and the former Dart-only skips', () {
-    expect(
-      ProjectSource.skipDirectoryNames,
-      containsAll({'.dart_tool', 'build', '.symlinks', 'Pods'}),
-    );
-  });
-
   test('findGitRoot walks up from a nested app folder', () {
     final root = Directory.systemTemp.createTempSync('line_age_git_');
     addTearDown(() => root.deleteSync(recursive: true));

@@ -28,7 +28,11 @@ class const LastTouchedMonthBars({
 
   @override
   void paintAlongMonths(Canvas canvas) {
-    for (var monthIndex = 0; monthIndex < report.timelineMonths.length; monthIndex++) {
+    for (
+      var monthIndex = 0;
+      monthIndex < report.timelineMonths.length;
+      monthIndex++
+    ) {
       _paintLastTouchedMonth(
         canvas,
         month: report.timelineMonths[monthIndex],
@@ -57,15 +61,16 @@ class const LastTouchedMonthBars({
     );
     canvas.save();
     canvas.clipRRect(barRect);
-    _paintDirectoryStacks(canvas, month: month, stacks: stacks, x: x, barHeight: barHeight);
+    _paintDirectoryStacks(
+      canvas,
+      month: month,
+      stacks: stacks,
+      x: x,
+      barHeight: barHeight,
+    );
     canvas.restore();
     _strokeSelectedLastTouchedBar(canvas, barRect: barRect, month: month);
-    _paintLastTouchedCountAboveBar(
-      canvas,
-      barTop: barTop,
-      x: x,
-      month: month,
-    );
+    _paintLastTouchedCountAboveBar(canvas, barTop: barTop, x: x, month: month);
   }
 
   void _paintDirectoryStacks(
@@ -187,7 +192,9 @@ class const LastTouchedMonthBars({
       text: TextSpan(
         text: month.totalLines.asCompactCount,
         style: TextStyle(
-          color: emphasis.isSelected(month.month) || emphasis.isHovered(month.month)
+          color:
+              emphasis.isSelected(month.month) ||
+                  emphasis.isHovered(month.month)
               ? EColors.textPrimary
               : EColors.textMuted,
           fontSize: 11,

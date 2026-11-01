@@ -1,73 +1,32 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:ethan_workbench/line_age/line_age_report.dart';
+import 'package:ethan_workbench/line_age/line_age_analysis_cancelled.dart';
+import 'package:ethan_workbench/line_age/line_age_analyzer.dart';
 import 'package:ethan_workbench/line_age/line_age_cache.dart';
+import 'package:ethan_workbench/line_age/line_age_report.dart';
+import 'package:ethan_workbench/line_age/project_source.dart';
+import 'package:ethan_workbench/line_age/project_source_git_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 
 void main() {
   setUp(() => LineAgeCache.instance.resetForTest());
 
-  test('lastStoredReport survives a dart-tree fingerprint change', () {
-    final root = _dartTree();
-    final cache = LineAgeCache.instance;
-    final firstFingerprint = LineAgeCache.computeFingerprint(root.path);
-    cache.put(
-      gitRoot: root.path,
-      fingerprint: firstFingerprint,
-      report: _report(totalLines: 42),
-    );
-
-    expect(cache.lastStoredReport(root.path)?.totalLines, 42);
-    expect(cache.isFingerprintCurrent(root.path), isTrue);
-
-    File(path.join(root.path, 'lib', 'a.dart'))
-        .writeAsStringSync('void main() { print(1); }\n');
-    expect(cache.isFingerprintCurrent(root.path), isFalse);
-    expect(cache.lastStoredReport(root.path)?.totalLines, 42);
-  });
-
-  test('fingerprint changes when a Swift file is added', () {
-    final root = _dartTree();
-    final cache = LineAgeCache.instance;
-    cache.put(
-      gitRoot: root.path,
-      fingerprint: LineAgeCache.computeFingerprint(root.path),
-      report: _report(totalLines: 7),
-    );
-
-    File(path.join(root.path, 'macos', 'Runner', 'AppDelegate.swift'))
-      ..createSync(recursive: true)
-      ..writeAsStringSync('import Cocoa\n');
-    expect(cache.isFingerprintCurrent(root.path), isFalse);
-  });
-
-  test('fingerprint changes when file count changes', () {
-    final root = _dartTree();
-    final cache = LineAgeCache.instance;
-    cache.put(
-      gitRoot: root.path,
-      fingerprint: LineAgeCache.computeFingerprint(root.path),
-      report: _report(totalLines: 7),
-    );
-
-    File(path.join(root.path, 'lib', 'b.dart'))
-        .writeAsStringSync('class B {}\n');
-    expect(cache.isFingerprintCurrent(root.path), isFalse);
-    expect(cache.lastStoredReport(root.path)?.totalLines, 7);
-  });
-
   test(
-    'analyzeOrCached returns the stored report when the fingerprint is current',
+    'analyzeOrCached returns the stored report when git state is unchanged',
     () async {
-      final root = _dartTree();
+      final root = await _committedGitTree();
       final cache = LineAgeCache.instance;
       final stored = _report(totalLines: 99);
       cache.put(
         gitRoot: root.path,
-        fingerprint: LineAgeCache.computeFingerprint(root.path),
-        report: stored,
+        measured: MeasuredLineAge(
+          gitState: await ProjectSourceGitState.read(
+            ProjectSource.at(root.path),
+          ),
+          report: stored,
+        ),
       );
 
       final again = await cache.analyzeOrCached(root.path);
@@ -75,39 +34,68 @@ void main() {
     },
   );
 
-  test('analyzeOrCached re-blames when the fingerprint is stale', () async {
-    final root = await _committedGitTree();
-    final cache = LineAgeCache.instance;
-    cache.put(
-      gitRoot: root.path,
-      fingerprint: LineAgeCache.computeFingerprint(root.path),
-      report: _report(totalLines: 1),
-    );
+  test(
+    'analyzeOrCached reblames only files changed since the stored report',
+    () async {
+      final root = await _committedGitTree();
+      final cache = LineAgeCache.instance;
+      cache.put(
+        gitRoot: root.path,
+        measured: MeasuredLineAge(
+          gitState: await ProjectSourceGitState.read(
+            ProjectSource.at(root.path),
+          ),
+          report: _reportAllIn2001(['lib/a.dart', 'lib/b.dart']),
+        ),
+      );
 
-    File(path.join(root.path, 'lib', 'a.dart'))
-        .writeAsStringSync('void main() {}\nvoid extra() {}\n');
-    await _git(root, ['add', '.']);
-    await _git(root, ['commit', '-m', 'more']);
+      File(path.join(root.path, 'lib', 'a.dart'))
+          .writeAsStringSync('void main() {}\nvoid extra() {}\n');
+      await _git(root, ['commit', '-am', 'more']);
 
-    expect(cache.isFingerprintCurrent(root.path), isFalse);
-    expect(cache.lastStoredReport(root.path)?.totalLines, 1);
+      final fresh = await cache.analyzeOrCached(root.path);
+      expect(_filesIn2001(fresh), ['lib/b.dart']);
+      expect(fresh.totalLinesByFile['lib/a.dart'], 2);
+      expect(identical(await cache.analyzeOrCached(root.path), fresh), isTrue);
+    },
+  );
 
-    final fresh = await cache.analyzeOrCached(root.path);
-    expect(fresh.totalLines, greaterThan(1));
-    expect(cache.isFingerprintCurrent(root.path), isTrue);
-  });
+  test(
+    'analyzeOrCached reblames every file after history is rewritten',
+    () async {
+      final root = await _committedGitTree();
+      final cache = LineAgeCache.instance;
+      cache.put(
+        gitRoot: root.path,
+        measured: MeasuredLineAge(
+          gitState: await ProjectSourceGitState.read(
+            ProjectSource.at(root.path),
+          ),
+          report: _reportAllIn2001(['lib/a.dart', 'lib/b.dart']),
+        ),
+      );
+
+      await _git(root, ['commit', '--amend', '-m', 'reworded']);
+
+      final fresh = await cache.analyzeOrCached(root.path);
+      expect(_filesIn2001(fresh), isEmpty);
+      expect(fresh.totalLines, 2);
+    },
+  );
 
   test(
     'two concurrent callers share one analysis and the same result',
     () async {
       final root = _dartTree();
       final cache = LineAgeCache.instance;
+      final started = Completer<void>();
       final release = Completer<void>();
       var starts = 0;
       final shared = _report(totalLines: 17);
       cache.resetForTest(
         analyzeOverride: (repoPath, onProgress) async {
           starts++;
+          started.complete();
           await release.future;
           return shared;
         },
@@ -115,12 +103,12 @@ void main() {
 
       final first = cache.analyzeOrCached(root.path);
       final second = cache.analyzeOrCached(root.path);
-      await Future<void>.delayed(Duration.zero);
-      expect(starts, 1);
+      await started.future;
       release.complete();
 
       final firstReport = await first;
       final secondReport = await second;
+      expect(starts, 1);
       expect(identical(firstReport, shared), isTrue);
       expect(identical(secondReport, shared), isTrue);
     },
@@ -150,23 +138,26 @@ void main() {
   test('cancel fails every waiter and a later retry starts fresh', () async {
     final root = _dartTree();
     final cache = LineAgeCache.instance;
+    final started = Completer<void>();
     final hang = Completer<LineAgeReport>();
     var starts = 0;
     cache.resetForTest(
       analyzeOverride: (repoPath, onProgress) {
         starts++;
+        started.complete();
         return hang.future;
       },
     );
 
     final first = cache.analyzeOrCached(root.path);
+    await started.future;
     final second = cache.analyzeOrCached(root.path);
     await Future<void>.delayed(Duration.zero);
     expect(starts, 1);
     cache.cancelAnalyze(root.path);
 
-    await expectLater(first, throwsA(isA<StateError>()));
-    await expectLater(second, throwsA(isA<StateError>()));
+    await expectLater(first, throwsA(isA<LineAgeAnalysisCancelled>()));
+    await expectLater(second, throwsA(isA<LineAgeAnalysisCancelled>()));
 
     cache.resetForTest(
       analyzeOverride: (repoPath, onProgress) async {
@@ -183,11 +174,13 @@ void main() {
     final firstRoot = _dartTree();
     final secondRoot = _dartTree();
     final cache = LineAgeCache.instance;
+    final bothStarted = Completer<void>();
     final release = Completer<void>();
     final startedRoots = <String>[];
     cache.resetForTest(
       analyzeOverride: (repoPath, onProgress) async {
         startedRoots.add(repoPath);
+        if (startedRoots.length == 2) bothStarted.complete();
         await release.future;
         return _report(totalLines: startedRoots.length);
       },
@@ -195,8 +188,7 @@ void main() {
 
     final first = cache.analyzeOrCached(firstRoot.path);
     final second = cache.analyzeOrCached(secondRoot.path);
-    await Future<void>.delayed(Duration.zero);
-    expect(startedRoots, hasLength(2));
+    await bothStarted.future;
     release.complete();
     await Future.wait([first, second]);
   });
@@ -213,8 +205,14 @@ void main() {
       LineAgeCache.instance.resetForTest(persistenceDirectory: persistenceRoot);
       LineAgeCache.instance.put(
         gitRoot: root.path,
-        fingerprint: LineAgeCache.computeFingerprint(root.path),
-        report: _report(totalLines: 314),
+        measured: MeasuredLineAge(
+          gitState: const ProjectSourceGitState(
+            headCommit: 'abc123',
+            headCommittedAt: null,
+            uncommittedFileStamps: {'lib/a.dart': '15:1'},
+          ),
+          report: _report(totalLines: 314),
+        ),
       );
       await Future<void>.delayed(Duration.zero);
 
@@ -247,6 +245,7 @@ Future<Directory> _committedGitTree() async {
   File(path.join(root.path, 'lib', 'a.dart'))
     ..createSync(recursive: true)
     ..writeAsStringSync('void main() {}\n');
+  File(path.join(root.path, 'lib', 'b.dart')).writeAsStringSync('class B {}\n');
   await _git(root, ['add', '.']);
   await _git(root, ['commit', '-m', 'init']);
   return root;
@@ -266,3 +265,28 @@ LineAgeReport _report({required int totalLines}) {
     fileCount: 1,
   );
 }
+
+/// Every file one line, last touched in 2001, so reused counts stand out.
+LineAgeReport _reportAllIn2001(List<String> files) {
+  return LineAgeReport(
+    repoName: 'tmp',
+    months: [
+      LineAgeMonth(
+        month: '2001-01',
+        totalLines: files.length,
+        segments: [
+          for (final file in files) LineAgeSegment(file: file, lineCount: 1),
+        ],
+      ),
+    ],
+    totalLinesByFile: {for (final file in files) file: 1},
+    totalLines: files.length,
+    fileCount: files.length,
+  );
+}
+
+List<String> _filesIn2001(LineAgeReport report) => [
+  for (final month in report.months)
+    if (month.month == '2001-01')
+      for (final segment in month.segments) segment.file,
+];

@@ -5,24 +5,27 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import 'line_age_analyzer.dart';
 import 'line_age_report.dart';
+import 'project_source_git_state.dart';
 
 class const LineAgeCacheRecord({
   required final String gitRoot,
-  required final String fingerprint,
-  required final LineAgeReport report,
+  required final MeasuredLineAge measured,
 }) {
   Map<String, Object?> toJson() => {
     'gitRoot': gitRoot,
-    'fingerprint': fingerprint,
-    'report': report.toJson(),
+    'gitState': measured.gitState.toJson(),
+    'report': measured.report.toJson(),
   };
 
   factory fromJson(Map<String, dynamic> json) {
     return LineAgeCacheRecord(
       gitRoot: json['gitRoot'] as String,
-      fingerprint: json['fingerprint'] as String,
-      report: LineAgeReport.fromJson(json['report'] as Map<String, dynamic>),
+      measured: MeasuredLineAge(
+        gitState: ProjectSourceGitState.fromJson(json['gitState']),
+        report: LineAgeReport.fromJson(json['report'] as Map<String, dynamic>),
+      ),
     );
   }
 }
@@ -60,8 +63,7 @@ class LineAgeCachePersistence({final Directory? _directoryOverride}) {
 
   Future<void> write({
     required String gitRoot,
-    required String fingerprint,
-    required LineAgeReport report,
+    required MeasuredLineAge measured,
   }) async {
     final normalizedRoot = path.normalize(gitRoot);
     final file = await _fileFor(normalizedRoot);
@@ -70,8 +72,7 @@ class LineAgeCachePersistence({final Directory? _directoryOverride}) {
       jsonEncode(
         LineAgeCacheRecord(
           gitRoot: normalizedRoot,
-          fingerprint: fingerprint,
-          report: report,
+          measured: measured,
         ).toJson(),
       ),
     );

@@ -53,7 +53,9 @@ class LocalRunHttpRoutes({
       ..post('/runs/stop', _stopLocalRun)
       ..post('/runs/hot-reload', _hotReloadLocalRun)
       ..post('/runs/hot-restart', _hotRestartLocalRun)
-      ..post('/runs/full-restart', _fullRestartLocalRun);
+      ..post('/runs/full-restart', _fullRestartLocalRun)
+      ..post('/runs/info-logs', _setLocalRunInfoLogs)
+      ..post('/runs/eval', _evaluateInLocalRun);
   }
 
   Future<Response> _listLocalRuns(Request request) async {
@@ -174,7 +176,52 @@ class LocalRunHttpRoutes({
   }
 
   Future<Response> _fullRestartLocalRun(Request request) async {
-    return _invokeLocalRunCommand(request, (controls) => controls.fullRestart());
+    return _invokeLocalRunCommand(
+      request,
+      (controls) => controls.fullRestart(),
+    );
+  }
+
+  Future<Response> _setLocalRunInfoLogs(Request request) async {
+    try {
+      final body =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final target = LocalRunTarget.fromBody(body);
+      final enabled = body['enabled'];
+      if (enabled is! bool) {
+        return jsonError('enabled must be true or false', status: 400);
+      }
+      final controls = localRunRegistry.controlsFor(target.runKey);
+      await controls.setInfoLogs(enabled);
+      return jsonOk(controls.state.toJson());
+    } on FormatException catch (error) {
+      return jsonError(error.message, status: 400);
+    } catch (error) {
+      return jsonError(error.toString(), status: 500);
+    }
+  }
+
+  Future<Response> _evaluateInLocalRun(Request request) async {
+    try {
+      final body =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final target = LocalRunTarget.fromBody(body);
+      final expression = body['expression'] as String?;
+      if (expression == null || expression.isEmpty) {
+        return jsonError('expression is required', status: 400);
+      }
+      final value = await localRunRegistry
+          .controlsFor(target.runKey)
+          .evaluateInApp(
+            expression,
+            librarySuffix: body['librarySuffix'] as String?,
+          );
+      return jsonOk({'value': value});
+    } on FormatException catch (error) {
+      return jsonError(error.message, status: 400);
+    } catch (error) {
+      return jsonError(error.toString(), status: 500);
+    }
   }
 
   Future<Response> _invokeLocalRunCommand(

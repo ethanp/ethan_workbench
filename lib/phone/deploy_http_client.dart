@@ -390,6 +390,47 @@ class DeployServerClient({
     );
   }
 
+  Future<LocalRunState> setLocalRunInfoLogs({
+    required String projectId,
+    required String deviceKey,
+    required bool enabled,
+  }) async {
+    final response = await _httpClient.post(
+      Uri.parse('$_baseUrl/runs/info-logs'),
+      headers: _headers,
+      body: jsonEncode({
+        'projectId': projectId,
+        'deviceKey': deviceKey,
+        'enabled': enabled,
+      }),
+    );
+    _throwIfFailed(response, 'Failed to switch info logs');
+    return LocalRunState.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<String> evaluateInLocalRun({
+    required String projectId,
+    required String deviceKey,
+    required String expression,
+    String? librarySuffix,
+  }) async {
+    final response = await _httpClient.post(
+      Uri.parse('$_baseUrl/runs/eval'),
+      headers: _headers,
+      body: jsonEncode({
+        'projectId': projectId,
+        'deviceKey': deviceKey,
+        'expression': expression,
+        'librarySuffix': ?librarySuffix,
+      }),
+    );
+    _throwIfFailed(response, 'Failed to evaluate in the app');
+    return (jsonDecode(response.body) as Map<String, dynamic>)['value']
+        as String;
+  }
+
   Future<LocalRunState> _postLocalRun(
     String path, {
     required String projectId,

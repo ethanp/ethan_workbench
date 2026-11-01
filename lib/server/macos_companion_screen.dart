@@ -28,8 +28,7 @@ import 'workbench_loopback.dart';
 
 const _log = ELogger('MacosCompanion');
 
-class const MacosCompanionScreen({final ProviderContainer? syncContainer})
-    extends StatefulWidget {
+class const MacosCompanionScreen() extends StatefulWidget {
   @override
   State<MacosCompanionScreen> createState() => _MacosCompanionScreenState();
 }
@@ -137,11 +136,10 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
     if (!ethanWorkbenchSyncConfigured()) return;
     final inProcessServer = _inProcessServer;
     if (inProcessServer == null) return;
-    final container = widget.syncContainer;
-    if (container == null) return;
-    final databaseManager = await container.read(
-      powerSyncDatabaseManagerProvider.future,
-    );
+    final databaseManager = await ProviderScope.containerOf(
+      context,
+      listen: false,
+    ).read(powerSyncDatabaseManagerProvider.future);
     inProcessServer.attachLedger(DeployLedger(databaseManager.database));
     if (mounted) setState(() => _ledgerGeneration++);
   }
@@ -265,10 +263,7 @@ class _MacosCompanionScreenState() extends State<MacosCompanionScreen> {
             SelectableText(_statusMessage!, style: EText.caption),
           ],
           const SizedBox(height: 14),
-          const SizedBox(
-            height: 280,
-            child: EAppLogViewer(maxBodyHeight: 220),
-          ),
+          const SizedBox(height: 280, child: EAppLogViewer(maxBodyHeight: 220)),
         ],
       ),
     );

@@ -20,7 +20,11 @@ class const LineAgeSelectedMonthAndYears({
   }
 
   void _paintSelectedMonthThroughPanes(Canvas canvas) {
-    for (var monthIndex = 0; monthIndex < report.timelineMonths.length; monthIndex++) {
+    for (
+      var monthIndex = 0;
+      monthIndex < report.timelineMonths.length;
+      monthIndex++
+    ) {
       final month = report.timelineMonths[monthIndex];
       final isSelected = emphasis.isSelected(month.month);
       final isHovered = emphasis.isHovered(month.month);

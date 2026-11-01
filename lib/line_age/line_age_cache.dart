@@ -5,15 +5,12 @@ import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
+import 'line_age_analysis_cancelled.dart';
 import 'line_age_analyzer.dart';
 import 'line_age_cache_persistence.dart';
 import 'line_age_report.dart';
 import 'project_source.dart';
-
-class const _LineAgeCacheEntry({
-  required final String fingerprint,
-  required final LineAgeReport report,
-});
+import 'project_source_git_state.dart';
 
 /// One shared analysis for a git root. Cancellation is global to that root:
 /// [cancel] stops the underlying work and every waiter receives the error.
@@ -27,7 +24,7 @@ class _LineAgeInFlight({
 class LineAgeCache._() extends ChangeNotifier {
   static final LineAgeCache instance = LineAgeCache._();
 
-  final Map<String, _LineAgeCacheEntry> _entries = {};
+  final Map<String, MeasuredLineAge> _entries = {};
   final Map<String, _LineAgeInFlight> _inFlight = {};
   LineAgeCachePersistence _persistence = LineAgeCachePersistence();
   bool _persistToDisk = true;
@@ -71,13 +68,7 @@ class LineAgeCache._() extends ChangeNotifier {
     try {
       final records = await _persistence.readAll();
       for (final record in records.entries) {
-        _entries.putIfAbsent(
-          record.key,
-          () => _LineAgeCacheEntry(
-            fingerprint: record.value.fingerprint,
-            report: record.value.report,
-          ),
-        );
+        _entries.putIfAbsent(record.key, () => record.value.measured);
       }
       notifyListeners();
     } catch (_) {
@@ -89,20 +80,9 @@ class LineAgeCache._() extends ChangeNotifier {
   static String? gitRootFor(String repoPath) =>
       LineAgeAnalyzer.findGitRoot(repoPath);
 
-  /// Fingerprint of project source: count + path/size/mtime/ctime.
-  static String computeFingerprint(String gitRoot) =>
-      ProjectSource.at(gitRoot).fingerprint;
-
-  /// Last stored report for [gitRoot], even if the dart tree has changed.
+  /// Last stored report for [gitRoot], even if project source has changed.
   LineAgeReport? lastStoredReport(String gitRoot) =>
       _entries[path.normalize(gitRoot)]?.report;
-
-  bool isFingerprintCurrent(String gitRoot) {
-    final normalizedRoot = path.normalize(gitRoot);
-    final entry = _entries[normalizedRoot];
-    if (entry == null) return false;
-    return entry.fingerprint == computeFingerprint(normalizedRoot);
-  }
 
   /// Compact SLOC for the workbench button from the last stored report.
   /// Freshness is checked when opening Line age, not on every list paint.
@@ -114,29 +94,19 @@ class LineAgeCache._() extends ChangeNotifier {
     return entry.report.totalLines.asCompactCount;
   }
 
-  void put({
-    required String gitRoot,
-    required String fingerprint,
-    required LineAgeReport report,
-  }) {
+  void put({required String gitRoot, required MeasuredLineAge measured}) {
     final normalizedRoot = path.normalize(gitRoot);
-    _entries[normalizedRoot] = _LineAgeCacheEntry(
-      fingerprint: fingerprint,
-      report: report,
-    );
+    _entries[normalizedRoot] = measured;
     notifyListeners();
     if (_persistToDisk) {
       unawaited(
-        _persistence.write(
-          gitRoot: normalizedRoot,
-          fingerprint: fingerprint,
-          report: report,
-        ),
+        _persistence.write(gitRoot: normalizedRoot, measured: measured),
       );
     }
   }
 
-  /// Returns a fresh cached report, or runs blame and stores the result.
+  /// Returns the stored report when git state is unchanged; otherwise
+  /// reblames only the files that changed since it and stores the result.
   Future<LineAgeReport> analyzeOrCached(
     String repoPath, {
     void Function(LineAgeProgress progress)? onProgress,
@@ -147,23 +117,25 @@ class LineAgeCache._() extends ChangeNotifier {
       throw StateError('Not inside a git repository: $repoPath');
     }
     final normalizedRoot = path.normalize(gitRoot);
-    final projectSource = ProjectSource.at(normalizedRoot);
-    final fingerprint = projectSource.fingerprint;
-    final existing = _entries[normalizedRoot];
-    if (existing != null && existing.fingerprint == fingerprint) {
-      return existing.report;
+    var flight = _inFlight[normalizedRoot];
+    if (flight == null) {
+      final projectSource = ProjectSource.at(normalizedRoot);
+      final gitState = await ProjectSourceGitState.read(projectSource);
+      final previous = _entries[normalizedRoot];
+      if (previous != null && previous.gitState == gitState) {
+        return previous.report;
+      }
+      flight = _claimInFlight(
+        repoPath: repoPath,
+        normalizedRoot: normalizedRoot,
+        projectSource: projectSource,
+        previous: previous,
+        gitState: gitState,
+      );
     }
-
-    final flight = _claimInFlight(
-      repoPath: repoPath,
-      normalizedRoot: normalizedRoot,
-      projectSource: projectSource,
-    );
     if (onProgress != null) flight.progressListeners.add(onProgress);
     try {
-      final report = await flight.report;
-      put(gitRoot: normalizedRoot, fingerprint: fingerprint, report: report);
-      return report;
+      return await flight.report;
     } finally {
       if (identical(_inFlight[normalizedRoot], flight)) {
         _inFlight.remove(normalizedRoot);
@@ -171,11 +143,14 @@ class LineAgeCache._() extends ChangeNotifier {
     }
   }
 
-  /// Sync claim: the second caller joins the same [_LineAgeInFlight].
+  /// Sync claim: a caller that raced through its git read joins the same
+  /// [_LineAgeInFlight]. The analysis stores its own result.
   _LineAgeInFlight _claimInFlight({
     required String repoPath,
     required String normalizedRoot,
     required ProjectSource projectSource,
+    required MeasuredLineAge? previous,
+    required ProjectSourceGitState gitState,
   }) {
     final existingFlight = _inFlight[normalizedRoot];
     if (existingFlight != null) return existingFlight;
@@ -185,7 +160,7 @@ class LineAgeCache._() extends ChangeNotifier {
     void cancel() {
       analyzer?.cancel();
       if (!cancelled.isCompleted) {
-        cancelled.completeError(StateError('Line age analysis cancelled.'));
+        cancelled.completeError(const LineAgeAnalysisCancelled());
       }
     }
 
@@ -198,14 +173,26 @@ class LineAgeCache._() extends ChangeNotifier {
 
     final work = () async {
       final analyzeOverride = _analyzeOverride;
+      final LineAgeReport report;
       if (analyzeOverride != null) {
-        return analyzeOverride(repoPath, emitProgress);
+        report = await analyzeOverride(repoPath, emitProgress);
+      } else {
+        final lineAgeAnalyzer = LineAgeAnalyzer(
+          repoPath: repoPath,
+          projectSource: projectSource,
+        );
+        analyzer = lineAgeAnalyzer;
+        report = await lineAgeAnalyzer.analyze(
+          onProgress: emitProgress,
+          previous: previous,
+          currentGitState: gitState,
+        );
       }
-      analyzer = LineAgeAnalyzer(
-        repoPath: repoPath,
-        projectSource: projectSource,
+      put(
+        gitRoot: normalizedRoot,
+        measured: MeasuredLineAge(gitState: gitState, report: report),
       );
-      return analyzer!.analyze(onProgress: emitProgress);
+      return report;
     }();
 
     final flight = _LineAgeInFlight(

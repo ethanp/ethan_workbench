@@ -25,6 +25,7 @@ class const HomescreenPaneWidths({
 class HomescreenRailSelection({required final void Function() onChanged}) {
   static const queueOnlyWidth = 260.0;
   static const detailPaneMinWidth = 440.0;
+  static const listMinWidth = 240.0;
 
   DeployJob? inlineJob;
   LocalRunControls? inlineRun;
@@ -57,6 +58,14 @@ class HomescreenRailSelection({required final void Function() onChanged}) {
       hasQueuePanelContent: hasQueuePanelContent,
     );
     final runMin = runPaneMinWidth;
+    final paneBudget = math.max(0.0, totalWidth - listMinWidth);
+    if (deployMin + runMin > paneBudget) {
+      final shrink = paneBudget / (deployMin + runMin);
+      return HomescreenPaneWidths(
+        deploy: deployMin * shrink,
+        run: runMin * shrink,
+      );
+    }
     final listPadH = compact ? 6.0 : ELayout.spaceXl;
     final saturatedListWidth =
         listPadH * 2 +

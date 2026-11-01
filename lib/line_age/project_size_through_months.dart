@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:ethan_utils/ethan_utils.dart';
 
+import 'line_age_analysis_cancelled.dart';
 import 'line_age_report.dart';
 import 'project_source.dart';
 
@@ -13,16 +14,23 @@ class ProjectSizeThroughMonths(final ProjectSource projectSource) {
 
   void cancel() => _cancelled = true;
 
-  Future<ProjectSizeByMonth> along(Iterable<String> yearMonths) async {
+  /// Months in [settledSizes] keep their earlier size; the rest are measured.
+  Future<ProjectSizeByMonth> along(
+    Iterable<String> yearMonths, {
+    ProjectSizeByMonth settledSizes = const ProjectSizeByMonth(),
+  }) async {
     final currentYearMonth = DateTime.now().yearMonthKey;
     final linesByYearMonth = <String, int>{};
     for (final yearMonth in yearMonths) {
       if (_cancelled) {
-        throw StateError('Line age analysis cancelled.');
+        throw const LineAgeAnalysisCancelled();
       }
-      linesByYearMonth[yearMonth] = yearMonth == currentYearMonth
-          ? projectSource.lineCountAsOfToday
-          : await _sizeAtMonthEnd(yearMonth);
+      if (yearMonth == currentYearMonth) {
+        linesByYearMonth[yearMonth] = projectSource.lineCountAsOfToday;
+        continue;
+      }
+      linesByYearMonth[yearMonth] =
+          settledSizes.at(yearMonth) ?? await _sizeAtMonthEnd(yearMonth);
     }
     return ProjectSizeByMonth(linesByYearMonth: linesByYearMonth);
   }
@@ -98,11 +106,12 @@ class ProjectSizeThroughMonths(final ProjectSource projectSource) {
   Future<String> _emptyTree() async {
     final cached = _emptyTreeHash;
     if (cached != null) return cached;
-    final process = await Process.start(
-      'git',
-      ['hash-object', '-t', 'tree', '--stdin'],
-      workingDirectory: projectSource.gitRoot,
-    );
+    final process = await Process.start('git', [
+      'hash-object',
+      '-t',
+      'tree',
+      '--stdin',
+    ], workingDirectory: projectSource.gitRoot);
     await process.stdin.close();
     final hash = (await process.stdout.transform(utf8.decoder).join()).trim();
     final exitCode = await process.exitCode;

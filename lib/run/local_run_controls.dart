@@ -17,4 +17,13 @@ abstract class LocalRunControls() {
   Future<void> hotReload();
   Future<void> hotRestart();
   Future<void> fullRestart();
+
+  /// Streams the app's info-level log lines into the run log while [enabled].
+  /// See [LocalRunState.infoLogs].
+  Future<void> setInfoLogs(bool enabled);
+
+  /// Evaluates a Dart [expression] in the running app and returns its
+  /// `toString()`. [librarySuffix] picks the library scope; the default is
+  /// the one that defines `appLogBuffer`.
+  Future<String> evaluateInApp(String expression, {String? librarySuffix});
 }

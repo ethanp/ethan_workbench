@@ -108,8 +108,9 @@ class WorkbenchCli() {
     final projects = payload['projects'] as List<dynamic>? ?? const [];
     for (final project in projects) {
       final map = project as Map<String, dynamic>;
-      final platforms = (map['platforms'] as List<dynamic>? ?? const [])
-          .join(',');
+      final platforms = (map['platforms'] as List<dynamic>? ?? const []).join(
+        ',',
+      );
       stdout.writeln('${map['projectId']}\t${map['name']}\t$platforms');
     }
   }
@@ -252,7 +253,10 @@ class WorkbenchCli() {
     final rest = arguments.skip(1).toList();
     var deviceKey = 'macos';
     String? projectId;
-    for (final argument in rest) {
+    String? expression;
+    String? librarySuffix;
+    for (var index = 0; index < rest.length; index++) {
+      final argument = rest[index];
       switch (argument) {
         case '--macos':
         case 'macos':
@@ -261,13 +265,24 @@ class WorkbenchCli() {
         case '--mesim':
         case 'meSim':
           deviceKey = 'meSim';
+        case '--library':
+          if (index + 1 >= rest.length) {
+            stderr.writeln('--library needs a library URI suffix');
+            exitCode = 1;
+            return;
+          }
+          librarySuffix = rest[++index];
         default:
           if (argument.startsWith('-')) {
             stderr.writeln('Unknown flag: $argument');
             exitCode = 1;
             return;
           }
-          projectId ??= argument;
+          if (projectId == null) {
+            projectId = argument;
+          } else {
+            expression ??= argument;
+          }
       }
     }
     if (projectId == null || projectId.isEmpty) {
@@ -310,6 +325,30 @@ class WorkbenchCli() {
           endpoint: '/runs/full-restart',
           projectId: projectId,
           deviceKey: deviceKey,
+        );
+      case 'info-logs':
+        if (expression != 'on' && expression != 'off') {
+          _runUsage();
+          exitCode = 1;
+          return;
+        }
+        await _postLocalRunCommand(
+          endpoint: '/runs/info-logs',
+          projectId: projectId,
+          deviceKey: deviceKey,
+          body: {'enabled': expression == 'on'},
+        );
+      case 'eval':
+        if (expression == null) {
+          _runUsage();
+          exitCode = 1;
+          return;
+        }
+        await _evaluateInLocalRun(
+          projectId: projectId,
+          deviceKey: deviceKey,
+          expression: expression,
+          librarySuffix: librarySuffix,
         );
       default:
         stderr.writeln('Unknown run command: $subcommand');
@@ -354,13 +393,18 @@ class WorkbenchCli() {
     required String endpoint,
     required String projectId,
     required String deviceKey,
+    Map<String, Object?> body = const {},
   }) async {
     http.Response response;
     try {
       response = await http.post(
         Uri.parse('$_baseUrl$endpoint'),
         headers: _headers,
-        body: jsonEncode({'projectId': projectId, 'deviceKey': deviceKey}),
+        body: jsonEncode({
+          'projectId': projectId,
+          'deviceKey': deviceKey,
+          ...body,
+        }),
       );
     } on SocketException {
       stderr.writeln(_daemonDownHint);
@@ -373,6 +417,39 @@ class WorkbenchCli() {
       return;
     }
     _printLocalRun(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<void> _evaluateInLocalRun({
+    required String projectId,
+    required String deviceKey,
+    required String expression,
+    required String? librarySuffix,
+  }) async {
+    http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('$_baseUrl/runs/eval'),
+        headers: _headers,
+        body: jsonEncode({
+          'projectId': projectId,
+          'deviceKey': deviceKey,
+          'expression': expression,
+          'librarySuffix': ?librarySuffix,
+        }),
+      );
+    } on SocketException {
+      stderr.writeln(_daemonDownHint);
+      exitCode = 1;
+      return;
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      _printHttpError(response);
+      exitCode = 1;
+      return;
+    }
+    stdout.writeln(
+      (jsonDecode(response.body) as Map<String, dynamic>)['value'] as String,
+    );
   }
 
   void _printLocalRun(Map<String, dynamic> runMap) {
@@ -394,7 +471,10 @@ class WorkbenchCli() {
   void _runUsage() {
     stderr.writeln(
       'Usage: workbench run <status|start|stop|hot-reload|hot-restart|'
-      'full-restart|log> <projectId> [--macos|--meSim]',
+      'full-restart|log> <projectId> [--macos|--meSim]\n'
+      '       workbench run info-logs <projectId> [--macos|--meSim] on|off\n'
+      "       workbench run eval <projectId> [--macos|--meSim] '<dart expression>' "
+      '[--library <uri suffix>]',
     );
   }
 
@@ -694,13 +774,20 @@ class WorkbenchCli() {
     if (bootstrap.exitCode != 0) {
       final err = (bootstrap.stderr as String).trim();
       if (err.isNotEmpty) stderr.writeln(err);
-      stdout.writeln('launchctl bootstrap failed; starting a detached process.');
-      await Process.start(_flutterSdk, [
-        'test',
-        'tool/workbench_daemon_harness.dart',
-        '--reporter',
-        'failures-only',
-      ], workingDirectory: packageRoot.path, mode: ProcessStartMode.detached);
+      stdout.writeln(
+        'launchctl bootstrap failed; starting a detached process.',
+      );
+      await Process.start(
+        _flutterSdk,
+        [
+          'test',
+          'tool/workbench_daemon_harness.dart',
+          '--reporter',
+          'failures-only',
+        ],
+        workingDirectory: packageRoot.path,
+        mode: ProcessStartMode.detached,
+      );
     }
     for (var attempt = 0; attempt < 80; attempt++) {
       if (await isHealthy) {
@@ -757,6 +844,7 @@ Usage: workbench <command>
   job [jobId]
   runs
   run <status|start|stop|hot-reload|hot-restart|full-restart|log> <projectId> [--macos|--meSim]
+  run eval <projectId> [--macos|--meSim] '<dart expression>' [--library <uri suffix>]
   daemon start|stop|restart|status|install
 ''');
   }

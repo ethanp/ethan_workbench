@@ -97,7 +97,7 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
         const SizedBox(height: 14),
         _actions(),
         const SizedBox(height: 14),
-        Text('RUN LOG', style: EText.label.small),
+        _runLogHeader(),
         const SizedBox(height: 8),
         Expanded(
           child: LogConsole(
@@ -110,6 +110,29 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
                 color: EColors.success,
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _runLogHeader() {
+    return Row(
+      children: [
+        Text('RUN LOG', style: EText.label.small),
+        const Spacer(),
+        Tooltip(
+          message: _state.infoLogs
+              ? 'Streaming the app\'s info log lines into this log'
+              : 'Also show the app\'s info log lines (flutter run prints '
+                    'only warnings and errors)',
+          child: EFilterChip(
+            label: 'info logs',
+            color: EColors.accentGlow,
+            selected: _state.infoLogs,
+            compact: true,
+            onActivated: () =>
+                unawaited(widget.session.setInfoLogs(!_state.infoLogs)),
           ),
         ),
       ],
@@ -163,20 +186,11 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
           tone: _state.status.chipTone,
         ),
         if (_state.readyForKeyCommands)
-          const EStatusChip(
-            label: 'Ready',
-            tone: EStatusTone.success,
-          ),
+          const EStatusChip(label: 'Ready', tone: EStatusTone.success),
         if (_state.flutterException != null)
-          const EStatusChip(
-            label: 'Exception',
-            tone: EStatusTone.danger,
-          ),
+          const EStatusChip(label: 'Exception', tone: EStatusTone.danger),
         if (_state.reattached)
-          const EStatusChip(
-            label: 'Reattached',
-            tone: EStatusTone.warning,
-          ),
+          const EStatusChip(label: 'Reattached', tone: EStatusTone.warning),
         if (_state.exitCode != null)
           Text('Exit ${_state.exitCode}', style: EText.caption),
       ],
@@ -236,7 +250,10 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [Expanded(child: details), copyButton],
+          children: [
+            Expanded(child: details),
+            copyButton,
+          ],
         );
       },
     );

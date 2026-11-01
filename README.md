@@ -22,6 +22,9 @@ deploy queue). Workspace rule: `.cursor/rules/ubiquitous-language.mdc`.
 | install step | The deploy step that puts the built app on the iPhone or into /Applications |
 | install | Performs an install step. A failed install step can be performed again without rebuilding |
 | ledger | PowerSync `deploy_runs` / History tab (not the live queue) |
+| local run | One `flutter run` the daemon owns for a project on a device (`macos`, `meSim`) |
+| run log | A local run's live `flutter run` output: warnings, errors, and the tool's own lines |
+| info logs | The app's `ELogger.log` lines, which `flutter run` never prints, streamed from its VM service into the run log while the toggle is on |
 | restart after queue | Daemon exits once idle; LaunchAgent brings it back |
 
 ### Screenshots

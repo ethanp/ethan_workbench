@@ -1,11 +1,9 @@
-import 'dart:collection';
-import 'dart:math' as math;
-
 import 'package:ethan_utils/ethan_utils.dart';
 import 'package:path/path.dart' as path;
 
 import 'flutter_git_repos.dart';
 import 'line_age_analysis.dart';
+import 'line_age_analysis_cancelled.dart';
 import 'line_age_cache.dart';
 import 'line_age_directory_groups.dart';
 import 'line_age_repo_groups.dart';
@@ -16,8 +14,6 @@ const _logger = ELogger('FlutterLineAge');
 /// Last-touched months across every immediate git checkout under Flutter roots.
 class FlutterLineAge({required final List<String> flutterRoots})
     implements LineAgeAnalysis {
-  static const _maxConcurrentBlames = 2;
-
   final FlutterGitRepos _flutterGitRepos = FlutterGitRepos(
     flutterRoots: flutterRoots,
   );
@@ -92,7 +88,7 @@ class FlutterLineAge({required final List<String> flutterRoots})
     );
 
     if (_cancelled) {
-      throw StateError('Line age analysis cancelled.');
+      throw const LineAgeAnalysisCancelled();
     }
     return LineAgeReport.acrossRepos(reportsByRoot.values.toList());
   }
@@ -104,22 +100,15 @@ class FlutterLineAge({required final List<String> flutterRoots})
     required void Function(LineAgeProgress progress)? onProgress,
     required _FleetBlameProgress blameProgress,
   }) async {
-    final pending = Queue<String>.of(roots);
-    Future<void> worker() async {
-      while (pending.isNotEmpty && !_cancelled) {
-        await _analyzeOneGitRoot(
-          gitRoot: pending.removeFirst(),
+    await Future.wait([
+      for (final gitRoot in roots)
+        _analyzeOneGitRoot(
+          gitRoot: gitRoot,
           reportsByRoot: reportsByRoot,
           onPartialReport: onPartialReport,
           onProgress: onProgress,
           blameProgress: blameProgress,
-        );
-      }
-    }
-
-    final workerCount = math.min(_maxConcurrentBlames, roots.length);
-    await Future.wait([
-      for (var index = 0; index < workerCount; index++) worker(),
+        ),
     ]);
   }
 
@@ -157,6 +146,8 @@ class FlutterLineAge({required final List<String> flutterRoots})
       }
       reportsByRoot[gitRoot] = report;
       _emitPartial(reportsByRoot, onPartialReport);
+    } on LineAgeAnalysisCancelled {
+      return;
     } catch (error, stackTrace) {
       _logger.warn('Fleet line age failed for $gitRoot', error, stackTrace);
     }

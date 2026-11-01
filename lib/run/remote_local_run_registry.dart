@@ -246,4 +246,23 @@ class RemoteLocalRunSlot({
     );
     remoteRunRegistry.adopt(runState);
   }
+
+  @override
+  Future<void> setInfoLogs(bool enabled) async {
+    final runState = await remoteRunRegistry.server.setLocalRunInfoLogs(
+      projectId: runKey.projectId,
+      deviceKey: runKey.deviceKey,
+      enabled: enabled,
+    );
+    remoteRunRegistry.adopt(runState);
+  }
+
+  @override
+  Future<String> evaluateInApp(String expression, {String? librarySuffix}) =>
+      remoteRunRegistry.server.evaluateInLocalRun(
+        projectId: runKey.projectId,
+        deviceKey: runKey.deviceKey,
+        expression: expression,
+        librarySuffix: librarySuffix,
+      );
 }

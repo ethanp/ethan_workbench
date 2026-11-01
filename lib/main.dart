@@ -1,51 +1,17 @@
 import 'dart:io';
 
 import 'package:ethan_sync/ethan_sync.dart';
-import 'package:ethan_utils/ethan_utils.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'server/macos_companion_screen.dart';
+
 import 'app_identity.dart';
 import 'phone/phone_home.dart';
+import 'server/macos_companion_screen.dart';
 import 'sync/sync_config.dart';
 
-import 'package:ethan_ui/ethan_ui.dart';
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await loadAppDotEnv();
-
-  final container = ProviderContainer(
-    overrides: [
-      if (ethanWorkbenchSyncConfigured())
-        syncConfigProvider.overrideWith(
-          (ref) => buildEthanWorkbenchSyncConfig(),
-        ),
-    ],
-  );
-  if (ethanWorkbenchSyncConfigured()) {
-    await SyncLifecycle.start(container);
-  }
-
-  runApp(
-    UncontrolledProviderScope(
-      container: container,
-      child: EthanWorkbenchApp(container: container),
-    ),
-  );
-}
-
-class const EthanWorkbenchApp({required final ProviderContainer container})
-    extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppIdentity.displayName,
-      debugShowCheckedModeBanner: false,
-      theme: ETheme.material3Dark,
-      home: Platform.isMacOS
-          ? MacosCompanionScreen(syncContainer: container)
-          : const PhoneHome(),
-    );
-  }
+void main() {
+  SyncedAppLaunch(
+    appName: AppIdentity.displayName,
+    syncConfig: (_) => buildEthanWorkbenchSyncConfig(),
+    syncRequired: false,
+    home: Platform.isMacOS ? const MacosCompanionScreen() : const PhoneHome(),
+  ).launch();
 }

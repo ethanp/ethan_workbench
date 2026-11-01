@@ -49,6 +49,10 @@ class const LocalRunState({
   /// True when this session was reclaimed after a workbench restart (no stdin).
   final bool reattached = false,
 
+  /// While on, the app's info-level log lines (`ELogger.log`, which
+  /// `flutter run` never prints) stream from its VM service into [log].
+  final bool infoLogs = false,
+
   /// Latest high-signal Flutter EXCEPTION CAUGHT dump, if any.
   final FlutterRunException? flutterException,
 }) {
@@ -99,6 +103,7 @@ class const LocalRunState({
       errorMessage: json['errorMessage'] as String?,
       exitCode: json['exitCode'] as int?,
       reattached: json['reattached'] as bool? ?? false,
+      infoLogs: json['infoLogs'] as bool? ?? false,
       flutterException: exceptionJson is Map<String, dynamic>
           ? FlutterRunException.fromJson(exceptionJson)
           : null,
@@ -118,6 +123,7 @@ class const LocalRunState({
     'errorMessage': errorMessage,
     'exitCode': exitCode,
     'reattached': reattached,
+    'infoLogs': infoLogs,
     'flutterException': flutterException?.toJson(),
   };
 
@@ -134,6 +140,7 @@ class const LocalRunState({
     String? errorMessage,
     int? exitCode,
     bool? reattached,
+    bool? infoLogs,
     FlutterRunException? flutterException,
     bool clearError = false,
     bool clearExitCode = false,
@@ -155,6 +162,7 @@ class const LocalRunState({
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       exitCode: clearExitCode ? null : (exitCode ?? this.exitCode),
       reattached: reattached ?? this.reattached,
+      infoLogs: infoLogs ?? this.infoLogs,
       flutterException: clearFlutterException
           ? null
           : (flutterException ?? this.flutterException),

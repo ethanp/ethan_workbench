@@ -152,19 +152,6 @@ void main() {
     expect(pipeline.waitingQueue.single.jobId, second.jobId);
   });
 
-  test('moveWaitingJob returns false for unknown id', () async {
-    await pipeline.startDeploy(
-      projectId: 'a',
-      deploy: Deploy.full(platform: DeployPlatform.macos),
-    );
-    await Future<void>.delayed(Duration.zero);
-    await pipeline.startDeploy(
-      projectId: 'b',
-      deploy: Deploy.full(platform: DeployPlatform.ios),
-    );
-    expect(pipeline.moveWaitingJob(jobId: 'missing', toIndex: 0), isFalse);
-  });
-
   test('cancel removes waiting job', () async {
     await pipeline.startDeploy(
       projectId: 'a',

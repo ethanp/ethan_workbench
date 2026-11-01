@@ -14,10 +14,7 @@ class const LineAgeDirectoryLegendBar({
     return Padding(
       padding: const EdgeInsets.only(left: 56, right: 8),
       child: EChartLegend(
-        entries: [
-          for (final key in legend.orderedKeys)
-            _directoryEntry(key),
-        ],
+        entries: [for (final key in legend.orderedKeys) _directoryEntry(key)],
       ),
     );
   }

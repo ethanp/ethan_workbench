@@ -71,17 +71,11 @@ class const _RunningAppTile({
       key: runKey == null ? null : ValueKey(runKey.fileName),
       kind: ESurfaceKind.tinted,
       accent: _devicePlatform.accent,
-      onActivated: selected || runKey == null
-          ? null
-          : () => onSelected(runKey),
+      onActivated: selected || runKey == null ? null : () => onSelected(runKey),
       padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
       child: Row(
         children: [
-          Icon(
-            _devicePlatform.icon,
-            size: 12,
-            color: _devicePlatform.accent,
-          ),
+          Icon(_devicePlatform.icon, size: 12, color: _devicePlatform.accent),
           const SizedBox(width: ELayout.spaceSm),
           Expanded(
             child: Column(
@@ -99,9 +93,7 @@ class const _RunningAppTile({
                 const SizedBox(height: 2),
                 Text(
                   runState.status.chipLabel,
-                  style: EText.caption.copyWith(
-                    fontSize: ELayout.typeSize(11),
-                  ),
+                  style: EText.caption.copyWith(fontSize: ELayout.typeSize(11)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -109,11 +101,7 @@ class const _RunningAppTile({
             ),
           ),
           if (selected)
-            Icon(
-              Icons.check_rounded,
-              size: 16,
-              color: _devicePlatform.accent,
-            ),
+            Icon(Icons.check_rounded, size: 16, color: _devicePlatform.accent),
         ],
       ),
     );

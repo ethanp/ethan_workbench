@@ -10,6 +10,7 @@ import '../server/listening_tcp_port.dart';
 import '../server/server_endpoint.dart';
 import '../server/workbench_loopback.dart';
 import '../sync/deploy_ledger.dart';
+import '../sync/installed_app_sqlite_open_factory.dart';
 import '../sync/sync_config.dart';
 
 const _log = ELogger('WorkbenchDaemon');
@@ -35,7 +36,9 @@ class WorkbenchDaemonProcess() {
       stopped.complete();
     }
 
-    deployServer = DeployServer(onExitRequested: () => unawaited(requestStop()));
+    deployServer = DeployServer(
+      onExitRequested: () => unawaited(requestStop()),
+    );
     try {
       await deployServer.restoreLocalRun();
       await deployServer.start(takeOverOccupiedPort: false);
@@ -78,9 +81,14 @@ class WorkbenchDaemonProcess() {
       final syncContainer = ProviderContainer(
         overrides: [
           syncConfigProvider.overrideWith(
-            (ref) => buildEthanWorkbenchSyncConfig(),
+            (ref) => buildEthanWorkbenchSyncConfig(
+              openFactory: (databasePath) =>
+                  InstalledAppSqliteOpenFactory(path: databasePath),
+            ),
           ),
         ],
+        // A failed open must reach the catch below; retries never complete.
+        retry: (retryCount, error) => null,
       );
       final manager = await syncContainer.read(
         powerSyncDatabaseManagerProvider.future,
@@ -88,11 +96,7 @@ class WorkbenchDaemonProcess() {
       deployServer.attachLedger(DeployLedger(manager.database));
       stdout.writeln('Deploy history ledger attached');
       try {
-        await SyncLifecycle.start(
-          syncContainer,
-          schedulePostFrameReprobe: false,
-          followAppForeground: false,
-        );
+        await SyncLifecycle.start(syncContainer, followAppForeground: false);
       } catch (error, stackTrace) {
         _log.warn(
           'PowerSync connect failed; History still reads the local ledger',
