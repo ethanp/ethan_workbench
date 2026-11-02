@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:vm_service/vm_service.dart';
 import 'package:vm_service/vm_service_io.dart';
 
@@ -134,10 +135,11 @@ class RunningAppVm._(final VmService _vmService) {
   /// Isolates that exit while being listed are left out.
   Future<List<Isolate>> _allIsolates() async {
     final VM vm = await _vmService.getVM();
-    final List<Isolate?> isolates = await Future.wait([
-      for (final isolateRef in vm.isolates ?? const <IsolateRef>[])
-        _isolateStillRunning(isolateRef.id!),
-    ]);
+    final List<Isolate?> isolates = await Future.wait(
+      (vm.isolates ?? const <IsolateRef>[]).mapL(
+        (isolateRef) => _isolateStillRunning(isolateRef.id!),
+      ),
+    );
     return isolates.nonNulls.toList();
   }
 

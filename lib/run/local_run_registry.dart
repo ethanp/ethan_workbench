@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'local_run_controls.dart';
 import 'local_run_key.dart';
 import 'local_run_persistence.dart';
@@ -33,9 +35,8 @@ class MacLocalRunRegistry({LocalRunPersistence? persistence})
   Stream<LocalRunState> get stateUpdates => _stateUpdates.stream;
 
   @override
-  List<LocalRunState> get knownStates => [
-    for (final slot in _slots.values) slot.state,
-  ];
+  List<LocalRunState> get knownStates =>
+      _slots.values.mapL((slot) => slot.state);
 
   @override
   int get activeCount => _slots.values.where((slot) => slot.isActive).length;
@@ -69,9 +70,9 @@ class MacLocalRunRegistry({LocalRunPersistence? persistence})
 
   Future<void> restorePersisted() async {
     final records = await _persistence.readAll();
-    await Future.wait([
-      for (final record in records) _slotFor(record.runKey).restorePersisted(),
-    ]);
+    await Future.wait(
+      records.mapL((record) => _slotFor(record.runKey).restorePersisted()),
+    );
   }
 
   Future<void> dispose() async {
@@ -79,7 +80,7 @@ class MacLocalRunRegistry({LocalRunPersistence? persistence})
       await subscription.cancel();
     }
     _subscriptions.clear();
-    await Future.wait([for (final slot in _slots.values) slot.dispose()]);
+    await Future.wait(_slots.values.mapL((slot) => slot.dispose()));
     _slots.clear();
     await _changes.close();
     await _stateUpdates.close();

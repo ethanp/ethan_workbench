@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:ethan_utils/ethan_utils.dart';
@@ -26,6 +27,9 @@ class const LocalRunDetail({
 class _LocalRunDetailState() extends State<LocalRunDetail> {
   static const _twoAcrossActionsMinWidth = 240.0;
   static const _actionGap = 10.0;
+
+  /// Below this, status and actions scroll instead of squeezing the log.
+  static const _minRunLogHeight = 160.0;
 
   late LocalRunState _state;
   StreamSubscription<LocalRunState>? _subscription;
@@ -72,7 +76,7 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
       ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-        child: _runColumn(),
+        child: _runLogBelowScrollingStatus(),
       ),
     );
   }
@@ -85,34 +89,52 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
         ELayout.spaceMd,
         ELayout.spaceMd,
       ),
-      child: _runColumn(),
+      child: _runLogBelowScrollingStatus(),
     );
   }
 
-  Widget _runColumn() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _statusPanel(),
-        const SizedBox(height: 14),
-        _actions(),
-        const SizedBox(height: 14),
-        _runLogHeader(),
-        const SizedBox(height: 8),
-        Expanded(
-          child: LogConsole(
-            log: _state.log,
-            emptyMessage: '(waiting for flutter run…)',
-            trimBeforeLastHighlight: true,
-            highlights: [
-              LogConsoleHighlight(
-                pattern: FlutterRunOutput.sessionResetPattern,
-                color: EColors.success,
+  Widget _runLogBelowScrollingStatus() {
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: math.max(0, constraints.maxHeight - _minRunLogHeight),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _statusPanel(),
+                  const SizedBox(height: 14),
+                  _actions(),
+                  const SizedBox(height: 14),
+                  _runLogHeader(),
+                  const SizedBox(height: 8),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ],
+          _runLog(),
+        ],
+      ),
+    );
+  }
+
+  Widget _runLog() {
+    return Expanded(
+      child: LogConsole(
+        log: _state.log,
+        emptyMessage: '(waiting for flutter run…)',
+        trimBeforeLastHighlight: true,
+        highlights: [
+          LogConsoleHighlight(
+            pattern: FlutterRunOutput.sessionResetPattern,
+            color: EColors.success,
+          ),
+        ],
+      ),
     );
   }
 
@@ -307,10 +329,9 @@ class _LocalRunDetailState() extends State<LocalRunDetail> {
         return Wrap(
           spacing: _actionGap,
           runSpacing: _actionGap,
-          children: [
-            for (final plate in _runCommandPlates())
-              SizedBox(width: tileWidth, child: plate),
-          ],
+          children: _runCommandPlates().mapL(
+            (plate) => SizedBox(width: tileWidth, child: plate),
+          ),
         );
       },
     );

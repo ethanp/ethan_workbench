@@ -94,7 +94,7 @@ LineAgeMonth _month(String month) =>
 
 LineAgeReport _report(List<String> months) => LineAgeReport(
   repoName: 'test',
-  months: [for (final month in months) _month(month)],
+  months: months.mapL(_month),
   totalLinesByFile: const {},
   totalLines: months.length,
   fileCount: 1,

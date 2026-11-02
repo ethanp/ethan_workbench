@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -87,9 +90,9 @@ abstract final class LocalRunCursorMirror() {
           'assertion': flutterException.assertion,
           'promptText': flutterException.promptText,
         },
-      'mirrorDirectories': [
-        for (final directory in WorkbenchCursorDirs.directories) directory.path,
-      ],
+      'mirrorDirectories': WorkbenchCursorDirs.directories.mapL(
+        (directory) => directory.path,
+      ),
     };
     final encoded = const JsonEncoder.withIndent('  ').convert(payload);
     for (final directory in WorkbenchCursorDirs.directories) {

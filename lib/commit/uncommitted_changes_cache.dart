@@ -49,10 +49,9 @@ class UncommittedChangesCache._() extends ChangeNotifier {
       final normalized = path.normalize(gitRoot);
       if (roots.add(normalized)) pathsByRoot[normalized] = repoPath;
     }
-    await Future.wait([
-      for (final repoPath in pathsByRoot.values)
-        refresh(repoPath, notify: false),
-    ]);
+    await Future.wait(
+      pathsByRoot.values.mapL((repoPath) => refresh(repoPath, notify: false)),
+    );
     notifyListeners();
   }
 }

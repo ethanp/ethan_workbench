@@ -251,10 +251,9 @@ class DeployServerClient({
     _throwIfFailed(response, 'Failed to load deploy history');
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
     final runMaps = payload['runs'] as List<dynamic>? ?? const [];
-    return [
-      for (final runMap in runMaps)
-        DeployRunRecord.fromJson(runMap as Map<String, dynamic>),
-    ];
+    return runMaps.mapL(
+      (runMap) => DeployRunRecord.fromJson(runMap as Map<String, dynamic>),
+    );
   }
 
   /// Live job snapshots from `GET /jobs/events` (SSE). Completes when the
@@ -304,10 +303,9 @@ class DeployServerClient({
     _throwIfFailed(response, 'Failed to load local runs');
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
     final runs = payload['runs'] as List<dynamic>? ?? [];
-    return [
-      for (final run in runs)
-        LocalRunState.fromJson(run as Map<String, dynamic>),
-    ];
+    return runs.mapL(
+      (run) => LocalRunState.fromJson(run as Map<String, dynamic>),
+    );
   }
 
   Stream<LocalRunState> watchLocalRunEvents() async* {

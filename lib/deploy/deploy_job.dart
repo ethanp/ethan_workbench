@@ -77,7 +77,7 @@ class const DeployJob({
           ? null
           : Deploy.fromJson(json['deploy'] as Map<String, dynamic>),
       status: DeployJobStatus.fromName(json['status'] as String),
-      log: json['log'] as String? ?? '',
+      log: json['log'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       finishedAt: json['finishedAt'] == null
           ? null
@@ -85,10 +85,10 @@ class const DeployJob({
       exitCode: json['exitCode'] as int?,
       checklist: checklistJson == null
           ? const []
-          : [
-              for (final item in checklistJson)
-                DeployChecklistItem.fromJson(item as Map<String, dynamic>),
-            ],
+          : checklistJson.mapL(
+              (item) =>
+                  DeployChecklistItem.fromJson(item as Map<String, dynamic>),
+            ),
     );
   }
 

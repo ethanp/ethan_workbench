@@ -1,5 +1,7 @@
 import 'deploy_job.dart';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 /// Waiting jobs plus whether restart after queue is armed.
 class const DeployQueue({
   final List<DeployJob> waiting = const [],
@@ -8,10 +10,9 @@ class const DeployQueue({
   factory fromJson(Map<String, dynamic> json) {
     final jobMaps = json['jobs'] as List<dynamic>? ?? const [];
     return DeployQueue(
-      waiting: [
-        for (final jobMap in jobMaps)
-          DeployJob.fromJson(jobMap as Map<String, dynamic>),
-      ],
+      waiting: jobMaps.mapL(
+        (jobMap) => DeployJob.fromJson(jobMap as Map<String, dynamic>),
+      ),
       restartAfterQueue: json['restartAfterQueue'] as bool? ?? false,
     );
   }

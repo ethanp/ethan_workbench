@@ -1,4 +1,5 @@
 import 'package:ethan_sync/powersync_upsert.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:powersync/powersync.dart';
 
 import '../deploy/deploy_checklist.dart';
@@ -91,7 +92,7 @@ class DeployLedger(final PowerSyncDatabase _powerSync) {
       'FROM deploy_runs ORDER BY started_at DESC LIMIT ?',
       [limit],
     );
-    return [for (final row in rows) DeployRunRecord.fromLedgerRow(row)];
+    return rows.mapL(DeployRunRecord.fromLedgerRow);
   }
 
   /// Finished (or mid-run) job with persisted log, for history / HTTP fetch.
@@ -111,7 +112,7 @@ class DeployLedger(final PowerSyncDatabase _powerSync) {
       platform: DeployPlatform.fromName(row['platform'] as String),
       force: (row['force'] as int? ?? 0) != 0,
       status: DeployJobStatus.fromName(row['status'] as String),
-      log: row['log'] as String? ?? '',
+      log: row.stringOrEmpty('log'),
       createdAt: DateTime.fromMillisecondsSinceEpoch(row['started_at'] as int),
       finishedAt: finishedMillis == null
           ? null

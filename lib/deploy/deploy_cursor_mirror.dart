@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -91,9 +94,8 @@ abstract final class DeployCursorMirror() {
     final writeGeneration = generation ?? _statusGeneration;
     await WorkbenchCursorDirs.ensureResolved();
     if (writeGeneration != _statusGeneration) return;
-    final encoded = const JsonEncoder.withIndent(
-      '  ',
-    ).convert(_statusPayload(job, projectPath: projectPath));
+    final encoded = const JsonEncoder.withIndent('  ')
+        .convert(_statusPayload(job, projectPath: projectPath));
     for (final directory in WorkbenchCursorDirs.directories) {
       if (writeGeneration != _statusGeneration) return;
       await WorkbenchCursorDirs.writeSafely(
@@ -187,9 +189,9 @@ abstract final class DeployCursorMirror() {
           'For a failed deploy, read $lastFailedLogFileName (or errorTail / '
           'failureHint in $lastFailedStatusFileName) before the full log. '
           'While a deploy is running, use $logFileName.',
-      'mirrorDirectories': [
-        for (final directory in WorkbenchCursorDirs.directories) directory.path,
-      ],
+      'mirrorDirectories': WorkbenchCursorDirs.directories.mapL(
+        (directory) => directory.path,
+      ),
     };
   }
 }

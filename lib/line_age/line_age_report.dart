@@ -92,17 +92,16 @@ class const LineAgeMonth({
   Map<String, Object?> toJson() => {
     'month': month,
     'totalLines': totalLines,
-    'segments': [for (final segment in segments) segment.toJson()],
+    'segments': segments.mapL((segment) => segment.toJson()),
   };
 
   factory fromJson(Map<String, dynamic> json) {
     return LineAgeMonth(
       month: json['month'] as String,
       totalLines: json['totalLines'] as int,
-      segments: [
-        for (final segment in json['segments'] as List<dynamic>)
-          LineAgeSegment.fromJson(segment as Map<String, dynamic>),
-      ],
+      segments: (json['segments'] as List<dynamic>).mapL(
+        (segment) => LineAgeSegment.fromJson(segment as Map<String, dynamic>),
+      ),
     );
   }
 }
@@ -184,10 +183,10 @@ class const LineAgeReport({
       sortedKeys.last,
       DateTime.now().yearMonthKey,
     );
-    return [
-      for (final key in LineAgeMonth.keysFromTo(sortedKeys.first, lastKey))
-        byKey[key] ?? LineAgeMonth.empty(key),
-    ];
+    return LineAgeMonth.keysFromTo(
+      sortedKeys.first,
+      lastKey,
+    ).mapL((key) => byKey[key] ?? LineAgeMonth.empty(key));
   }
 
   /// Year sections on [timelineMonths], for x-axis grouping.
@@ -240,7 +239,7 @@ class const LineAgeReport({
     'totalLines': totalLines,
     'fileCount': fileCount,
     'totalLinesByFile': totalLinesByFile,
-    'months': [for (final month in months) month.toJson()],
+    'months': months.mapL((month) => month.toJson()),
     'projectSizeByMonth': projectSizeByMonth.toJson(),
   };
 
@@ -254,10 +253,9 @@ class const LineAgeReport({
             in (json['totalLinesByFile'] as Map<String, dynamic>).entries)
           entry.key: entry.value as int,
       },
-      months: [
-        for (final month in json['months'] as List<dynamic>)
-          LineAgeMonth.fromJson(month as Map<String, dynamic>),
-      ],
+      months: (json['months'] as List<dynamic>).mapL(
+        (month) => LineAgeMonth.fromJson(month as Map<String, dynamic>),
+      ),
       projectSizeByMonth: ProjectSizeByMonth.fromJson(
         json['projectSizeByMonth'],
       ),
@@ -300,24 +298,26 @@ class const LineAgeReport({
           (count) => count + month.totalLines,
           ifAbsent: () => month.totalLines,
         );
-        segmentsByMonth.putIfAbsent(month.month, () => []).addAll([
-          for (final segment in month.segments)
-            LineAgeSegment(
-              file: _prefixedFile(report.repoName, segment.file),
-              lineCount: segment.lineCount,
-            ),
-        ]);
+        segmentsByMonth
+            .putIfAbsent(month.month, () => [])
+            .addAll(
+              month.segments.mapL(
+                (segment) => LineAgeSegment(
+                  file: _prefixedFile(report.repoName, segment.file),
+                  lineCount: segment.lineCount,
+                ),
+              ),
+            );
       }
     }
     final monthKeys = totalsByMonth.keys.toList()..sort();
-    return [
-      for (final month in monthKeys)
-        LineAgeMonth(
-          month: month,
-          totalLines: totalsByMonth[month]!,
-          segments: segmentsByMonth[month]!,
-        ),
-    ];
+    return monthKeys.mapL(
+      (month) => LineAgeMonth(
+        month: month,
+        totalLines: totalsByMonth[month]!,
+        segments: segmentsByMonth[month]!,
+      ),
+    );
   }
 
   static Map<String, int> _prefixedTotalsByFile(List<LineAgeReport> reports) {

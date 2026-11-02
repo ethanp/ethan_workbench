@@ -100,16 +100,17 @@ class FlutterLineAge({required final List<String> flutterRoots})
     required void Function(LineAgeProgress progress)? onProgress,
     required _FleetBlameProgress blameProgress,
   }) async {
-    await Future.wait([
-      for (final gitRoot in roots)
-        _analyzeOneGitRoot(
+    await Future.wait(
+      roots.mapL(
+        (gitRoot) => _analyzeOneGitRoot(
           gitRoot: gitRoot,
           reportsByRoot: reportsByRoot,
           onPartialReport: onPartialReport,
           onProgress: onProgress,
           blameProgress: blameProgress,
         ),
-    ]);
+      ),
+    );
   }
 
   Future<void> _analyzeOneGitRoot({

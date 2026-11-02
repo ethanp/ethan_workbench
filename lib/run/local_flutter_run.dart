@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 import '../tooling/flutter_tool_environment.dart';
 import 'flutter_run_exception.dart';
 import 'os_process_tree.dart';
@@ -222,7 +224,7 @@ abstract final class FlutterRunOutput() {
       bodyEnd = nextHeader.start;
     }
     return _ExceptionDumpSlice(
-      library: header.group(1)?.trim() ?? '',
+      library: header.group(1).trimmedOrEmpty,
       body: rest.substring(0, bodyEnd),
       after: rest.substring(bodyEnd),
     );

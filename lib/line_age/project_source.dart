@@ -1,4 +1,7 @@
 import 'dart:collection';
+
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
@@ -24,9 +27,8 @@ class ProjectSource.at(final String gitRoot) {
 
   List<File> get countedFiles => _countedFiles ??= _collectCountedFiles();
 
-  List<String> get countedRelativePaths => [
-    for (final file in countedFiles) path.relative(file.path, from: gitRoot),
-  ];
+  List<String> get countedRelativePaths =>
+      countedFiles.mapL((file) => path.relative(file.path, from: gitRoot));
 
   List<File> _collectCountedFiles() {
     final counted = <File>[];

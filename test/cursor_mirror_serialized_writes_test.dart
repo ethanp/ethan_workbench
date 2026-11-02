@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'package:ethan_workbench/cursor/workbench_cursor_dirs.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
@@ -32,10 +34,12 @@ void main() {
     );
 
     final chunks = [for (var index = 0; index < 200; index++) 'chunk $index\n'];
-    await Future.wait([
-      for (final chunk in chunks)
-        WorkbenchCursorDirs.writeSafely(logFile, chunk, append: true),
-    ]);
+    await Future.wait(
+      chunks.mapL(
+        (chunk) =>
+            WorkbenchCursorDirs.writeSafely(logFile, chunk, append: true),
+      ),
+    );
 
     expect(await logFile.readAsString(), chunks.join());
   });

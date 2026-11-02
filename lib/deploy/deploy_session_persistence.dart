@@ -1,4 +1,7 @@
 import 'dart:convert';
+
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
@@ -21,7 +24,7 @@ class const DeploySessionRecord({
     'exitCodePath': exitCodePath,
     if (logPath != null) 'logPath': logPath,
     if (pid != null) 'pid': pid,
-    'waiting': [for (final job in waiting) job.toJson()],
+    'waiting': waiting.mapL((job) => job.toJson()),
   };
 
   factory fromJson(Map<String, dynamic> json) {
@@ -32,10 +35,9 @@ class const DeploySessionRecord({
       exitCodePath: json['exitCodePath'] as String,
       logPath: json['logPath'] as String?,
       pid: json['pid'] as int?,
-      waiting: [
-        for (final item in waitingJson)
-          DeployJob.fromJson(item as Map<String, dynamic>),
-      ],
+      waiting: waitingJson.mapL(
+        (item) => DeployJob.fromJson(item as Map<String, dynamic>),
+      ),
     );
   }
 }

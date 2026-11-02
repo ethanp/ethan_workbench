@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'package:ethan_workbench/line_age/project_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
@@ -25,10 +27,10 @@ void main() {
         ..writeAsStringSync('enum Foo {}\n');
 
       final projectSource = ProjectSource.at(root.path);
-      final relativePaths = [
-        for (final file in projectSource.countedFiles)
-          path.relative(file.path, from: root.path).replaceAll('\\', '/'),
-      ]..sort();
+      final relativePaths = projectSource.countedFiles.mapL(
+        (file) =>
+            path.relative(file.path, from: root.path).replaceAll('\\', '/'),
+      )..sort();
 
       expect(relativePaths, ['lib/a.dart', 'macos/Runner/AppDelegate.swift']);
       expect(projectSource.includes('lib/a.dart'), isTrue);

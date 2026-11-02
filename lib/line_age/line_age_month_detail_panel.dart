@@ -40,9 +40,7 @@ class const LineAgeMonthFileList({
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final group in _groupedSegments()) _directorySection(group),
-            ],
+            children: _groupedSegments().mapL(_directorySection),
           ),
         ),
       ),

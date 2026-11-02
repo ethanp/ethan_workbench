@@ -90,10 +90,9 @@ class LastTouchedMonths(final ProjectSource projectSource) {
 
     return LineAgeReport(
       repoName: path.basename(projectSource.gitRoot),
-      months: [
-        for (final month in sortedMonths)
-          _month(month, linesByMonthAndFile[month]!),
-      ],
+      months: sortedMonths.mapL(
+        (month) => _month(month, linesByMonthAndFile[month]!),
+      ),
       totalLinesByFile: {
         for (final entry in _largestFirst(totalByFile)) entry.key: entry.value,
       },
@@ -114,10 +113,9 @@ class LastTouchedMonths(final ProjectSource projectSource) {
     return LineAgeMonth(
       month: month,
       totalLines: linesByFile.values.fold(0, (sum, count) => sum + count),
-      segments: [
-        for (final entry in _largestFirst(linesByFile))
-          LineAgeSegment(file: entry.key, lineCount: entry.value),
-      ],
+      segments: _largestFirst(linesByFile).mapL(
+        (entry) => LineAgeSegment(file: entry.key, lineCount: entry.value),
+      ),
     );
   }
 

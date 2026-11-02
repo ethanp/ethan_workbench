@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:ethan_workbench/deploy/deploy_job.dart';
 import 'package:ethan_workbench/deploy/deploy.dart';
@@ -191,9 +193,8 @@ class _StubLocalRunRegistry(List<_StubLocalRunControls> slots)
   Stream<LocalRunState> get stateUpdates => _stateUpdates.stream;
 
   @override
-  List<LocalRunState> get knownStates => [
-    for (final slot in _slots.values) slot.state,
-  ];
+  List<LocalRunState> get knownStates =>
+      _slots.values.mapL((slot) => slot.state);
 
   @override
   int get activeCount => _slots.values.where((slot) => slot.isActive).length;

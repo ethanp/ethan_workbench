@@ -120,15 +120,10 @@ abstract final class UncommittedPatch() {
   }
 }
 
-class _FileDiffBuilder {
-  _FileDiffBuilder(String diffGitLine) {
-    final paths = _GitDiffPaths.parse(diffGitLine);
-    _path = paths.after;
-    _deletedPath = paths.before;
-  }
-
-  String _path = '';
-  String _deletedPath = '';
+class _FileDiffBuilder(String diffGitLine) {
+  late String _path = _diffGitPaths.after;
+  late String _deletedPath = _diffGitPaths.before;
+  final _GitDiffPaths _diffGitPaths = _GitDiffPaths.parse(diffGitLine);
   var _added = 0;
   var _removed = 0;
   var _isBinary = false;

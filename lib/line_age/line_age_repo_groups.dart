@@ -1,4 +1,7 @@
 import 'line_age_directory_groups.dart';
+
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'line_age_report.dart';
 
 /// Maps fleet-prefixed files (`repo/lib/foo.dart`) into one color per repo.
@@ -24,7 +27,7 @@ abstract final class LineAgeRepoGroups() {
 
     final ranked = totals.entries.toList()
       ..sort((left, right) => right.value.compareTo(left.value));
-    final orderedKeys = [for (final entry in ranked) entry.key];
+    final orderedKeys = ranked.mapL((entry) => entry.key);
     final palette = LineAgeDirectoryGroups.palette;
 
     return LineAgeDirectoryLegend(

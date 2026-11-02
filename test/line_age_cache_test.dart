@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'dart:io';
 
 import 'package:ethan_workbench/line_age/line_age_analysis_cancelled.dart';
@@ -274,9 +277,9 @@ LineAgeReport _reportAllIn2001(List<String> files) {
       LineAgeMonth(
         month: '2001-01',
         totalLines: files.length,
-        segments: [
-          for (final file in files) LineAgeSegment(file: file, lineCount: 1),
-        ],
+        segments: files.mapL(
+          (file) => LineAgeSegment(file: file, lineCount: 1),
+        ),
       ),
     ],
     totalLinesByFile: {for (final file in files) file: 1},

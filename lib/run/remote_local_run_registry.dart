@@ -143,6 +143,7 @@ class RemoteLocalRunRegistry({
       for (final runState in runStates) {
         adopt(runState);
       }
+      _idleRunsTheDaemonDropped(runStates);
     } on ServerRequestException catch (error) {
       if (error.isUnauthorized) {
         _log.warn('snapshot unauthorized');
@@ -153,6 +154,29 @@ class RemoteLocalRunRegistry({
       _log.warn('snapshot failed: ${error.message}');
     } catch (error, stackTrace) {
       _log.warn('snapshot failed', error, stackTrace);
+    }
+  }
+
+  /// The daemon lists every run it owns, so one missing from its snapshot
+  /// ended without an event reaching us (e.g. the daemon restarted).
+  void _idleRunsTheDaemonDropped(List<LocalRunState> snapshotStates) {
+    final Set<LocalRunKey?> listedKeys = snapshotStates
+        .map((runState) => runState.runKey)
+        .toSet();
+    final droppedActiveStates = _states.entries
+        .where(
+          (entry) =>
+              !listedKeys.contains(entry.key) && entry.value.status.isActive,
+        )
+        .mapL((entry) => entry.value);
+    for (final droppedState in droppedActiveStates) {
+      adopt(
+        droppedState.copyWith(
+          status: LocalRunStatus.idle,
+          readyForKeyCommands: false,
+          reattached: false,
+        ),
+      );
     }
   }
 

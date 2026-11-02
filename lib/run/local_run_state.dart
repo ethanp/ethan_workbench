@@ -92,7 +92,7 @@ class const LocalRunState({
         (value) => value.name == json['status'],
         orElse: () => LocalRunStatus.idle,
       ),
-      log: json['log'] as String? ?? '',
+      log: json['log'] as String,
       readyForKeyCommands: json['readyForKeyCommands'] as bool? ?? false,
       projectId: json['projectId'] as String?,
       projectName: json['projectName'] as String?,

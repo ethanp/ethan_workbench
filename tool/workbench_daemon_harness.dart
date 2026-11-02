@@ -25,9 +25,4 @@ void main() {
 }
 
 /// TestWidgetsFlutterBinding otherwise stubs HTTP as 400.
-class _IoHttpOverrides() extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context);
-  }
-}
+class _IoHttpOverrides() extends HttpOverrides;

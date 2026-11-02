@@ -68,7 +68,7 @@ class const ProjectSizePane({
   void paintAlongMonths(Canvas canvas) {
     final monthEnds = _monthEnds();
     if (monthEnds.isEmpty) return;
-    final points = [for (final monthEnd in monthEnds) monthEnd.at];
+    final points = monthEnds.mapL((monthEnd) => monthEnd.at);
     _paintHeightAsTranslucency(canvas, points);
     _strokeCubicThroughMonthEnds(canvas, points);
     _paintMonthEndDots(canvas, monthEnds);

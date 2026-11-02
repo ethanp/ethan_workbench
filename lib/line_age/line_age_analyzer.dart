@@ -100,9 +100,7 @@ class LineAgeAnalyzer({
     if (_cancelled) {
       throw const LineAgeAnalysisCancelled();
     }
-    final yearMonths = [
-      for (final month in lastTouched.timelineMonths) month.month,
-    ];
+    final yearMonths = lastTouched.timelineMonths.mapL((month) => month.month);
     if (yearMonths.isEmpty) return lastTouched;
     final projectSizeByMonth = await projectSizeThroughMonths.along(
       yearMonths,

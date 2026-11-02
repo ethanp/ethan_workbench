@@ -1,4 +1,5 @@
 import 'package:ethan_ui/ethan_ui.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
 import 'line_age_directory_groups.dart';
@@ -13,9 +14,7 @@ class const LineAgeDirectoryLegendBar({
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 56, right: 8),
-      child: EChartLegend(
-        entries: [for (final key in legend.orderedKeys) _directoryEntry(key)],
-      ),
+      child: EChartLegend(entries: legend.orderedKeys.mapL(_directoryEntry)),
     );
   }
 

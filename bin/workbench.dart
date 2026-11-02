@@ -686,7 +686,7 @@ class WorkbenchCli() {
         continue;
       }
       final job = jsonDecode(response.body) as Map<String, dynamic>;
-      final status = job['status'] as String? ?? '';
+      final status = job['status'] as String;
       stdout.writeln(status);
       if (status == 'succeeded' || status == 'failed') {
         final exit = job['exitCode'];

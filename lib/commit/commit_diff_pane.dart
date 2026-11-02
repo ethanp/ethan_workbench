@@ -1,13 +1,14 @@
 import 'dart:typed_data';
 
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:flutter/material.dart';
 
 import 'uncommitted_file_diff.dart';
 
-class const CommitDiffPane({
-  required final List<UncommittedFileDiff> files,
-}) extends StatelessWidget {
+class const CommitDiffPane({required final List<UncommittedFileDiff> files})
+    extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (files.isEmpty) {
@@ -28,10 +29,8 @@ class const CommitDiffPane({
       itemCount: files.length,
       separatorBuilder: (context, index) =>
           const SizedBox(height: ELayout.spaceSm),
-      itemBuilder: (context, index) => _FileDiffCard(
-        file: files[index],
-        initiallyExpanded: expandAll,
-      ),
+      itemBuilder: (context, index) =>
+          _FileDiffCard(file: files[index], initiallyExpanded: expandAll),
     );
   }
 }
@@ -53,10 +52,7 @@ class _FileDiffCardState() extends State<_FileDiffCard> {
       kind: ESurfaceKind.inset,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _fileHeader(),
-          if (_expanded) _fileBody(),
-        ],
+        children: [_fileHeader(), if (_expanded) _fileBody()],
       ),
     );
   }
@@ -159,9 +155,7 @@ class _FileDiffCardState() extends State<_FileDiffCard> {
       child: SelectionArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final line in widget.file.lines) _diffLine(line),
-          ],
+          children: widget.file.lines.mapL(_diffLine),
         ),
       ),
     );
@@ -180,7 +174,8 @@ class _FileDiffCardState() extends State<_FileDiffCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (before != null) _imageSide(after != null ? 'before' : null, before),
+          if (before != null)
+            _imageSide(after != null ? 'before' : null, before),
           if (before != null && after != null)
             const SizedBox(height: ELayout.spaceSm),
           if (after != null) _imageSide(before != null ? 'after' : null, after),

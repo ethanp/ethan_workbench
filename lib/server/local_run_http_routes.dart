@@ -60,9 +60,9 @@ class LocalRunHttpRoutes({
 
   Future<Response> _listLocalRuns(Request request) async {
     return jsonOk({
-      'runs': [
-        for (final runState in localRunRegistry.knownStates) runState.toJson(),
-      ],
+      'runs': localRunRegistry.knownStates.mapL(
+        (runState) => runState.toJson(),
+      ),
     });
   }
 

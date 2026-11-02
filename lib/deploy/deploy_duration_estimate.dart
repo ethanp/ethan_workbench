@@ -1,4 +1,7 @@
 import 'deploy_job.dart';
+
+import 'package:ethan_utils/ethan_utils.dart';
+
 import 'deploy_platform.dart';
 import 'deploy_run_record.dart';
 
@@ -34,7 +37,7 @@ abstract final class DeployDurationEstimate() {
       if (forceMatched.length >= 2) samples = forceMatched;
     }
 
-    final durations = [for (final run in samples.take(maxSamples)) run.elapsed];
+    final durations = samples.take(maxSamples).mapL((run) => run.elapsed);
     if (durations.isEmpty) return null;
 
     durations.sort((left, right) => left.compareTo(right));
