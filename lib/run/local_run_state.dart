@@ -37,7 +37,7 @@ class const LocalRunState({
   final String? projectName,
   final String? projectPath,
 
-  /// [FlutterRunDevice.key] for the active target (`macos`, `meSim`, …).
+  /// [FlutterRunDevice.key] for the active target (`macos`, `meSim`, `iphone`).
   final String? deviceKey,
   final String? deviceLabel,
 

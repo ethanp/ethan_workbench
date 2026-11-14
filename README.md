@@ -22,7 +22,7 @@ deploy queue). Workspace rule: `.cursor/rules/ubiquitous-language.mdc`.
 | install step | The deploy step that puts the built app on the iPhone or into /Applications |
 | install | Performs an install step. A failed install step can be performed again without rebuilding |
 | ledger | PowerSync `deploy_runs` / History tab (not the live queue) |
-| local run | One `flutter run` the daemon owns for a project on a device (`macos`, `meSim`) |
+| local run | One `flutter run` the daemon owns for a project on a device (`macos`, `meSim`, `iphone`) |
 | run log | A local run's live `flutter run` output: warnings, errors, and the tool's own lines |
 | info logs | The app's `ELogger.log` lines, which `flutter run` never prints, streamed from its VM service into the run log while the toggle is on |
 | restart after queue | Daemon exits once idle; LaunchAgent brings it back |
@@ -59,7 +59,7 @@ Edit `.env`:
 | `FLUTTER_ROOT` | Absolute path to the folder that contains your Flutter apps |
 | `DEPLOY_RB` | Optional. Defaults to `$FLUTTER_ROOT/ethan_workbench/deploy.rb` |
 
-Sync (optional but required for deploy history / ledger) uses the shared host keys in the same `.env`: `SERVER_HOST_LAN`, `SERVER_HOST_TAILSCALE`, `POWERSYNC_JWT_SECRET`.
+Sync (optional but required for deploy history / ledger) needs `POWERSYNC_JWT_SECRET` in this `.env` and the home-server hosts in `../ethan_sync/home_server.env`.
 
 ```bash
 flutter pub get
@@ -95,7 +95,7 @@ ruby deploy.rb ios --force
 
 Open Ethan Workbench on the phone, enter the shared `SERVER_PASSWORD`, then deploy projects from the list.
 
-On the Mac companion, projects with an `ios/` folder also get a **meSim** plate: boots the iPhone Simulator named `meSim` if needed, then `flutter run` on it (same hot reload / stop controls as macOS Run).
+On the Mac companion, projects with an `ios/` folder also get a **meSim** plate: boots the iPhone Simulator named `meSim` if needed, then `flutter run` on it (same hot reload / stop controls as macOS Run). Its **iPhone** Run cell does the same on the physical phone `flutter devices` finds (cable or Wi‑Fi, unlocked, Developer Mode on).
 
 ## Manual deploys from other apps
 

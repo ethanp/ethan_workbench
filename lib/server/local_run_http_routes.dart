@@ -31,7 +31,9 @@ class const LocalRunTarget({
     }
     final device = FlutterRunDevice.forKey(deviceKey);
     if (device == null) {
-      throw const FormatException('deviceKey must be macos or meSim');
+      throw FormatException(
+        'deviceKey must be one of ${FlutterRunDevice.all.map((device) => device.key).join(', ')}',
+      );
     }
     return LocalRunTarget(
       runKey: LocalRunKey(projectId: projectId, deviceKey: deviceKey),

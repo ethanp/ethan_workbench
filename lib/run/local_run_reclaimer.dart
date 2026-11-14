@@ -39,7 +39,7 @@ class LocalRunReclaimer({
     }
 
     _flutterRunBinding.trackedPid = attachTarget.orphanPid;
-    if (record.deviceKey == FlutterRunDevice.meSim.key) {
+    if (_vmServiceIsForwarded(record)) {
       _flutterRunBinding.deviceVmServiceUri = attachTarget.vmServiceUri;
     } else {
       _flutterRunBinding.vmServiceUri = attachTarget.vmServiceUri;
@@ -107,8 +107,8 @@ class LocalRunReclaimer({
       hostListening: hostListening,
     );
     if (attachUri == null && orphanPid == null) return null;
-    final attachingToAppOnSimulator =
-        record.deviceKey == FlutterRunDevice.meSim.key &&
+    final attachingToAppOnDevice =
+        _vmServiceIsForwarded(record) &&
         attachUri != null &&
         attachUri != record.vmServiceUri;
     return _ReclaimAttachTarget(
@@ -117,24 +117,29 @@ class LocalRunReclaimer({
       reclaimLog: _reclaimLog(
         deviceLabel: record.deviceLabel,
         orphanPid: orphanPid,
-        attachingToAppOnSimulator: attachingToAppOnSimulator,
+        attachingToAppOnDevice: attachingToAppOnDevice,
       ),
     );
   }
 
-  /// `--debug-url` for a simulator must be the app's "listening on" port.
-  /// The host "available at" URL is a forward that died with `flutter run`;
-  /// passing it makes attach forward the wrong device port and retry forever.
-  /// macOS has no forwarder, so the host URL is the service itself.
+  bool _vmServiceIsForwarded(LocalRunRecord record) =>
+      FlutterRunDevice.forKey(record.deviceKey)?.vmServiceIsForwarded ?? false;
+
+  /// `--debug-url` for a simulator or iPhone must be the app's "listening
+  /// on" port. The host "available at" URL is a forward that died with
+  /// `flutter run`; passing it makes attach forward the wrong device port
+  /// and retry forever. macOS has no forwarder, so the host URL is the
+  /// service itself.
   Future<String?> _debugUriForAttach(
     LocalRunRecord record, {
     required bool hostListening,
   }) async {
-    if (record.deviceKey == FlutterRunDevice.meSim.key) {
+    if (_vmServiceIsForwarded(record)) {
       final String? savedDeviceUri = record.deviceVmServiceUri;
       if (savedDeviceUri != null && savedDeviceUri.isNotEmpty) {
         return savedDeviceUri;
       }
+      if (record.deviceKey != FlutterRunDevice.meSim.key) return null;
       return _simulatorVmServiceLog.latestListeningUri(record.flutterDeviceId);
     }
     if (hostListening) return record.vmServiceUri;
@@ -144,10 +149,10 @@ class LocalRunReclaimer({
   String _reclaimLog({
     required String deviceLabel,
     required int? orphanPid,
-    required bool attachingToAppOnSimulator,
+    required bool attachingToAppOnDevice,
   }) {
     final String pidNote = orphanPid == null ? '' : ' (pid $orphanPid)';
-    final String attachNote = attachingToAppOnSimulator
+    final String attachNote = attachingToAppOnDevice
         ? 'Saved VM service was the old host forward. '
               'Attaching to the app still running on $deviceLabel…\n'
         : 'Attaching for hot reload…\n';

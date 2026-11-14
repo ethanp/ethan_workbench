@@ -15,7 +15,7 @@ Shared convention for all sync apps: workspace cursor rule `sync-app-identity`.
 2. Update `AppIdentity.syncAppName` / `displayName` (and keep `localDatabaseStem` stable unless you intend a fresh on-device DB)
 3. Bundle IDs + platform display names (`Info.plist` / macOS `AppInfo.xcconfig`)
 4. Strings in `db/*.sql` + `db/powersync.yaml` (must match the folder / sync app name)
-5. Infra `.env` / `.env.prod` keys `{NEW}_POSTGRES_PASSWORD` / `{NEW}_POWERSYNC_JWT_KEY`
+5. Infra `.env` keys `{NEW}_POSTGRES_PASSWORD` / `{NEW}_POWERSYNC_JWT_KEY`
 6. `./sync-app-db.sh <new_app>` (and regenerate compose) + `./reset-sync-app-db.sh <new_app>` on the server
 7. Optional: GitHub repo rename
 

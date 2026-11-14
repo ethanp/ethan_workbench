@@ -56,3 +56,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Real-data snapshot from export_real_data_snapshot.sh (private rows)
+.real_data/

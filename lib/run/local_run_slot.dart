@@ -289,9 +289,8 @@ class LocalRunSlot({
         flutterDeviceId == null) {
       return;
     }
-    final device = deviceKey == FlutterRunDevice.meSim.key
-        ? FlutterRunDevice.meSim
-        : FlutterRunDevice.macos;
+    final device = FlutterRunDevice.forKey(deviceKey);
+    if (device == null) return;
     try {
       await stop();
       if (_runProgress.isActive) {

@@ -1,4 +1,5 @@
 import 'package:ethan_ui/ethan_ui.dart';
+import 'package:ethan_utils/ethan_utils.dart';
 import 'package:flutter/material.dart';
 
 import '../deploy/deploy_job.dart';
@@ -28,42 +29,12 @@ class const WorkbenchRowPlatformCluster({
       return WorkbenchUnavailablePlatformCluster(platform: platform);
     }
 
-    final runDevice = runDeviceFor(platform);
-    final canRun = canRunLocally && runDevice != null;
-    final runStatus = canRun ? _activeRunStatus(runDevice) : null;
-    final runHasException = canRun && _runHasException(runDevice);
-    final idleSubtitle = platform == DeployPlatform.macos
-        ? 'Debug'
-        : 'Simulator';
-
     return EActionCluster(
       accent: platform.accent,
       icon: platform.icon,
       label: platform.label,
       cells: [
-        if (canRun)
-          EActionClusterCell(
-            icon: runStatus != null
-                ? Icons.play_circle_filled_rounded
-                : Icons.play_arrow_rounded,
-            title: 'Run',
-            subtitle: runStatus != null
-                ? (runHasException
-                      ? 'Exception'
-                      : runStatus.subtitleGivenIdle(idleSubtitle))
-                : idleSubtitle,
-            condensedLabel: 'Run',
-            statusLabel: runHasException ? 'Exception' : runStatus?.chipLabel,
-            statusTone: runHasException
-                ? EStatusTone.danger
-                : runStatus?.chipTone,
-            live: runStatus != null,
-            trailing: WorkbenchRunStopControl.maybe(
-              runStatus: runStatus,
-              onStop: () => onStopRun(runDevice),
-            ),
-            onActivated: () => onRun(runDevice),
-          ),
+        if (canRunLocally) ...runDevicesFor(platform).mapL(_runCell),
         deployActionCell(
           platform: platform,
           lastDeployedAt: project.lastDeployedAt[platform],
@@ -74,6 +45,31 @@ class const WorkbenchRowPlatformCluster({
           onSelected: () => onDeploy(platform),
         ),
       ],
+    );
+  }
+
+  EActionClusterCell _runCell(FlutterRunDevice runDevice) {
+    final runStatus = _activeRunStatus(runDevice);
+    final runHasException = _runHasException(runDevice);
+    return EActionClusterCell(
+      icon: runStatus != null
+          ? Icons.play_circle_filled_rounded
+          : Icons.play_arrow_rounded,
+      title: 'Run',
+      subtitle: runStatus != null
+          ? (runHasException
+                ? 'Exception'
+                : runStatus.subtitleGivenIdle(runDevice.runCaption))
+          : runDevice.runCaption,
+      condensedLabel: runDevice.condensedRunLabel,
+      statusLabel: runHasException ? 'Exception' : runStatus?.chipLabel,
+      statusTone: runHasException ? EStatusTone.danger : runStatus?.chipTone,
+      live: runStatus != null,
+      trailing: WorkbenchRunStopControl.maybe(
+        runStatus: runStatus,
+        onStop: () => onStopRun(runDevice),
+      ),
+      onActivated: () => onRun(runDevice),
     );
   }
 
@@ -98,10 +94,10 @@ class const WorkbenchRowPlatformCluster({
     return runState.flutterException != null;
   }
 
-  static FlutterRunDevice? runDeviceFor(DeployPlatform platform) =>
+  static List<FlutterRunDevice> runDevicesFor(DeployPlatform platform) =>
       switch (platform) {
-        DeployPlatform.macos => FlutterRunDevice.macos,
-        DeployPlatform.ios => FlutterRunDevice.meSim,
+        DeployPlatform.macos => [FlutterRunDevice.macos],
+        DeployPlatform.ios => [FlutterRunDevice.meSim, FlutterRunDevice.iphone],
       };
 }
 

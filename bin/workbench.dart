@@ -265,6 +265,9 @@ class WorkbenchCli() {
         case '--mesim':
         case 'meSim':
           deviceKey = 'meSim';
+        case '--iphone':
+        case 'iphone':
+          deviceKey = 'iphone';
         case '--library':
           if (index + 1 >= rest.length) {
             stderr.writeln('--library needs a library URI suffix');
@@ -471,9 +474,9 @@ class WorkbenchCli() {
   void _runUsage() {
     stderr.writeln(
       'Usage: workbench run <status|start|stop|hot-reload|hot-restart|'
-      'full-restart|log> <projectId> [--macos|--meSim]\n'
-      '       workbench run info-logs <projectId> [--macos|--meSim] on|off\n'
-      "       workbench run eval <projectId> [--macos|--meSim] '<dart expression>' "
+      'full-restart|log> <projectId> [--macos|--meSim|--iphone]\n'
+      '       workbench run info-logs <projectId> [--macos|--meSim|--iphone] on|off\n'
+      "       workbench run eval <projectId> [--macos|--meSim|--iphone] '<dart expression>' "
       '[--library <uri suffix>]',
     );
   }
@@ -843,8 +846,8 @@ Usage: workbench <command>
   deploy <projectId> [projectId ...] [--ios|--macos] [--force] [--wait]
   job [jobId]
   runs
-  run <status|start|stop|hot-reload|hot-restart|full-restart|log> <projectId> [--macos|--meSim]
-  run eval <projectId> [--macos|--meSim] '<dart expression>' [--library <uri suffix>]
+  run <status|start|stop|hot-reload|hot-restart|full-restart|log> <projectId> [--macos|--meSim|--iphone]
+  run eval <projectId> [--macos|--meSim|--iphone] '<dart expression>' [--library <uri suffix>]
   daemon start|stop|restart|status|install
 ''');
   }

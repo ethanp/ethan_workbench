@@ -61,8 +61,6 @@ class const ProjectWorkbenchRow({
 
   @override
   Widget build(BuildContext context) {
-    final macosRunStatus = _activeRunStatus(FlutterRunDevice.macos);
-    final meSimRunStatus = _activeRunStatus(FlutterRunDevice.meSim);
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
     final rowPadH = compact
         ? WorkbenchRowLayout.compactRowPadH
@@ -71,8 +69,9 @@ class const ProjectWorkbenchRow({
       kind: ESurfaceKind.row,
       attention:
           project.hasChangedSources ||
-          macosRunStatus != null ||
-          meSimRunStatus != null ||
+          FlutterRunDevice.all.any(
+            (device) => _activeRunStatus(device) != null,
+          ) ||
           ongoingDeploy != null,
       padding: EdgeInsets.fromLTRB(
         rowPadH,

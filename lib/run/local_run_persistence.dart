@@ -122,8 +122,10 @@ class LocalRunPersistence() {
 
   Future<void> clear(LocalRunKey runKey) async {
     final file = await _fileFor(runKey);
-    if (await file.exists()) {
+    try {
       await file.delete();
+    } on PathNotFoundException {
+      // Stop and the run's own exit both clear; the other one got here first.
     }
   }
 }
