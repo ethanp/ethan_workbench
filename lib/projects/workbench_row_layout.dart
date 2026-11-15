@@ -124,9 +124,10 @@ class const WorkbenchRowSlotWidths({
       commit: 0,
       cluster: clusterCount == 0
           ? 0.0
-          : ((maxWidth - clusterGaps) / clusterCount)
-              .floorToDouble()
-              .clamp(0.0, WorkbenchRowLayout.clusterWidth),
+          : ((maxWidth - clusterGaps) / clusterCount).floorToDouble().clamp(
+              0.0,
+              WorkbenchRowLayout.clusterWidth,
+            ),
     );
   }
 
@@ -147,8 +148,8 @@ class const WorkbenchRowSlotWidths({
       cluster: clusterCount == 0
           ? 0.0
           : ((clusterFloorTotal + identitySurplus) / clusterCount)
-              .floorToDouble()
-              .clamp(0.0, WorkbenchRowLayout.clusterWidth),
+                .floorToDouble()
+                .clamp(0.0, WorkbenchRowLayout.clusterWidth),
     );
   }
 
@@ -175,10 +176,7 @@ class const WorkbenchRowSlotWidths({
     return const WorkbenchSecondaryActionWidths(lineAge: 0, commit: 0);
   }
 
-  double occupied({
-    required double clusterGap,
-    required int platformCount,
-  }) {
+  double occupied({required double clusterGap, required int platformCount}) {
     var slotIndex = 0;
     var width = 0.0;
     void addSlot(double slotWidth) {

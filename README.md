@@ -26,6 +26,7 @@ deploy queue). Workspace rule: `.cursor/rules/ubiquitous-language.mdc`.
 | run log | A local run's live `flutter run` output: warnings, errors, and the tool's own lines |
 | info logs | The app's `ELogger.log` lines, which `flutter run` never prints, streamed from its VM service into the run log while the toggle is on |
 | restart after queue | Daemon exits once idle; LaunchAgent brings it back |
+| backup | A sync app's newest nightly database dump copied to this Mac (`~/Backups/postgres/<app>/`). Its age is the badge on the app icon |
 
 ### Screenshots
 

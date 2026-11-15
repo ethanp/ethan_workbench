@@ -4,10 +4,16 @@ import 'package:path/path.dart' as path;
 
 import '../deploy/deploy_platform.dart';
 import 'project_app_icon.dart';
+import 'sync_database_backup.dart';
 import 'workbench_project.dart';
 
 /// Discovers pubspec projects under configured Flutter roots.
-class const ProjectCatalog({required final List<String> flutterRoots}) {
+class const ProjectCatalog({
+  required final List<String> flutterRoots,
+
+  /// Where the pull app copies database dumps; see [SyncDatabaseBackup].
+  required final String macBackupsRoot,
+}) {
   static const _skipDirectoryNames = {
     '.',
     '..',
@@ -73,9 +79,10 @@ class const ProjectCatalog({required final List<String> flutterRoots}) {
       final absolutePath = directory.absolute.path;
       if (seenPaths.add(absolutePath)) {
         final relativePath = path.relative(absolutePath, from: flutterRoot);
+        final projectId = relativePath.split(path.separator).join('/');
         discoveredProjects.add(
           WorkbenchProject(
-            projectId: relativePath.split(path.separator).join('/'),
+            projectId: projectId,
             name: directoryName,
             path: absolutePath,
             platforms: platforms,
@@ -84,6 +91,11 @@ class const ProjectCatalog({required final List<String> flutterRoots}) {
               platforms: platforms,
             ),
             iconPngBytes: await ProjectAppIcon.loadPngBytes(absolutePath),
+            syncDatabaseBackup: await SyncDatabaseBackup.findForProject(
+              projectId: projectId,
+              flutterRoot: flutterRoot,
+              macBackupsRoot: macBackupsRoot,
+            ),
           ),
         );
       }

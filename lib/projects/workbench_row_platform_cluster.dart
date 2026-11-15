@@ -125,9 +125,8 @@ class const WorkbenchUnavailablePlatformCluster({
   }
 }
 
-class const WorkbenchRunStopControl({
-  required final VoidCallback onStop,
-}) extends StatelessWidget {
+class const WorkbenchRunStopControl({required final VoidCallback onStop})
+    extends StatelessWidget {
   static Widget? maybe({
     required LocalRunStatus? runStatus,
     required VoidCallback onStop,

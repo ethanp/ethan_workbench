@@ -1,6 +1,7 @@
 import '../projects/deploy_source_hasher.dart';
 import '../projects/project_scanner.dart';
 import '../projects/source_changes_progress.dart';
+import '../projects/sync_database_backup.dart';
 import '../projects/workbench_project.dart';
 import '../sync/deploy_ledger.dart';
 import 'deploy_platform.dart';
@@ -17,8 +18,10 @@ class WorkbenchProjectDirectory({
   }
 
   Future<List<WorkbenchProject>> listProjects() async {
-    final projects = await ProjectCatalog(flutterRoots: flutterRoots)
-        .listProjects();
+    final projects = await ProjectCatalog(
+      flutterRoots: flutterRoots,
+      macBackupsRoot: SyncDatabaseBackup.pulledDumpsRoot,
+    ).listProjects();
     return _enrichWithLedger(projects);
   }
 

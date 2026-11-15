@@ -80,10 +80,8 @@ class const ProjectWorkbenchRow({
         WorkbenchRowLayout.rowPadV,
       ),
       child: LayoutBuilder(
-        builder: (context, constraints) => _actionRow(
-          constraints.maxWidth,
-          compact: compact,
-        ),
+        builder: (context, constraints) =>
+            _actionRow(constraints.maxWidth, compact: compact),
       ),
     );
   }

@@ -13,7 +13,9 @@ class HomescreenSourceCache({required final void Function() onChanged}) {
     await UncommittedChangesCache.instance.refreshAll(projectPaths);
   }
 
-  Future<void> blameDistinctGitRoots({required List<String> flutterRoots}) async {
+  Future<void> blameDistinctGitRoots({
+    required List<String> flutterRoots,
+  }) async {
     final analyzePaths = FlutterGitRepos(flutterRoots: flutterRoots).gitRoots;
     await Future.wait(analyzePaths.map(_analyzeOrCachedOneGitRoot));
     onChanged();

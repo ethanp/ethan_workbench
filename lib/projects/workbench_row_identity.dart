@@ -6,6 +6,7 @@ import '../commit/uncommitted_change_counts.dart';
 import '../commit/uncommitted_file_diff.dart';
 import '../ui/workbench_action_accents.dart';
 import 'project_app_icon_tile.dart';
+import 'sync_database_backup.dart';
 import 'workbench_project.dart';
 
 class const WorkbenchRowIdentity({required final WorkbenchProject project})
@@ -15,10 +16,7 @@ class const WorkbenchRowIdentity({required final WorkbenchProject project})
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ProjectAppIconTile(
-          iconPngBytes: project.iconPngBytes,
-          size: ELayout.listRowIcon,
-        ),
+        _appIconWithBackupAge(),
         const SizedBox(height: ELayout.spaceXs),
         Text(
           project.name,
@@ -33,6 +31,86 @@ class const WorkbenchRowIdentity({required final WorkbenchProject project})
         ),
       ],
     );
+  }
+
+  /// The backup age hangs off the icon's corner so the identity column keeps
+  /// its width and height.
+  Widget _appIconWithBackupAge() {
+    final iconTile = ProjectAppIconTile(
+      iconPngBytes: project.iconPngBytes,
+      size: ELayout.listRowIcon,
+    );
+    final SyncDatabaseBackup? syncDatabaseBackup = project.syncDatabaseBackup;
+    if (syncDatabaseBackup == null) return iconTile;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        iconTile,
+        Positioned(
+          right: -8,
+          bottom: -5,
+          child: WorkbenchBackupAgeBadge(
+            syncDatabaseBackup: syncDatabaseBackup,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Database glyph plus how long ago the newest backup on this Mac was made
+/// (`9h`); warning-toned with `none` or an old age.
+class const WorkbenchBackupAgeBadge({
+  required final SyncDatabaseBackup syncDatabaseBackup,
+}) extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final Color badgeForeground = syncDatabaseBackup.isStale
+        ? EColors.warning
+        : EColors.textMuted;
+    return Tooltip(
+      message: _backupTooltip(),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: syncDatabaseBackup.isStale
+              ? EColors.warningSoft
+              : EColors.surfaceInset,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: badgeForeground.withValues(alpha: 0.45),
+            width: 0.8,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(3, 1, 4, 1),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.storage_rounded, size: 9, color: badgeForeground),
+              const SizedBox(width: 2),
+              Text(
+                syncDatabaseBackup.lastBackupAt?.relativeTimeShort() ?? 'none',
+                style: EText.caption.copyWith(
+                  color: badgeForeground,
+                  fontSize: ELayout.typeSize(9.5),
+                  fontWeight: FontWeight.w600,
+                  height: 1.1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _backupTooltip() {
+    final DateTime? lastBackupAt = syncDatabaseBackup.lastBackupAt;
+    if (lastBackupAt == null) {
+      return 'No backup of ${syncDatabaseBackup.databaseName} on this Mac';
+    }
+    return 'Last backup of ${syncDatabaseBackup.databaseName} on this Mac · '
+        '${lastBackupAt.dateAtTime} (${lastBackupAt.relativeTimeAgo()})';
   }
 }
 

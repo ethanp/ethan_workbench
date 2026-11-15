@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../deploy/deploy_platform.dart';
+import 'sync_database_backup.dart';
 
 enum DeploySourceStatus({required final String? chipLabel}) {
   unevaluated(chipLabel: null),
@@ -27,6 +28,7 @@ class const WorkbenchProject({
   final Map<DeployPlatform, DateTime?> lastDeployedAt = const {},
   final Map<DeployPlatform, DeploySourceStatus> sourceStatus = const {},
   final Uint8List? iconPngBytes,
+  final SyncDatabaseBackup? syncDatabaseBackup,
 }) {
   bool get isDeployable => platforms.isNotEmpty;
 
@@ -75,6 +77,7 @@ class const WorkbenchProject({
       lastDeployedAt: lastDeployedAt ?? this.lastDeployedAt,
       sourceStatus: sourceStatus ?? this.sourceStatus,
       iconPngBytes: iconPngBytes ?? this.iconPngBytes,
+      syncDatabaseBackup: syncDatabaseBackup,
     );
   }
 
@@ -101,6 +104,8 @@ class const WorkbenchProject({
           ),
     };
     final iconBase64 = json['iconPngBase64'] as String?;
+    final syncDatabaseBackupJson =
+        json['syncDatabaseBackup'] as Map<String, dynamic>?;
     return WorkbenchProject(
       projectId: json['projectId'] as String,
       name: json['name'] as String,
@@ -111,6 +116,9 @@ class const WorkbenchProject({
       iconPngBytes: iconBase64 == null || iconBase64.isEmpty
           ? null
           : base64Decode(iconBase64),
+      syncDatabaseBackup: syncDatabaseBackupJson == null
+          ? null
+          : SyncDatabaseBackup.fromJson(syncDatabaseBackupJson),
     );
   }
 
@@ -128,6 +136,8 @@ class const WorkbenchProject({
         if (entry.value.isEvaluated) entry.key.name: entry.value.name,
     },
     if (iconPngBytes != null) 'iconPngBase64': base64Encode(iconPngBytes!),
+    if (syncDatabaseBackup != null)
+      'syncDatabaseBackup': syncDatabaseBackup!.toJson(),
   };
 
   static DateTime? _parseOptionalDateTime(Object? value) {
