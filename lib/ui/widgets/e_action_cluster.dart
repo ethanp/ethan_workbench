@@ -44,11 +44,23 @@ class const EActionCluster({
   final IconData? icon,
   final String? label,
 }) extends StatelessWidget {
+  /// Narrowest cluster of [cellCount] cells that still shows every cell's
+  /// title and subtitle and the rail's label; narrower, cells go icon-only.
+  static double labeledWidthFor(int cellCount) =>
+      _DenseFusedWellSizing.railLabeled +
+      cellCount * (_DenseFusedWellSizing.condensedMaxWidth + 1);
+
+  /// Room above a cluster for its hanging status ribbon.
+  static const statusRibbonClearance =
+      _DenseFusedWellSizing.statusEdgeHeight -
+      _DenseFusedWellSizing.statusEdgeOverlap;
+
   @override
   Widget build(BuildContext context) {
     if (cells.isEmpty) return const SizedBox.shrink();
 
-    final height = _DenseFusedWellSizing.cellHeight + _DenseFusedWellSizing.cellPadV * 2;
+    final height =
+        _DenseFusedWellSizing.cellHeight + _DenseFusedWellSizing.cellPadV * 2;
     const radius = ELayout.borderRadiusMd;
 
     return SizedBox(
@@ -60,7 +72,8 @@ class const EActionCluster({
               showRail &&
               label != null &&
               label!.isNotEmpty &&
-              constraints.maxWidth >= _DenseFusedWellSizing.labeledRailMinClusterWidth;
+              constraints.maxWidth >=
+                  _DenseFusedWellSizing.labeledRailMinClusterWidth;
           final railWidth = !showRail
               ? 0.0
               : showRailLabel
@@ -225,7 +238,8 @@ class const _Cell({
           child: LayoutBuilder(
             builder: (context, constraints) {
               final condensed =
-                  constraints.maxWidth <= _DenseFusedWellSizing.condensedMaxWidth;
+                  constraints.maxWidth <=
+                  _DenseFusedWellSizing.condensedMaxWidth;
               final padH = condensed
                   ? ELayout.spaceXs
                   : _DenseFusedWellSizing.cellPadH;
@@ -338,7 +352,8 @@ class const _Cell({
       }
     }
     final showLabel =
-        hasLabel && contentWidth - used - _DenseFusedWellSizing.condensedGap >= 8;
+        hasLabel &&
+        contentWidth - used - _DenseFusedWellSizing.condensedGap >= 8;
 
     return Row(
       children: [
