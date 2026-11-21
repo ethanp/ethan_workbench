@@ -56,12 +56,19 @@ void main() {
     expect(origins[1].dx, greaterThan(origins[0].dx));
   });
 
-  testWidgets('platform clusters stack once side by side would go icon-only', (
+  testWidgets('narrow platforms stay side by side and stack their own cells', (
     tester,
   ) async {
     final List<Offset> origins = await clusterOriginsAt(tester, 620);
     expect(origins, hasLength(2));
-    expect(origins[0].dx, origins[1].dx);
-    expect(origins[1].dy, greaterThan(origins[0].dy));
+    expect(origins[0].dy, origins[1].dy);
+    final Finder macosCluster = find.byType(EActionCluster).first;
+    final Offset runOrigin = tester.getTopLeft(
+      find.descendant(of: macosCluster, matching: find.text('Run')),
+    );
+    final Offset deployOrigin = tester.getTopLeft(
+      find.descendant(of: macosCluster, matching: find.text('Deploy')),
+    );
+    expect(deployOrigin.dy, greaterThan(runOrigin.dy));
   });
 }

@@ -4,7 +4,9 @@ import 'package:ethan_ui/theme/e_layout.dart';
 
 /// Preferred maxima for identity, then Line age + commit, then clusters.
 abstract final class WorkbenchRowLayout() {
-  static const clusterWidth = 320.0;
+  /// Wide enough for a three-cell cluster (iOS: phone, simulator, deploy)
+  /// to keep every cell's title side by side.
+  static const clusterWidth = 330.0;
   static const clusterGap = 10.0;
   static const compactClusterGap = 6.0;
 

@@ -44,86 +44,132 @@ class const EActionCluster({
   final IconData? icon,
   final String? label,
 }) extends StatelessWidget {
-  /// Narrowest cluster of [cellCount] cells that still shows every cell's
-  /// title and subtitle and the rail's label; narrower, cells go icon-only.
-  static double labeledWidthFor(int cellCount) =>
-      _DenseFusedWellSizing.railLabeled +
-      cellCount * (_DenseFusedWellSizing.condensedMaxWidth + 1);
-
-  /// Room above a cluster for its hanging status ribbon.
-  static const statusRibbonClearance =
-      _DenseFusedWellSizing.statusEdgeHeight -
-      _DenseFusedWellSizing.statusEdgeOverlap;
-
+  /// Too narrow for every cell to keep its title side by side, the cells
+  /// stack in a column beside the rail, each at the cluster's full width.
   @override
   Widget build(BuildContext context) {
     if (cells.isEmpty) return const SizedBox.shrink();
-
-    final height =
-        _DenseFusedWellSizing.cellHeight + _DenseFusedWellSizing.cellPadV * 2;
-    const radius = ELayout.borderRadiusMd;
-
-    return SizedBox(
-      height: height,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final showRail = icon != null || (label != null && label!.isNotEmpty);
-          final showRailLabel =
-              showRail &&
-              label != null &&
-              label!.isNotEmpty &&
-              constraints.maxWidth >=
-                  _DenseFusedWellSizing.labeledRailMinClusterWidth;
-          final railWidth = !showRail
-              ? 0.0
-              : showRailLabel
-              ? _DenseFusedWellSizing.railLabeled
-              : _DenseFusedWellSizing.railIconOnly;
-
-          return Stack(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool stacksCells =
+            cells.length > 1 && constraints.maxWidth < _labeledSideBySideWidth;
+        final double railWidth = _railWidthFor(constraints.maxWidth);
+        return SizedBox(
+          height: stacksCells
+              ? _cellRowHeight * cells.length + (cells.length - 1)
+              : _cellRowHeight,
+          child: Stack(
             clipBehavior: Clip.none,
             children: [
-              ESurface(
-                kind: ESurfaceKind.inset,
-                borderRadius: radius,
-                child: ClipRRect(
-                  borderRadius: radius,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (showRail)
-                        _AccentRail(
-                          accent: accent,
-                          icon: icon,
-                          label: showRailLabel ? label : null,
-                          width: railWidth,
-                        ),
-                      for (var index = 0; index < cells.length; index++) ...[
-                        if (index > 0)
-                          VerticalDivider(
-                            width: 1,
-                            thickness: 1,
-                            color: EColors.border.withValues(alpha: 0.85),
-                          ),
-                        Expanded(
-                          child: _Cell(accent: accent, cell: cells[index]),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+              _well(
+                railWidth: railWidth,
+                showRailLabel: railWidth == _DenseFusedWellSizing.railLabeled,
+                cellsArea: stacksCells
+                    ? _cellsStackedInColumn()
+                    : _cellsSideBySide(),
               ),
               ..._hangingEdges(
                 clusterWidth: constraints.maxWidth,
                 railWidth: railWidth,
               ),
             ],
-          );
-        },
+          ),
+        );
+      },
+    );
+  }
+
+  static const _cellRowHeight =
+      _DenseFusedWellSizing.cellHeight + _DenseFusedWellSizing.cellPadV * 2;
+
+  /// Narrowest width at which every cell keeps its title side by side.
+  double get _labeledSideBySideWidth =>
+      _DenseFusedWellSizing.railLabeled +
+      cells.length * (_DenseFusedWellSizing.condensedMaxWidth + 1);
+
+  bool get _hasRail => icon != null || (label != null && label!.isNotEmpty);
+
+  double _railWidthFor(double clusterWidth) {
+    if (!_hasRail) return 0;
+    final bool fitsLabel =
+        label != null &&
+        label!.isNotEmpty &&
+        clusterWidth >= _DenseFusedWellSizing.labeledRailMinClusterWidth;
+    return fitsLabel
+        ? _DenseFusedWellSizing.railLabeled
+        : _DenseFusedWellSizing.railIconOnly;
+  }
+
+  /// The inset surface: rail, then [cellsArea].
+  Widget _well({
+    required double railWidth,
+    required bool showRailLabel,
+    required Widget cellsArea,
+  }) {
+    const radius = ELayout.borderRadiusMd;
+    return ESurface(
+      kind: ESurfaceKind.inset,
+      borderRadius: radius,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_hasRail)
+              _AccentRail(
+                accent: accent,
+                icon: icon,
+                label: showRailLabel ? label : null,
+                width: railWidth,
+              ),
+            Expanded(child: cellsArea),
+          ],
+        ),
       ),
     );
   }
 
+  Widget _cellsSideBySide() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0; index < cells.length; index++) ...[
+          if (index > 0)
+            VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: EColors.border.withValues(alpha: 0.85),
+            ),
+          Expanded(
+            child: _Cell(accent: accent, cell: cells[index]),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _cellsStackedInColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0; index < cells.length; index++) ...[
+          if (index > 0)
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: EColors.border.withValues(alpha: 0.85),
+            ),
+          SizedBox(
+            height: _cellRowHeight,
+            child: _Cell(accent: accent, cell: cells[index]),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Status ribbons hang off the top edge in cell order either way, so a
+  /// stacked well is no taller for them.
   List<Widget> _hangingEdges({
     required double clusterWidth,
     required double railWidth,
