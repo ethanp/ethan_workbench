@@ -1,7 +1,7 @@
 import 'package:ethan_workbench/deploy/deploy_job.dart';
 import 'package:ethan_workbench/deploy/deploy_platform.dart';
 import 'package:ethan_workbench/deploy/deploy_queue_panel.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DeployJob _deployJob({required String jobId, required DeployJobStatus status}) {

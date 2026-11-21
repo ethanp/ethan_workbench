@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:ethan_ui/ethan_ui.dart';
 import 'package:ethan_utils/ethan_utils.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../ui/workbench_domain_appearance.dart';

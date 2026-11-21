@@ -4,7 +4,7 @@ import 'package:ethan_workbench/projects/workbench_project.dart';
 import 'package:ethan_workbench/run/local_run_state.dart';
 import 'package:ethan_workbench/ui/widgets/e_action_cluster.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   const project = WorkbenchProject(

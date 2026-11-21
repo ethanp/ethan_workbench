@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:ethan_workbench/commit/commit_diff_pane.dart';
 import 'package:ethan_workbench/commit/uncommitted_file_diff.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

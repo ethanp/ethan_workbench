@@ -17,7 +17,7 @@ import 'package:ethan_workbench/run/local_run_controls.dart';
 import 'package:ethan_workbench/run/local_run_key.dart';
 import 'package:ethan_workbench/run/local_run_registry.dart';
 import 'package:ethan_workbench/run/local_run_state.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _desktopSize = Size(1600, 900);

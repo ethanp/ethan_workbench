@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Workbench project-action accents — app-specific, not shared ethan_ui tokens.
 abstract final class WorkbenchActionAccents() {

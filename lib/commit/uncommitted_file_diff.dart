@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:ethan_ui/ethan_ui.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum DiffLineKind({required final Color foreground}) {
   context(foreground: EColors.mono),

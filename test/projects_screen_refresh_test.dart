@@ -6,7 +6,7 @@ import 'package:ethan_workbench/deploy/deploy_trigger.dart';
 import 'package:ethan_workbench/projects/projects_screen.dart';
 import 'package:ethan_workbench/projects/source_changes_progress.dart';
 import 'package:ethan_workbench/projects/workbench_project.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
