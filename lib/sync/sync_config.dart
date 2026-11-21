@@ -11,13 +11,13 @@ bool ethanWorkbenchSyncConfigured() => DotEnvSyncBootstrap.isConfigured();
 
 /// Builds ethan_workbench's [SyncConfig] for `ethan_sync`.
 ///
-/// Database path is [AppIdentity.localDatabasePath] so the daemon (no
+/// Database path is [AppIdentity.resolveLocalDatabasePath] so the daemon (no
 /// SharedPreferences plugin) and the companion open the same ledger file.
 SyncConfig buildEthanWorkbenchSyncConfig({
   PowerSyncOpenFactory Function(String databasePath)? openFactory,
 }) {
   return DotEnvSyncBootstrap.build(
-    databasePath: () async => AppIdentity.localDatabasePath,
+    databasePath: AppIdentity.resolveLocalDatabasePath,
     appName: AppIdentity.syncAppName,
     localDatabaseStem: AppIdentity.localDatabaseStem,
     powersyncPort: 8084,
