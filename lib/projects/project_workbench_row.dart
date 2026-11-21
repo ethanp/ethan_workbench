@@ -61,7 +61,7 @@ class const ProjectWorkbenchRow({
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final compact = EWidthClass.of(context).isCompact;
     final rowPadH = compact
         ? WorkbenchRowLayout.compactRowPadH
         : WorkbenchRowLayout.rowPadH;

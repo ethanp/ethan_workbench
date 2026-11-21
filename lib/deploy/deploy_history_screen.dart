@@ -118,7 +118,7 @@ class _DeployHistoryScreenState() extends State<DeployHistoryScreen> {
     try {
       final job = await widget.trigger.fetchJob(run.runId);
       if (!mounted) return;
-      if (MediaQuery.sizeOf(context).shortestSide < 600) {
+      if (EWidthClass.of(context).isCompact) {
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (context) =>
@@ -141,8 +141,7 @@ class _DeployHistoryScreenState() extends State<DeployHistoryScreen> {
   Widget build(BuildContext context) {
     final selectedRunJob = _selectedRunJob;
     final showJobRail =
-        selectedRunJob != null &&
-        MediaQuery.sizeOf(context).shortestSide >= 600;
+        selectedRunJob != null && !EWidthClass.of(context).isCompact;
     return EScaffoldShell(
       contentMaxWidth: showJobRail
           ? double.infinity

@@ -214,7 +214,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
 
   void _showJobInSideRailOrJobScreen(DeployJob job) {
     if (!mounted) return;
-    if (MediaQuery.sizeOf(context).shortestSide < 600) {
+    if (EWidthClass.of(context).isCompact) {
       unawaited(_pushJobScreen(job));
       return;
     }
@@ -238,7 +238,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
 
   void _showRunInSideRailOrRunScreen(LocalRunControls controls) {
     if (!mounted) return;
-    if (MediaQuery.sizeOf(context).shortestSide < 600) {
+    if (EWidthClass.of(context).isCompact) {
       unawaited(
         Navigator.of(context).push(
           MaterialPageRoute<void>(
@@ -316,7 +316,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     for (final project in _catalog.projects) {
       changedCount += project.changedPlatforms.length;
     }
-    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final compact = EWidthClass.of(context).isCompact;
     final onActivated = changedCount == 0
         ? null
         : () => unawaited(
@@ -345,7 +345,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
   }
 
   Widget _flutterLineAgeAction() {
-    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final compact = EWidthClass.of(context).isCompact;
     final subtitle = FlutterLineAge(flutterRoots: widget.trigger.flutterRoots)
         .cachedSlocSubtitle();
     if (compact) {
@@ -393,7 +393,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final compact = EWidthClass.of(context).isCompact;
     final showSideRail = _rails.showSideRail(
       compact: compact,
       hasQueuePanelContent: _activeDeploy.hasQueuePanelContent,
@@ -474,7 +474,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
     final onPressed = isBusy
         ? (_refreshBusyRevealed ? null : () {})
         : () => unawaited(_reload(evaluateChanges: true));
-    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final compact = EWidthClass.of(context).isCompact;
     final tooltip = lastCheckedLabel == null
         ? 'Refresh changed status'
         : 'Refresh changed status · $lastCheckedLabel';
@@ -527,7 +527,7 @@ class _ProjectsScreenState() extends State<ProjectsScreen> {
       return _emptyState();
     }
 
-    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final compact = EWidthClass.of(context).isCompact;
     final listPadH = compact ? 6.0 : ELayout.spaceXl;
     return RefreshIndicator(
       color: EColors.accentGlow,
